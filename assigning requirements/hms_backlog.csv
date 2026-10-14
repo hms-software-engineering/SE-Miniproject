@@ -1,0 +1,190 @@
+id,title,assignee,sprint,story_points,priority,body
+HMS-T-01,"HMS-T-01 Repo setup, CMake build and folder structure",dhruv931101,1,3,High,"Project setup task (SAD 3.6).
+
+Source: SRS requirement HMS-T-01."
+HMS-T-02,HMS-T-02 PostgreSQL schema and migrations,Gnanasagar2005,1,5,High,"Create the tables listed in SAD 4.1 (users, patients, doctors, appointments, visits, bills, audit_log).
+
+Source: SRS requirement HMS-T-02."
+HMS-T-03,"HMS-T-03 REST API skeleton, standard error format and request logging",dhruv931101,1,5,High,"SAD 4.3 and 4.4: /api/v1 base path, JSON error format, requestId logging.
+
+Source: SRS requirement HMS-T-03."
+HMS-T-04,HMS-T-04 GitHub Actions: build and run unit tests on every pull request,daksha311,1,3,High,"Part-2 requirement: enable GitHub Actions for PRs and commits.
+
+Source: SRS requirement HMS-T-04."
+HMS-T-05,HMS-T-05 Qt desktop client skeleton and login screen,nav-yeah,1,5,High,"SAD 3.4 Desktop UI Client.
+
+Source: SRS requirement HMS-T-05."
+HMS-T-06,HMS-T-06 Sprint 1 demo video (1 minute) uploaded to the repo,nav-yeah,1,1,High,"Part-2 deliverable 2g/2h.
+
+Source: SRS requirement HMS-T-06."
+HMS-T-07,"HMS-T-07 Sprint 2 demo video (2 minutes), final documentation and development freeze",nav-yeah,2,2,High,"Part-2 deliverable 3b-3d.
+
+Source: SRS requirement HMS-T-07."
+HMS-F-001,HMS-F-001 Authenticate every user with a unique username and password,dhruv931101,1,5,High,"The system shall authenticate every user with a unique username and password before granting access.
+
+Source: SRS requirement HMS-F-001.
+Test case: TC-AUTH-01 (Test Plan)."
+HMS-F-002,HMS-F-002 Lock account for 15 minutes after 5 failed logins,dhruv931101,1,3,High,"The system shall lock a user account for 15 minutes after 5 consecutive failed login attempts.
+
+Source: SRS requirement HMS-F-002.
+Test case: TC-AUTH-03 (Test Plan)."
+HMS-F-003,HMS-F-003 Role-based access control (role-permission matrix),Gnanasagar2005,1,5,High,"Each role can use only the functions marked permitted in the SRS role-permission matrix; any other request returns Access denied.
+
+Source: SRS requirement HMS-F-003.
+Test case: TC-RBAC-01 (Test Plan)."
+HMS-F-004,HMS-F-004 Generic error message on invalid credentials,dhruv931101,1,1,High,"Respond to invalid credentials with 'Invalid username or password' without revealing which field was wrong.
+
+Source: SRS requirement HMS-F-004.
+Test case: TC-AUTH-02 (Test Plan)."
+HMS-F-010,HMS-F-010 Register a new patient with unique Patient ID,nav-yeah,1,5,High,"Capture name, date of birth, gender, phone, address; generate PID-nnnnnnnn.
+
+Source: SRS requirement HMS-F-010.
+Test case: TC-PAT-01 (Test Plan)."
+HMS-F-011,"HMS-F-011 Registration validation (mandatory fields, phone, date of birth)",nav-yeah,1,3,High,"Reject registration and name the offending field.
+
+Source: SRS requirement HMS-F-011.
+Test case: TC-PAT-02 (Test Plan)."
+HMS-F-012,HMS-F-012 Duplicate patient warning before saving,nav-yeah,2,2,Medium,"Warn when an existing patient has the same name, date of birth and phone number.
+
+Source: SRS requirement HMS-F-012.
+Test case: TC-PAT-03 (Test Plan)."
+HMS-F-013,"HMS-F-013 Search patients by ID, name or phone",nav-yeah,1,3,High,"List all matches or show 'No patient found'.
+
+Source: SRS requirement HMS-F-013.
+Test case: TC-PAT-04 (Test Plan)."
+HMS-F-014,HMS-F-014 Update patient data and keep change history,nav-yeah,2,3,Medium,"Retain every previous value with timestamp and user.
+
+Source: SRS requirement HMS-F-014.
+Test case: TC-PAT-05 (Test Plan)."
+HMS-F-020,HMS-F-020 Book an appointment (30-minute slot),daksha311,1,5,High,"Select doctor, date and available slot; return unique Appointment ID with status Confirmed.
+
+Source: SRS requirement HMS-F-020.
+Test case: TC-APT-01 (Test Plan)."
+HMS-F-021,HMS-F-021 Prevent double-booking and show next 3 slots,daksha311,1,5,High,"Two confirmed appointments for the same doctor and slot are not allowed.
+
+Source: SRS requirement HMS-F-021.
+Test case: TC-APT-02 (Test Plan)."
+HMS-F-022,HMS-F-022 Reject past bookings and bookings more than 60 days ahead,daksha311,1,2,Medium,"Booking date validation.
+
+Source: SRS requirement HMS-F-022.
+Test case: TC-APT-03 (Test Plan)."
+HMS-F-023,HMS-F-023 Reschedule or cancel up to 2 hours before start,daksha311,2,3,Medium,"Reject changes within 2 hours of the start time.
+
+Source: SRS requirement HMS-F-023.
+Test case: TC-APT-04 (Test Plan)."
+HMS-F-024,HMS-F-024 Doctor's daily appointment list,daksha311,2,2,Medium,"Show the doctor's own appointments for a day, sorted by start time.
+
+Source: SRS requirement HMS-F-024.
+Test case: TC-APT-05 (Test Plan)."
+HMS-F-030,"HMS-F-030 Record consultation (symptoms, diagnosis, notes)",Gnanasagar2005,1,3,High,"Visit linked to an appointment, stamped with date, time and doctor ID.
+
+Source: SRS requirement HMS-F-030.
+Test case: TC-CLN-01 (Test Plan)."
+HMS-F-031,HMS-F-031 Add prescription items to a visit,Gnanasagar2005,1,3,High,"Medicine, dosage, frequency and duration in days.
+
+Source: SRS requirement HMS-F-031.
+Test case: TC-CLN-02 (Test Plan)."
+HMS-F-032,HMS-F-032 Allergy warning with override reason,Gnanasagar2005,2,5,High,"Warn when a medicine matches a recorded allergy; save only after an override reason.
+
+Source: SRS requirement HMS-F-032.
+Test case: TC-CLN-03 (Test Plan)."
+HMS-F-033,HMS-F-033 Patient history for doctors (newest first),Gnanasagar2005,2,3,High,"Show visits, diagnoses and prescriptions in reverse chronological order.
+
+Source: SRS requirement HMS-F-033.
+Test case: TC-CLN-04 (Test Plan)."
+HMS-F-034,HMS-F-034 Patient views own records and bills,Gnanasagar2005,2,3,Medium,"A logged-in patient sees only own data; others return Access denied.
+
+Source: SRS requirement HMS-F-034.
+Test case: TC-CLN-05 (Test Plan)."
+HMS-F-040,HMS-F-040 Generate itemised bill with tax,Gnanasagar2005,2,5,High,"Subtotal, tax at the configured rate and total.
+
+Source: SRS requirement HMS-F-040.
+Test case: TC-BIL-01 (Test Plan)."
+HMS-F-041,HMS-F-041 Record payments and update bill status,Gnanasagar2005,2,5,High,"Cash, card or UPI; reject overpayment.
+
+Source: SRS requirement HMS-F-041.
+Test case: TC-BIL-02 (Test Plan)."
+HMS-F-042,HMS-F-042 Printable receipt with unique receipt number,daksha311,2,3,Medium,"One receipt per payment.
+
+Source: SRS requirement HMS-F-042.
+Test case: TC-BIL-03 (Test Plan)."
+HMS-F-050,HMS-F-050 Daily appointment and revenue reports (PDF/CSV),nav-yeah,2,5,Medium,"Reports for a chosen date range.
+
+Source: SRS requirement HMS-F-050.
+Test case: TC-RPT-01 (Test Plan)."
+HMS-F-060,"HMS-F-060 Create, deactivate and assign roles to user accounts",dhruv931101,2,5,High,"A deactivated user cannot log in.
+
+Source: SRS requirement HMS-F-060.
+Test case: TC-ADM-01 (Test Plan)."
+HMS-F-061,HMS-F-061 View audit log with filters,daksha311,2,3,Medium,"Filter by user, date range and action type.
+
+Source: SRS requirement HMS-F-061.
+Test case: TC-ADM-02 (Test Plan)."
+HMS-NF-001,HMS-NF-001 Patient search within 2 seconds for 95% of requests,daksha311,2,3,Medium,"100,000 patient records, 100 concurrent users.
+
+Source: SRS requirement HMS-NF-001.
+Test case: TC-PERF-01 (Test Plan)."
+HMS-NF-002,HMS-NF-002 Appointment booking within 3 seconds for 95% of requests,daksha311,2,2,Medium,"Same load as NF-001.
+
+Source: SRS requirement HMS-NF-002.
+Test case: TC-PERF-02 (Test Plan)."
+HMS-NF-003,HMS-NF-003 Support 200 concurrent sessions for 30 minutes,daksha311,2,3,Medium,"Error rate below 1%.
+
+Source: SRS requirement HMS-NF-003.
+Test case: TC-PERF-03 (Test Plan)."
+HMS-NF-004,HMS-NF-004 99.5% availability between 06:00 and 22:00,dhruv931101,2,3,High,"Health-check monitoring.
+
+Source: SRS requirement HMS-NF-004.
+Test case: TC-AVL-01 (Test Plan)."
+HMS-NF-005,HMS-NF-005 Receptionist registers a patient in 3 minutes or less,nav-yeah,2,2,Medium,"Usability.
+
+Source: SRS requirement HMS-NF-005.
+Test case: TC-USA-01 (Test Plan)."
+HMS-NF-006,"HMS-NF-006 Automated encrypted backup every 24 hours, restore within 4 hours",dhruv931101,2,5,High,"Backup job (SAD 3.4).
+
+Source: SRS requirement HMS-NF-006.
+Test case: TC-REL-01 (Test Plan)."
+HMS-NF-007,HMS-NF-007 Client runs on Windows 10/11 and Ubuntu 22.04,Gnanasagar2005,2,2,Low,"Portability, C++17 with GCC 11+ and MSVC 2019+.
+
+Source: SRS requirement HMS-NF-007.
+Test case: TC-PORT-01 (Test Plan)."
+HMS-NF-008,HMS-NF-008 At least 70% unit-test line coverage per service module,dhruv931101,2,3,Medium,"gcov/lcov in CI.
+
+Source: SRS requirement HMS-NF-008.
+Test case: TC-MNT-01 (Test Plan)."
+HMS-NF-009,HMS-NF-009 90% of core tasks completed without help (5 users),nav-yeah,2,2,Medium,"Usability test.
+
+Source: SRS requirement HMS-NF-009.
+Test case: TC-USA-01 (Test Plan)."
+HMS-SEC-001,HMS-SEC-001 Salted password hashes and password strength rules,dhruv931101,1,3,High,"Argon2id or bcrypt; at least 8 characters with upper, lower, digit and special.
+
+Source: SRS requirement HMS-SEC-001.
+Test case: TC-SEC-01 (Test Plan)."
+HMS-SEC-002,HMS-SEC-002 TLS 1.2+ for all communication,dhruv931101,2,3,High,"Plain HTTP refused.
+
+Source: SRS requirement HMS-SEC-002.
+Test case: TC-SEC-02 (Test Plan)."
+HMS-SEC-003,HMS-SEC-003 10-minute session timeout and token invalid after logout,dhruv931101,1,2,High,"Session management.
+
+Source: SRS requirement HMS-SEC-003.
+Test case: TC-SEC-03 (Test Plan)."
+HMS-SEC-004,HMS-SEC-004 Server-side input validation and parameterised queries,daksha311,2,3,High,"Reject SQL and script injection.
+
+Source: SRS requirement HMS-SEC-004.
+Test case: TC-SEC-04 (Test Plan)."
+HMS-SEC-005,"HMS-SEC-005 Audit record for every login, view, creation and update",nav-yeah,2,3,High,"User, role, action, record ID, timestamp, source IP.
+
+Source: SRS requirement HMS-SEC-005.
+Test case: TC-SEC-05 (Test Plan)."
+HMS-SEC-006,HMS-SEC-006 AES-256 encryption at rest for patient fields,daksha311,2,5,High,"Field-level encryption in the Data Access Layer.
+
+Source: SRS requirement HMS-SEC-006.
+Test case: TC-SEC-06 (Test Plan)."
+HMS-SEC-007,HMS-SEC-007 Server-side authorisation on every API call,dhruv931101,2,3,High,"UI hiding is not the only protection.
+
+Source: SRS requirement HMS-SEC-007.
+Test case: TC-SEC-07 (Test Plan)."
+HMS-SEC-008,HMS-SEC-008 No passwords or clinical content in audit records; Administrator-only read,Gnanasagar2005,2,2,High,"Audit log content and access.
+
+Source: SRS requirement HMS-SEC-008.
+Test case: TC-SEC-05 (Test Plan)."
