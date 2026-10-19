@@ -69,17 +69,22 @@ int main() {
 
     assert(correct_login.success);
 
+    // F-004: Incorrect password must return a generic error.
     const auto wrong_login =
         auth.authenticate_user("test_auth_user", "WrongPass1!");
 
     assert(!wrong_login.success);
     assert(wrong_login.message == "Invalid username or password");
 
+    // F-004: Unknown username must return the same generic error.
     const auto unknown_login =
         auth.authenticate_user("unknown_test_user", "StrongPass1!");
 
     assert(!unknown_login.success);
     assert(unknown_login.message == "Invalid username or password");
+
+    // F-004: Neither failure may reveal which credential was incorrect.
+    assert(wrong_login.message == unknown_login.message);
 
     std::cout << "All API and authentication tests passed.\n";
     return 0;
