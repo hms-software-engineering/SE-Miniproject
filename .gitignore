@@ -18,3 +18,4 @@ cmake-build-*/
 
 # Editor settings
 .vscode/
+vcpkg_installed/
