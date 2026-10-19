@@ -1,0 +1,20 @@
+
+# CMake build output
+build/
+cmake-build-*/
+
+# Visual Studio build files
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.user
+
+# Compiled artifacts
+*.obj
+*.exe
+*.pdb
+*.ilk
+
+# Editor settings
+.vscode/
