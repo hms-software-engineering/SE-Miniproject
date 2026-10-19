@@ -63,7 +63,3 @@ docker compose up -d
 5. The SAD's short table overview does not specify every column or every enum value. The added columns/constraints here are implementation choices to support referential integrity and common workflows; review them with the team before merge.
 6. PostgreSQL cannot make a table absolutely immutable against its owner/superuser. The trigger prevents ordinary row-level UPDATE/DELETE statements; production permissions should additionally grant the application role INSERT/SELECT only on `audit_log`.
 7. The SQL migrations and verification script have been run successfully against a fresh local PostgreSQL 18 database (`hms_t02_test`). Docker Compose has not yet been tested; validate it separately if Docker is available before claiming the Compose setup was tested.
-
-## Suggested commit
-
-`feat(database): add HMS PostgreSQL schema and seed migrations`
