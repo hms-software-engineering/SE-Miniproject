@@ -1,32 +1,53 @@
 #pragma once
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
 namespace hms {
 
 struct Appointment {
-    std::string id, patient_id, doctor_id, date, time, status;
+    long long id = 0;
+    std::string patient_id;
+    long long doctor_id = 0;
+    std::string slot_start;  // "YYYY-MM-DD HH:MM"
+    std::string status;
 };
 
-// Swap the in-memory version for PostgreSQL once T-02 is merged.
+enum class SaveStatus { Ok, SlotTaken, PatientMissing, DoctorMissing };
+
+struct SaveResult {
+    SaveStatus status = SaveStatus::Ok;
+    Appointment appointment;
+};
+
+// A PostgreSQL version will implement this same interface later.
 class AppointmentRepository {
 public:
     virtual ~AppointmentRepository() = default;
-    virtual bool is_booked(const std::string& doctor_id,
-                           const std::string& date,
-                           const std::string& time) const = 0;
-    virtual Appointment save(Appointment a) = 0;  // assigns a unique id
+    // Returns the doctor's working_hours JSON, or "" if the doctor is unknown.
+    virtual std::string working_hours(long long doctor_id) const = 0;
+    // Confirmed bookings for that doctor and date, as "HH:MM".
+    virtual std::vector<std::string> booked_times(long long doctor_id,
+                                                  const std::string& date) const = 0;
+    // Must be atomic. The database version relies on the unique index
+    // uq_appointments_confirmed_doctor_slot.
+    virtual SaveResult insert(const Appointment& a) = 0;
 };
 
 class InMemoryAppointmentRepository : public AppointmentRepository {
 public:
-    bool is_booked(const std::string& d, const std::string& date,
-                   const std::string& time) const override;
-    Appointment save(Appointment a) override;
+    InMemoryAppointmentRepository();  // seeds doctor 1 and PID-00000001/2
+    std::string working_hours(long long doctor_id) const override;
+    std::vector<std::string> booked_times(long long doctor_id,
+                                          const std::string& date) const override;
+    SaveResult insert(const Appointment& a) override;
+
 private:
-    std::map<std::string, Appointment> items_;
-    int next_ = 1;
+    std::map<long long, std::string> doctors_;
+    std::set<std::string> patients_;
+    std::vector<Appointment> items_;
+    long long next_id_ = 1;
 };
 
 struct BookingResult {
@@ -36,17 +57,21 @@ struct BookingResult {
     std::string code, message, field;
 };
 
-std::vector<std::string> day_slots();  // 09:00 ... 16:30
-std::vector<std::string> free_slots(const AppointmentRepository&,
-                                    const std::string& doctor_id,
+// 0 = Sunday ... 6 = Saturday. Date must be "YYYY-MM-DD".
+int weekday_of(const std::string& date);
+// 30-minute slot starts ("HH:MM") for that date, from working_hours JSON.
+std::vector<std::string> slots_for_date(const std::string& working_hours_json,
+                                        const std::string& date);
+std::vector<std::string> free_slots(const AppointmentRepository& repo,
+                                    long long doctor_id,
                                     const std::string& date);
-BookingResult book_appointment(AppointmentRepository&,
+BookingResult book_appointment(AppointmentRepository& repo,
                                const std::string& patient_id,
-                               const std::string& doctor_id,
+                               long long doctor_id,
                                const std::string& date,
                                const std::string& time);
 
 std::string slots_to_json(const std::vector<std::string>& slots);
-std::string appointment_to_json(const Appointment&);
+std::string appointment_to_json(const Appointment& a);
 
-} // namespace hms
+}  // namespace hms
