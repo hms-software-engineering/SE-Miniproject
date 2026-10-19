@@ -19,6 +19,7 @@ find_library(ARGON2_LIBRARY NAMES argon2 libargon2
 add_library(hms_api
     src/api.cpp
     src/services/auth_service.cpp
+    src/services/rbac_service.cpp
 )
 
 target_include_directories(hms_api PUBLIC

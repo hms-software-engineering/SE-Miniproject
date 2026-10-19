@@ -217,9 +217,10 @@ void handle_client(SOCKET client) {
                     const auto result =
                         auth_service.authenticate_user(username, password);
                     if (result.success) {
-                        send_response(client, 200,
-                            json{{"message", "Login successful"},
-                                 {"user_id", result.user_id}}.dump());
+                    send_response(client, 200,
+                        json{{"message", "Login successful"},
+                          {"user_id", result.user_id},
+                             {"role", std::string(hms::role_name(result.role))}}.dump());
                     } else {
                         send_error(client, 401, "INVALID_CREDENTIALS",
                                    "Invalid username or password", request_id);
