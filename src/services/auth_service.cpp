@@ -7,6 +7,7 @@
 #include <mutex>
 #include <random>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace hms {
@@ -16,6 +17,7 @@ struct StoredUser {
     std::string user_id;
     std::vector<std::uint8_t> salt;
     std::vector<std::uint8_t> hash;
+    Role role = Role::Patient;
 };
 
 std::unordered_map<std::string, StoredUser> users;
@@ -26,6 +28,19 @@ constexpr std::size_t HASH_LENGTH = 32;
 constexpr std::uint32_t ITERATIONS = 3;
 constexpr std::uint32_t MEMORY_KIB = 65536;
 constexpr std::uint32_t PARALLELISM = 1;
+
+bool valid_role(Role role) {
+    switch (role) {
+    case Role::Patient:
+    case Role::Receptionist:
+    case Role::Doctor:
+    case Role::BillingOfficer:
+    case Role::Administrator:
+        return true;
+    }
+
+    return false;
+}
 
 bool valid_password(const std::string& password) {
     if (password.size() < 8) {
@@ -115,6 +130,7 @@ AuthResult AuthService::register_user(const std::string& username,
 
     StoredUser user;
     user.user_id = username;
+    user.role = Role::Patient;
     user.salt = random_bytes(SALT_LENGTH);
 
     if (!hash_password(password, user.salt, user.hash)) {
@@ -123,7 +139,9 @@ AuthResult AuthService::register_user(const std::string& username,
 
     users.emplace(username, std::move(user));
 
-    return {true, username, "Registration successful"};
+    return {
+        true, username, "Registration successful", Role::Patient
+    };
 }
 
 AuthResult AuthService::authenticate_user(const std::string& username,
@@ -143,7 +161,29 @@ AuthResult AuthService::authenticate_user(const std::string& username,
         return {false, "", "Invalid username or password"};
     }
 
-    return {true, it->second.user_id, "Authentication successful"};
+    return {
+        true,
+        it->second.user_id,
+        "Authentication successful",
+        it->second.role
+    };
+}
+
+bool AuthService::assign_role(const std::string& username, Role role) {
+    if (!valid_role(role)) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(users_mutex);
+
+    const auto it = users.find(username);
+
+    if (it == users.end()) {
+        return false;
+    }
+
+    it->second.role = role;
+    return true;
 }
 
 } // namespace hms
