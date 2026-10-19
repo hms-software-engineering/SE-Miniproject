@@ -20,3 +20,20 @@ add_executable(api_test
 )
 
 target_link_libraries(api_test PRIVATE hms_api)
+enable_testing()
+
+add_library(hms_appointments
+    src/appointments/appointments.cpp
+)
+
+target_include_directories(hms_appointments PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_executable(appointments_test
+    tests/appointments_test.cpp
+)
+
+target_link_libraries(appointments_test PRIVATE hms_appointments)
+
+add_test(NAME appointments_test COMMAND appointments_test)
