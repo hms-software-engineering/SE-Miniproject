@@ -15,18 +15,8 @@ target_include_directories(hms_api PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-add_executable(hms_server
-    src/main.cpp
-)
-
-target_link_libraries(hms_server PRIVATE hms_api)
-
-enable_testing()
-
 add_executable(api_test
     tests/api_test.cpp
 )
 
 target_link_libraries(api_test PRIVATE hms_api)
-
-add_test(NAME api_utility_tests COMMAND api_test)
