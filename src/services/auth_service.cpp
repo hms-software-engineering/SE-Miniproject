@@ -2,6 +2,8 @@
 #include "services/auth_service.h"
 
 #include <argon2.h>
+#include <windows.h>
+#include <bcrypt.h>
 
 #include <cctype>
 #include <cstdint>
@@ -10,6 +12,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <string>
 
 namespace hms {
 namespace {
@@ -36,6 +39,7 @@ constexpr std::uint32_t MEMORY_KIB = 65536;
 constexpr std::uint32_t PARALLELISM = 1;
 constexpr unsigned int MAX_FAILED_ATTEMPTS = 5;
 constexpr auto LOCKOUT_DURATION = std::chrono::minutes(15);
+constexpr auto SESSION_TIMEOUT = std::chrono::minutes(10);
 
 bool valid_role(Role role) {
     switch (role) {
@@ -79,6 +83,31 @@ std::vector<std::uint8_t> random_bytes(std::size_t length) {
     }
 
     return bytes;
+}
+
+// Generates a cryptographically random 256-bit session token.
+std::string generate_session_token() {
+    constexpr std::size_t TOKEN_BYTES = 32;
+    std::vector<std::uint8_t> bytes(TOKEN_BYTES);
+
+    if (BCryptGenRandom(
+            nullptr,
+            bytes.data(),
+            static_cast<ULONG>(bytes.size()),
+            BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
+        return "";
+    }
+
+    static constexpr char HEX[] = "0123456789abcdef";
+    std::string token;
+    token.reserve(TOKEN_BYTES * 2);
+
+    for (std::uint8_t byte : bytes) {
+        token.push_back(HEX[byte >> 4]);
+        token.push_back(HEX[byte & 0x0F]);
+    }
+
+    return token;
 }
 
 bool hash_password(const std::string& password,
@@ -175,12 +204,10 @@ AuthResult AuthService::authenticate_user(const std::string& username,
     StoredUser& user = it->second;
     const auto now = time_provider_();
 
-    // Refuse all attempts, even with the correct password, during lockout.
     if (now < user.locked_until) {
         return invalid_credentials();
     }
 
-    // Reset expired lockout state.
     if (user.locked_until != Clock::time_point{} &&
         now >= user.locked_until) {
         user.locked_until = Clock::time_point{};
@@ -200,7 +227,6 @@ AuthResult AuthService::authenticate_user(const std::string& username,
         return invalid_credentials();
     }
 
-    // Successful authentication resets consecutive failures.
     user.failed_attempts = 0;
     user.locked_until = Clock::time_point{};
 
@@ -227,6 +253,88 @@ bool AuthService::assign_role(const std::string& username, Role role) {
 
     it->second.role = role;
     return true;
+}
+
+SessionResult AuthService::create_session(const AuthResult& auth_result) {
+    if (!auth_result.success || auth_result.user_id.empty()) {
+        return {
+            false, "", "", "Authentication required", Role::Patient
+        };
+    }
+
+    std::string token = generate_session_token();
+
+    if (token.empty()) {
+        return {
+            false, "", "", "Unable to create session", Role::Patient
+        };
+    }
+
+    const auto now = time_provider_();
+
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+
+    // A collision is extraordinarily unlikely, but never overwrite a session.
+    if (sessions_.find(token) != sessions_.end()) {
+        return {
+            false, "", "", "Unable to create session", Role::Patient
+        };
+    }
+
+    sessions_.emplace(token, Session{
+        auth_result.user_id,
+        auth_result.role,
+        now
+    });
+
+    return {
+        true,
+        token,
+        auth_result.user_id,
+        "Session created",
+        auth_result.role
+    };
+}
+
+SessionValidationResult AuthService::validate_session(
+    const std::string& token) {
+    if (token.empty()) {
+        return {false, "", Role::Patient};
+    }
+
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+
+    const auto it = sessions_.find(token);
+
+    if (it == sessions_.end()) {
+        return {false, "", Role::Patient};
+    }
+
+    const auto now = time_provider_();
+
+    // Expire at the exact 10-minute inactivity boundary.
+    if (now - it->second.last_activity >= SESSION_TIMEOUT) {
+        sessions_.erase(it);
+        return {false, "", Role::Patient};
+    }
+
+    // A valid request counts as activity and refreshes the idle timer.
+    it->second.last_activity = now;
+
+    return {
+        true,
+        it->second.user_id,
+        it->second.role
+    };
+}
+
+bool AuthService::logout(const std::string& token) {
+    if (token.empty()) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    return sessions_.erase(token) == 1;
 }
 
 } // namespace hms
