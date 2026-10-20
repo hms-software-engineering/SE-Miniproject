@@ -4,6 +4,7 @@
 #include <argon2.h>
 
 #include <cctype>
+#include <cstdint>
 #include <mutex>
 #include <random>
 #include <unordered_map>
@@ -13,11 +14,16 @@
 namespace hms {
 namespace {
 
+using Clock = AuthService::Clock;
+
 struct StoredUser {
     std::string user_id;
     std::vector<std::uint8_t> salt;
     std::vector<std::uint8_t> hash;
     Role role = Role::Patient;
+
+    unsigned int failed_attempts = 0;
+    Clock::time_point locked_until{};
 };
 
 std::unordered_map<std::string, StoredUser> users;
@@ -28,6 +34,8 @@ constexpr std::size_t HASH_LENGTH = 32;
 constexpr std::uint32_t ITERATIONS = 3;
 constexpr std::uint32_t MEMORY_KIB = 65536;
 constexpr std::uint32_t PARALLELISM = 1;
+constexpr unsigned int MAX_FAILED_ATTEMPTS = 5;
+constexpr auto LOCKOUT_DURATION = std::chrono::minutes(15);
 
 bool valid_role(Role role) {
     switch (role) {
@@ -106,7 +114,17 @@ bool hashes_equal(const std::vector<std::uint8_t>& a,
     return difference == 0;
 }
 
+AuthResult invalid_credentials() {
+    return {false, "", "Invalid username or password"};
+}
+
 } // namespace
+
+AuthService::AuthService(TimeProvider time_provider)
+    : time_provider_(
+          time_provider
+              ? std::move(time_provider)
+              : TimeProvider{[] { return Clock::now(); }}) {}
 
 AuthResult AuthService::register_user(const std::string& username,
                                       const std::string& password) {
@@ -151,21 +169,46 @@ AuthResult AuthService::authenticate_user(const std::string& username,
     const auto it = users.find(username);
 
     if (it == users.end()) {
-        return {false, "", "Invalid username or password"};
+        return invalid_credentials();
+    }
+
+    StoredUser& user = it->second;
+    const auto now = time_provider_();
+
+    // Refuse all attempts, even with the correct password, during lockout.
+    if (now < user.locked_until) {
+        return invalid_credentials();
+    }
+
+    // Reset expired lockout state.
+    if (user.locked_until != Clock::time_point{} &&
+        now >= user.locked_until) {
+        user.locked_until = Clock::time_point{};
+        user.failed_attempts = 0;
     }
 
     std::vector<std::uint8_t> candidate_hash;
 
-    if (!hash_password(password, it->second.salt, candidate_hash) ||
-        !hashes_equal(candidate_hash, it->second.hash)) {
-        return {false, "", "Invalid username or password"};
+    if (!hash_password(password, user.salt, candidate_hash) ||
+        !hashes_equal(candidate_hash, user.hash)) {
+        ++user.failed_attempts;
+
+        if (user.failed_attempts >= MAX_FAILED_ATTEMPTS) {
+            user.locked_until = now + LOCKOUT_DURATION;
+        }
+
+        return invalid_credentials();
     }
+
+    // Successful authentication resets consecutive failures.
+    user.failed_attempts = 0;
+    user.locked_until = Clock::time_point{};
 
     return {
         true,
-        it->second.user_id,
+        user.user_id,
         "Authentication successful",
-        it->second.role
+        user.role
     };
 }
 
