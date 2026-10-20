@@ -1,5 +1,4 @@
 
-```cmake
 cmake_minimum_required(VERSION 3.20)
 
 project(HMS_Miniproject VERSION 1.0.0 LANGUAGES CXX)
@@ -75,4 +74,3 @@ if(WIN32)
         ws2_32
     )
 endif()
-```
