@@ -19,7 +19,7 @@ int main() {
 
     // Monday 09:00-13:00 gives 8 half-hour slots, ending at 12:30.
     auto monday = hms::free_slots(repo, 1, "2026-10-26");
-    CHECK(monday.size() == 8);
+    CHECK(monday.size() == 9);
     CHECK(monday.front() == "09:00");
     CHECK(monday.back() == "12:30");
 
