@@ -1,9 +1,9 @@
-
 #include "../src/api/api.h"
 #include "../src/services/auth_service.h"
 #include "../src/services/rbac_service.h"
 
 #include <cassert>
+#include <chrono>
 #include <iostream>
 #include <string>
 
@@ -117,7 +117,110 @@ assert(!auth.assign_role("nonexistent_user", hms::Role::Doctor));
 
 
     // =========================================================
-    // 3. RBAC tests (HMS-F-003 / TC-RBAC-01)
+    // 3. Account lockout tests (HMS-F-002)
+    // =========================================================
+
+    using TestClock = hms::AuthService::Clock;
+    auto fake_now = TestClock::time_point{} + std::chrono::hours(1);
+
+    hms::AuthService lockout_auth([&fake_now]() { return fake_now; });
+
+    const std::string f002_password = "StrongPass1!";
+    const std::string f002_wrong_password = "WrongPass1!";
+    const std::string f002_generic_error = "Invalid username or password";
+
+    // Four failed attempts do not lock the account.
+    assert(lockout_auth.register_user("f002_boundary_user", f002_password).success);
+
+    for (int i = 0; i < 4; ++i) {
+        auto result = lockout_auth.authenticate_user(
+            "f002_boundary_user", f002_wrong_password);
+        assert(!result.success);
+        assert(result.message == f002_generic_error);
+    }
+
+    assert(lockout_auth.authenticate_user(
+        "f002_boundary_user", f002_password).success);
+
+    // The fifth consecutive failed attempt locks the account.
+    for (int i = 0; i < 4; ++i) {
+        auto result = lockout_auth.authenticate_user(
+            "f002_boundary_user", f002_wrong_password);
+        assert(!result.success);
+        assert(result.message == f002_generic_error);
+    }
+
+    auto fifth_failure = lockout_auth.authenticate_user(
+        "f002_boundary_user", f002_wrong_password);
+    assert(!fifth_failure.success);
+    assert(fifth_failure.message == f002_generic_error);
+
+    // Even the correct password is rejected while the account is locked.
+    auto locked_login = lockout_auth.authenticate_user(
+        "f002_boundary_user", f002_password);
+    assert(!locked_login.success);
+    assert(locked_login.message == f002_generic_error);
+
+    // The lock lasts 15 minutes and expires at the exact boundary.
+    fake_now += std::chrono::minutes(15) - std::chrono::milliseconds(1);
+
+    auto before_expiry = lockout_auth.authenticate_user(
+        "f002_boundary_user", f002_password);
+    assert(!before_expiry.success);
+    assert(before_expiry.message == f002_generic_error);
+
+    fake_now += std::chrono::milliseconds(1);
+
+    auto after_expiry = lockout_auth.authenticate_user(
+        "f002_boundary_user", f002_password);
+    assert(after_expiry.success);
+
+    // A successful login resets the failed-attempt counter.
+    assert(lockout_auth.register_user("f002_reset_user", f002_password).success);
+
+    for (int i = 0; i < 3; ++i) {
+        auto result = lockout_auth.authenticate_user(
+            "f002_reset_user", f002_wrong_password);
+        assert(!result.success);
+    }
+
+    assert(lockout_auth.authenticate_user(
+        "f002_reset_user", f002_password).success);
+
+    for (int i = 0; i < 4; ++i) {
+        auto result = lockout_auth.authenticate_user(
+            "f002_reset_user", f002_wrong_password);
+        assert(!result.success);
+    }
+
+    // Four failures after a successful login must not lock the account.
+    assert(lockout_auth.authenticate_user(
+        "f002_reset_user", f002_password).success);
+
+    // Lockout is tracked independently for each account.
+    assert(lockout_auth.register_user("f002_independent_a", f002_password).success);
+    assert(lockout_auth.register_user("f002_independent_b", f002_password).success);
+
+    for (int i = 0; i < 4; ++i) {
+        assert(!lockout_auth.authenticate_user(
+            "f002_independent_a", f002_wrong_password).success);
+        assert(!lockout_auth.authenticate_user(
+            "f002_independent_b", f002_wrong_password).success);
+    }
+
+    // The fifth failure locks account A, but account B remains usable.
+    assert(!lockout_auth.authenticate_user(
+        "f002_independent_a", f002_wrong_password).success);
+
+    assert(!lockout_auth.authenticate_user(
+        "f002_independent_a", f002_password).success);
+
+    assert(lockout_auth.authenticate_user(
+        "f002_independent_b", f002_password).success);
+
+
+    // =========================================================
+    // 4. RBAC tests (HMS-F-003 / TC-RBAC-01)
     // =========================================================
 
     using hms::Permission;
@@ -336,7 +439,7 @@ assert(!auth.assign_role("nonexistent_user", hms::Role::Doctor));
     assert(!hms::is_permitted(
         invalid_role, Permission::LoginLogout));
 
-    std::cout << "All API, authentication, and RBAC tests passed.\n";
+    std::cout << "All API, authentication, account-lockout, and RBAC tests passed.\n";
 
     return 0;
 }
