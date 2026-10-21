@@ -7,6 +7,31 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+add_library(hms_auth
+    src/services/auth_service.cpp
+    src/services/rbac_service.cpp
+)
+
+target_include_directories(hms_auth PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+if(WIN32)
+    target_link_libraries(hms_auth PRIVATE bcrypt)
+else()
+    find_package(PostgreSQL REQUIRED)
+    find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+    target_link_libraries(hms_auth PRIVATE
+        PostgreSQL::PostgreSQL
+        OpenSSL::Crypto
+    )
+endif()
+
+add_executable(auth_service_test
+    tests/auth_service_test.cpp
+)
+target_link_libraries(auth_service_test PRIVATE hms_auth)
+
 # API library
 add_library(hms_api
     src/api.cpp
@@ -45,6 +70,35 @@ enable_testing()
 
 add_test(NAME api_test COMMAND api_test)
 add_test(NAME appointments_test COMMAND appointments_test)
+add_test(NAME auth_service_test COMMAND auth_service_test)
+
+# Patient registration and search
+add_library(hms_patients
+    src/patients/patient_service.cpp
+    src/patients/postgres_patient_repository.cpp
+)
+
+target_include_directories(hms_patients PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+if(WIN32)
+    target_link_libraries(hms_patients PRIVATE bcrypt)
+else()
+    find_package(PostgreSQL REQUIRED)
+    find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+    target_link_libraries(hms_patients PRIVATE
+        PostgreSQL::PostgreSQL
+        OpenSSL::Crypto
+    )
+endif()
+
+add_executable(patient_service_test
+    tests/patient_service_test.cpp
+)
+
+target_link_libraries(patient_service_test PRIVATE hms_patients)
+add_test(NAME patient_service_test COMMAND patient_service_test)
 
 # Qt desktop client (built when Qt6 is available)
 find_package(Qt6 QUIET COMPONENTS Widgets Network)
@@ -58,6 +112,8 @@ if(Qt6_FOUND)
         src/client/loginwindow.cpp
         src/client/apiclient.h
         src/client/apiclient.cpp
+        src/client/patientmanagementwindow.h
+        src/client/patientmanagementwindow.cpp
     )
 
     target_link_libraries(hms_client PRIVATE
@@ -76,6 +132,8 @@ if(WIN32)
 
     target_link_libraries(hms_server PRIVATE
         hms_api
+        hms_auth
+        hms_patients
         ws2_32
     )
 endif()

@@ -4,14 +4,16 @@
 DO $$
 DECLARE
   expected_tables TEXT[] := ARRAY[
-    'users','patients','patient_history','doctors','appointments','visits',
+    'users','auth_sessions','patients','patient_history','doctors','appointments','visits',
     'prescriptions','bills','bill_items','payments','audit_log'
   ];
   required_columns TEXT[] := ARRAY[
     'users.user_id','users.username','users.password_hash','users.role','users.active',
     'users.failed_attempts','users.locked_until',
+    'auth_sessions.token_hash','auth_sessions.user_id','auth_sessions.expires_at',
     'patients.patient_id','patients.name','patients.dob','patients.gender','patients.phone',
-    'patients.address','patients.allergies',
+    'patients.address','patients.allergies','patients.name_prefix_blind_indexes',
+    'patients.phone_blind_index',
     'patient_history.patient_id','patient_history.old_values',
     'doctors.doctor_id','doctors.user_id','doctors.specialty','doctors.fee','doctors.working_hours',
     'appointments.appointment_id','appointments.patient_id','appointments.doctor_id',
@@ -26,7 +28,8 @@ DECLARE
     'audit_log.record_id','audit_log.timestamp','audit_log.source_ip'
   ];
   required_indexes TEXT[] := ARRAY[
-    'idx_patients_patient_id','idx_patients_name_ciphertext','idx_patients_phone_ciphertext',
+    'idx_patients_patient_id','idx_patients_name_prefix_blind','idx_patients_phone_blind',
+    'idx_auth_sessions_expiration',
     'idx_appointments_doctor_slot','idx_appointments_patient_slot',
     'idx_patient_history_patient_changed','idx_visits_doctor_time','idx_prescriptions_visit',
     'idx_bill_items_bill','idx_payments_bill','idx_audit_log_timestamp',
@@ -75,6 +78,9 @@ BEGIN
   END IF;
   IF (SELECT COUNT(*) FROM doctors) < 1 THEN RAISE EXCEPTION 'Missing seeded doctor'; END IF;
   IF (SELECT COUNT(*) FROM patients) < 2 THEN RAISE EXCEPTION 'Expected at least two sample patients'; END IF;
+  IF to_regclass('public.patient_id_sequence') IS NULL THEN
+    RAISE EXCEPTION 'Missing patient ID sequence';
+  END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_trigger
     WHERE tgname = 'trg_audit_log_no_update_delete' AND NOT tgisinternal

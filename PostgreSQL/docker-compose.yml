@@ -14,6 +14,9 @@ services:
       - ./database/migrations/001_create_core_tables.sql:/docker-entrypoint-initdb.d/001_create_core_tables.sql:ro
       - ./database/migrations/002_indexes_and_integrity.sql:/docker-entrypoint-initdb.d/002_indexes_and_integrity.sql:ro
       - ./database/migrations/003_seed_development_data.sql:/docker-entrypoint-initdb.d/003_seed_development_data.sql:ro
+      - ./database/migrations/004_patient_search_blind_indexes.sql:/docker-entrypoint-initdb.d/004_patient_search_blind_indexes.sql:ro
+      - ./database/migrations/005_auth_sessions.sql:/docker-entrypoint-initdb.d/005_auth_sessions.sql:ro
+      - ./database/migrations/006_patient_id_sequence.sql:/docker-entrypoint-initdb.d/006_patient_id_sequence.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U hms_app -d hms"]
       interval: 5s
