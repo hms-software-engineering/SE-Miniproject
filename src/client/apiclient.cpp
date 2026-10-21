@@ -6,6 +6,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QVariant>
 
 ApiClient::ApiClient(QObject *parent)
@@ -82,6 +83,77 @@ void ApiClient::login(const QString &username,
             emit loginFailed(message);
         }
 
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::registerPatient(const QJsonObject &patient)
+{
+    sendPatientRequest(
+        QNetworkAccessManager::PostOperation,
+        QUrl("http://127.0.0.1:8080/api/v1/patients"),
+        patient, "register");
+}
+
+void ApiClient::updatePatient(const QString &patientId,
+                              const QJsonObject &patient)
+{
+    QUrl url("http://127.0.0.1:8080/api/v1/patients/" + patientId);
+    sendPatientRequest(QNetworkAccessManager::PutOperation, url,
+                       patient, "update");
+}
+
+void ApiClient::searchPatients(const QString &query)
+{
+    QUrl url("http://127.0.0.1:8080/api/v1/patients/search");
+    QUrlQuery parameters;
+    parameters.addQueryItem("query", query);
+    url.setQuery(parameters);
+    sendPatientRequest(QNetworkAccessManager::GetOperation, url, {},
+                       "search");
+}
+
+void ApiClient::sendPatientRequest(
+    QNetworkAccessManager::Operation operation,
+    const QUrl &url,
+    const QJsonObject &body,
+    const QString &action)
+{
+    QNetworkRequest request(url);
+    request.setRawHeader("Authorization",
+                         "Bearer " + authToken.toUtf8());
+    request.setHeader(QNetworkRequest::ContentTypeHeader,
+                      "application/json");
+    const QByteArray payload =
+        QJsonDocument(body).toJson(QJsonDocument::Compact);
+    QNetworkReply *reply = nullptr;
+    if (operation == QNetworkAccessManager::GetOperation) {
+        reply = networkManager.get(request);
+    } else if (operation == QNetworkAccessManager::PostOperation) {
+        reply = networkManager.post(request, payload);
+    } else {
+        reply = networkManager.sendCustomRequest(
+            request, "PUT", payload);
+    }
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, action]() {
+        const int status = reply->attribute(
+            QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QJsonObject response =
+            QJsonDocument::fromJson(reply->readAll()).object();
+        if (status >= 200 && status < 300 &&
+            reply->error() == QNetworkReply::NoError) {
+            emit patientOperationSucceeded(action, response);
+        } else {
+            QString message = response.value("error").toObject()
+                                  .value("message").toString();
+            if (message.isEmpty()) {
+                message = status == 0
+                    ? "Cannot connect to the HMS server."
+                    : QString("Patient request failed (HTTP %1).").arg(status);
+            }
+            emit patientOperationFailed(action, message);
+        }
         reply->deleteLater();
     });
 }

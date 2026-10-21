@@ -1,6 +1,7 @@
 
 #include "loginwindow.h"
 #include "apiclient.h"
+#include "patientmanagementwindow.h"
 
 #include <QLabel>
 #include <QLineEdit>
@@ -108,6 +109,7 @@ void LoginWindow::showRoleMenu(const QString &role)
         options << "Patient Management" << "Appointments";
     } else if (role.compare("Doctor", Qt::CaseInsensitive) == 0) {
         options << "Appointments"
+                << "Patient Search"
                 << "Patient History"
                 << "Prescriptions";
     } else if (
@@ -130,6 +132,16 @@ void LoginWindow::showRoleMenu(const QString &role)
         auto *button = new QPushButton(option, dashboard);
         button->setMinimumHeight(40);
         dashboardLayout->addWidget(button);
+        if (option == "Patient Management" || option == "Patient Search") {
+            const bool canManage = option == "Patient Management";
+            connect(button, &QPushButton::clicked, this,
+                    [this, canManage]() {
+                auto *patients = new PatientManagementWindow(
+                    apiClient, canManage);
+                patients->setAttribute(Qt::WA_DeleteOnClose);
+                patients->show();
+            });
+        }
     }
 
     dashboardLayout->addStretch();
