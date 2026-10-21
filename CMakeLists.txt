@@ -43,25 +43,30 @@ target_link_libraries(appointments_test PRIVATE hms_appointments)
 # Enable CTest
 enable_testing()
 
+add_test(NAME api_test COMMAND api_test)
 add_test(NAME appointments_test COMMAND appointments_test)
 
-# Qt desktop client
-find_package(Qt6 REQUIRED COMPONENTS Widgets Network)
+# Qt desktop client (built when Qt6 is available)
+find_package(Qt6 QUIET COMPONENTS Widgets Network)
 
-qt_standard_project_setup()
+if(Qt6_FOUND)
+    qt_standard_project_setup()
 
-qt_add_executable(hms_client
-    src/client/main.cpp
-    src/client/loginwindow.h
-    src/client/loginwindow.cpp
-    src/client/apiclient.h
-    src/client/apiclient.cpp
-)
+    qt_add_executable(hms_client
+        src/client/main.cpp
+        src/client/loginwindow.h
+        src/client/loginwindow.cpp
+        src/client/apiclient.h
+        src/client/apiclient.cpp
+    )
 
-target_link_libraries(hms_client PRIVATE
-    Qt6::Widgets
-    Qt6::Network
-)
+    target_link_libraries(hms_client PRIVATE
+        Qt6::Widgets
+        Qt6::Network
+    )
+else()
+    message(STATUS "Qt6 Widgets and Network not found; skipping hms_client")
+endif()
 
 # API server (Windows only)
 if(WIN32)
