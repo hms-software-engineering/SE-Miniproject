@@ -2,17 +2,17 @@
 #include "services/auth_service.h"
 
 #include <argon2.h>
-#include <windows.h>
-#include <bcrypt.h>
+#include <openssl/rand.h>
 
 #include <cctype>
 #include <cstdint>
 #include <mutex>
 #include <random>
+#include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <string>
 
 namespace hms {
 namespace {
@@ -75,11 +75,11 @@ bool valid_password(const std::string& password) {
 }
 
 std::vector<std::uint8_t> random_bytes(std::size_t length) {
-    std::random_device rd;
     std::vector<std::uint8_t> bytes(length);
 
-    for (auto& byte : bytes) {
-        byte = static_cast<std::uint8_t>(rd() & 0xFF);
+    if (length > 0 &&
+        RAND_bytes(bytes.data(), static_cast<int>(length)) != 1) {
+        throw std::runtime_error("Failed to generate secure random bytes");
     }
 
     return bytes;
@@ -90,11 +90,9 @@ std::string generate_session_token() {
     constexpr std::size_t TOKEN_BYTES = 32;
     std::vector<std::uint8_t> bytes(TOKEN_BYTES);
 
-    if (BCryptGenRandom(
-            nullptr,
+    if (RAND_bytes(
             bytes.data(),
-            static_cast<ULONG>(bytes.size()),
-            BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
+            static_cast<int>(bytes.size())) != 1) {
         return "";
     }
 
