@@ -1,6 +1,6 @@
 -- HMS-T-02 | Development-only seed records.
 -- These sentinel password_hash values are deliberately NOT valid hashes and
--- cannot be used to log in. Replace them with real Argon2id hashes generated
+-- cannot be used to log in. Replace them with real PBKDF2 hashes generated
 -- by the application before any authentication demo or deployment.
 BEGIN;
 
