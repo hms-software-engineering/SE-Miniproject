@@ -2,15 +2,21 @@
 #include "password_security.h"
 
 #include <argon2.h>
-#include <windows.h>
-#include <bcrypt.h>
 
 #include <cctype>
 #include <cstdint>
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <bcrypt.h>
 #pragma comment(lib, "Bcrypt.lib")
+#elif defined(__linux__)
+#include <sys/random.h>
+#elif defined(__APPLE__)
+#include <stdlib.h>
+#endif
 
 namespace hms::security {
 namespace {
@@ -23,6 +29,7 @@ constexpr std::size_t HASH_LENGTH = 32;
 constexpr std::size_t ENCODED_LENGTH = 256;
 
 bool generate_salt(unsigned char* salt, std::size_t length) {
+#ifdef _WIN32
     if (length > static_cast<std::size_t>(ULONG_MAX)) {
         return false;
     }
@@ -33,6 +40,35 @@ bool generate_salt(unsigned char* salt, std::size_t length) {
         static_cast<ULONG>(length),
         BCRYPT_USE_SYSTEM_PREFERRED_RNG
     ) == 0;
+
+#elif defined(__linux__)
+    std::size_t offset = 0;
+
+    while (offset < length) {
+        const auto result = getrandom(
+            salt + offset,
+            length - offset,
+            0
+        );
+
+        if (result <= 0) {
+            return false;
+        }
+
+        offset += static_cast<std::size_t>(result);
+    }
+
+    return true;
+
+#elif defined(__APPLE__)
+    arc4random_buf(salt, length);
+    return true;
+
+#else
+    (void)salt;
+    (void)length;
+    return false;
+#endif
 }
 
 } // namespace
@@ -73,6 +109,7 @@ bool hash_password(
     }
 
     unsigned char salt[SALT_LENGTH]{};
+
     if (!generate_salt(salt, sizeof(salt))) {
         return false;
     }

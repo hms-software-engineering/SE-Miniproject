@@ -25,6 +25,7 @@ if(WIN32)
 else()
     find_package(PostgreSQL REQUIRED)
     find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+
     target_link_libraries(hms_auth PRIVATE
         PostgreSQL::PostgreSQL
         OpenSSL::Crypto
@@ -34,6 +35,7 @@ endif()
 add_executable(auth_service_test
     tests/auth_service_test.cpp
 )
+
 target_link_libraries(auth_service_test PRIVATE hms_auth)
 
 # API library
@@ -57,8 +59,11 @@ target_include_directories(hms_password_security PUBLIC
 
 target_link_libraries(hms_password_security
     PUBLIC unofficial::argon2::libargon2
-    PRIVATE bcrypt
 )
+
+if(WIN32)
+    target_link_libraries(hms_password_security PRIVATE bcrypt)
+endif()
 
 # API test
 add_executable(api_test
@@ -115,6 +120,7 @@ if(WIN32)
 else()
     find_package(PostgreSQL REQUIRED)
     find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+
     target_link_libraries(hms_patients PRIVATE
         PostgreSQL::PostgreSQL
         OpenSSL::Crypto
@@ -126,6 +132,7 @@ add_executable(patient_service_test
 )
 
 target_link_libraries(patient_service_test PRIVATE hms_patients)
+
 add_test(NAME patient_service_test COMMAND patient_service_test)
 
 # Qt desktop client (built when Qt6 is available)
