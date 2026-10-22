@@ -3,9 +3,11 @@ cmake_minimum_required(VERSION 3.20)
 
 project(HMS_Miniproject VERSION 1.0.0 LANGUAGES CXX)
 
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 add_library(hms_auth
     src/services/auth_service.cpp
@@ -57,6 +59,7 @@ add_library(hms_appointments
 target_include_directories(hms_appointments PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+target_link_libraries(hms_appointments PUBLIC nlohmann_json::nlohmann_json)
 
 # Appointments test
 add_executable(appointments_test
