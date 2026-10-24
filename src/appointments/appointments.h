@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+
 namespace hms {
 
 struct Appointment {
@@ -50,12 +51,15 @@ private:
     long long next_id_ = 1;
 };
 
+
 struct BookingResult {
     bool ok = false;
     Appointment appointment;
     int http_status = 0;
     std::string code, message, field;
+    std::vector<std::string> next_slots;
 };
+
 
 // 0 = Sunday ... 6 = Saturday. Date must be "YYYY-MM-DD".
 int weekday_of(const std::string& date);
@@ -71,6 +75,18 @@ BookingResult book_appointment(AppointmentRepository& repo,
                                const std::string& date,
                                const std::string& time);
 
+std::vector<std::string> next_free_slots(
+    const AppointmentRepository& repo,
+    long long doctor_id,
+    const std::string& date,
+    const std::string& after_time,
+    size_t count = 3
+);
+
+std::string booking_error_to_json(
+    const BookingResult& r,
+    const std::string& request_id
+);
 std::string slots_to_json(const std::vector<std::string>& slots);
 std::string appointment_to_json(const Appointment& a);
 
