@@ -44,9 +44,7 @@ target_include_directories(hms_auth PUBLIC
 if(WIN32)
     target_link_libraries(hms_auth PRIVATE bcrypt)
 else()
-    find_package(PostgreSQL REQUIRED)
     target_link_libraries(hms_auth PRIVATE
-        PostgreSQL::PostgreSQL
         OpenSSL::Crypto
     )
 endif()
@@ -60,8 +58,6 @@ add_test(NAME auth_service_test COMMAND auth_service_test)
 # API library
 add_library(hms_api
     src/api.cpp
-    src/services/auth_service.cpp
-    src/services/rbac_service.cpp
 )
 
 target_include_directories(hms_api PUBLIC
@@ -74,6 +70,7 @@ target_include_directories(hms_api PRIVATE
 )
 
 target_link_libraries(hms_api PUBLIC
+    hms_auth
     ${ARGON2_LIBRARY}
     OpenSSL::Crypto
 )
@@ -82,6 +79,7 @@ if(NOT WIN32)
     find_package(PostgreSQL REQUIRED)
     target_link_libraries(hms_api PRIVATE PostgreSQL::PostgreSQL)
 endif()
+
 
 # API test
 add_executable(api_test
