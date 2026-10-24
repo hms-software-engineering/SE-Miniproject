@@ -15,9 +15,9 @@ std::string PostgresAppointmentRepository::working_hours(
     };
     pqxx::read_transaction tx{conn};
 
-    const auto result = tx.exec(
+    const auto result = tx.exec_params(
         "SELECT working_hours::text FROM doctors WHERE doctor_id = $1",
-        pqxx::params{doctor_id});
+        doctor_id);
 
     if (result.empty()) {
         return "";
@@ -33,7 +33,7 @@ std::vector<std::string> PostgresAppointmentRepository::booked_times(
     };
     pqxx::read_transaction tx{conn};
 
-    const auto result = tx.exec(
+    const auto result = tx.exec_params(
         "SELECT to_char(slot_start, 'HH24:MI') "
         "FROM appointments "
         "WHERE doctor_id = $1 "
@@ -41,7 +41,7 @@ std::vector<std::string> PostgresAppointmentRepository::booked_times(
         "AND slot_start < ($2::date + INTERVAL '1 day') "
         "AND status = 'Confirmed' "
         "ORDER BY slot_start",
-        pqxx::params{doctor_id, date});
+        doctor_id, date);
 
     std::vector<std::string> times;
     times.reserve(result.size());
@@ -63,31 +63,31 @@ SaveResult PostgresAppointmentRepository::insert(const Appointment& a) {
         pqxx::work tx{conn};
 
         // Validate both referenced records before inserting.
-        const auto patient = tx.exec(
+        const auto patient = tx.exec_params(
             "SELECT 1 FROM patients WHERE patient_id = $1",
-            pqxx::params{a.patient_id});
+            a.patient_id);
 
         if (patient.empty()) {
             result.status = SaveStatus::PatientMissing;
             return result;
         }
 
-        const auto doctor = tx.exec(
+        const auto doctor = tx.exec_params(
             "SELECT 1 FROM doctors WHERE doctor_id = $1",
-            pqxx::params{a.doctor_id});
+            a.doctor_id);
 
         if (doctor.empty()) {
             result.status = SaveStatus::DoctorMissing;
             return result;
         }
 
-        const auto inserted = tx.exec(
+        const auto inserted = tx.exec_params(
             "INSERT INTO appointments "
             "(patient_id, doctor_id, slot_start, status) "
             "VALUES ($1, $2, $3::timestamp, 'Confirmed') "
             "RETURNING appointment_id, patient_id, doctor_id, "
             "to_char(slot_start, 'YYYY-MM-DD HH24:MI'), status",
-            pqxx::params{a.patient_id, a.doctor_id, a.slot_start});
+            a.patient_id, a.doctor_id, a.slot_start);
 
         const auto& row = inserted[0];
 

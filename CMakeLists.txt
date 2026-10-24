@@ -74,6 +74,11 @@ target_link_libraries(hms_api PUBLIC
     OpenSSL::Crypto
 )
 
+if(NOT WIN32)
+    find_package(PostgreSQL REQUIRED)
+    target_link_libraries(hms_api PRIVATE PostgreSQL::PostgreSQL)
+endif()
+
 # API test
 add_executable(api_test
     tests/api_test.cpp

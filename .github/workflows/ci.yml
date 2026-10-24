@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake ninja-build libssl-dev libpq-dev curl zip unzip tar pkg-config
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake ninja-build libssl-dev libpq-dev libpqxx-dev curl zip unzip tar pkg-config
 
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
