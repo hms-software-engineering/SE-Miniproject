@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
 
 namespace hms {
 
@@ -13,13 +16,78 @@ const char* const kDayNames[7] = {"sunday",   "monday", "tuesday", "wednesday",
 
 bool valid_date(const std::string& d) {
     if (d.size() != 10 || d[4] != '-' || d[7] != '-') return false;
+
     for (size_t i = 0; i < d.size(); ++i) {
         if (i == 4 || i == 7) continue;
         if (!std::isdigit(static_cast<unsigned char>(d[i]))) return false;
     }
-    int m = std::stoi(d.substr(5, 2));
+
+    int year = std::stoi(d.substr(0, 4));
+    int month = std::stoi(d.substr(5, 2));
     int day = std::stoi(d.substr(8, 2));
-    return m >= 1 && m <= 12 && day >= 1 && day <= 31;
+
+    if (month < 1 || month > 12) return false;
+
+    const int days_in_month[] = {
+        31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+    };
+
+    int max_day = days_in_month[month - 1];
+    bool leap = (year % 400 == 0) ||
+                (year % 4 == 0 && year % 100 != 0);
+
+    if (month == 2 && leap) max_day = 29;
+
+    return day >= 1 && day <= max_day;
+}
+bool parse_hhmm(const std::string& s, int& minutes);
+bool valid_booking_datetime(const std::string& date,
+                           const std::string& time) {
+    int minutes = 0;
+    if (!valid_date(date) || !parse_hhmm(time, minutes)) return false;
+
+    std::tm requested = {};
+    std::istringstream input(date + " " + time);
+    input >> std::get_time(&requested, "%Y-%m-%d %H:%M");
+    if (input.fail()) return false;
+
+    std::time_t now_time = std::time(nullptr);
+    std::tm now_local = *std::localtime(&now_time);
+
+    std::tm today = now_local;
+    today.tm_hour = 0;
+    today.tm_min = 0;
+    today.tm_sec = 0;
+
+    requested.tm_isdst = -1;
+    today.tm_isdst = -1;
+
+    std::time_t requested_time = std::mktime(&requested);
+    std::time_t today_time = std::mktime(&today);
+
+    if (requested_time == static_cast<std::time_t>(-1) ||
+        today_time == static_cast<std::time_t>(-1)) {
+        return false;
+    }
+
+    // Reject any appointment earlier than the current time.
+    if (requested_time <= now_time) return false;
+
+    // Permit dates from today through 60 calendar days ahead.
+    std::tm latest = today;
+    latest.tm_mday += 60;
+    latest.tm_isdst = -1;
+    std::time_t latest_time = std::mktime(&latest);
+
+    std::tm requested_day = requested;
+    requested_day.tm_hour = 0;
+    requested_day.tm_min = 0;
+    requested_day.tm_sec = 0;
+    requested_day.tm_isdst = -1;
+    std::time_t requested_day_time = std::mktime(&requested_day);
+
+    return requested_day_time >= today_time &&
+           requested_day_time <= latest_time;
 }
 
 // Reads the "HH:MM-HH:MM" value for a day name from the JSON text.
@@ -161,8 +229,11 @@ BookingResult book_appointment(AppointmentRepository& repo,
         return fail(400, "VALIDATION_FAILED", "patientId is required", "patientId");
     if (doctor_id <= 0)
         return fail(400, "VALIDATION_FAILED", "doctorId is required", "doctorId");
-    if (!valid_date(date))
-        return fail(400, "VALIDATION_FAILED", "date must be YYYY-MM-DD", "date");
+    if (!valid_date(date) || !valid_booking_datetime(date, time)) {
+        return fail(400, "INVALID_DATE",
+                    "Appointment date/time must be in the future and within 60 days",
+                    "slotStart");
+    }
 
     std::string hours = repo.working_hours(doctor_id);
     if (hours.empty()) return fail(404, "NOT_FOUND", "Doctor not found", "doctorId");
