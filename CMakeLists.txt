@@ -8,8 +8,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBPQXX REQUIRED IMPORTED_TARGET libpqxx)
+if(WIN32)
+    find_package(libpqxx CONFIG REQUIRED)
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LIBPQXX REQUIRED IMPORTED_TARGET libpqxx)
+endif()
 
 find_path(ARGON2_INCLUDE_DIR NAMES argon2.h REQUIRED)
 find_library(ARGON2_LIBRARY NAMES argon2 REQUIRED)
@@ -101,8 +105,13 @@ target_include_directories(hms_appointments PUBLIC
 
 target_link_libraries(hms_appointments PUBLIC
     nlohmann_json::nlohmann_json
-    PkgConfig::LIBPQXX
 )
+
+if(WIN32)
+    target_link_libraries(hms_appointments PUBLIC libpqxx::pqxx)
+else()
+    target_link_libraries(hms_appointments PUBLIC PkgConfig::LIBPQXX)
+endif()
 
 # Appointments test
 add_executable(appointments_test
