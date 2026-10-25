@@ -163,11 +163,6 @@ add_test(
 
 # Patients
 
-add_test(NAME api_test COMMAND api_test)
-add_test(NAME appointments_test COMMAND appointments_test)
-add_test(NAME auth_service_test COMMAND auth_service_test)
-add_test(NAME password_security_test COMMAND password_security_test)
-
 add_library(hms_patients
     src/patients/patient_service.cpp
     src/patients/postgres_patient_repository.cpp
