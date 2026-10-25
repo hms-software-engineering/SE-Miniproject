@@ -6,12 +6,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(nlohmann_json REQUIRED)
-find_package(OpenSSL REQUIRED)
-find_package(cpp-httplib REQUIRED)
-find_package(argon2 REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
+find_package(OpenSSL CONFIG REQUIRED)
+find_package(cpp-httplib CONFIG REQUIRED)
+find_package(unofficial-argon2 CONFIG REQUIRED)
 find_package(PostgreSQL REQUIRED)
-find_package(libpqxx REQUIRED)
+find_package(libpqxx CONFIG REQUIRED)
 
 enable_testing()
 
@@ -77,7 +77,7 @@ target_include_directories(hms_api
 target_link_libraries(hms_api
     PUBLIC
         hms_auth
-        argon2
+        unofficial::argon2::libargon2
         OpenSSL::Crypto
 )
 

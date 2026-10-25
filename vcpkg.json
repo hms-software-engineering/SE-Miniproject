@@ -1,26 +1,13 @@
 {
   "name": "hms-miniproject",
   "version-string": "1.0.0",
+  "builtin-baseline": "67972e92edd181d433927b42d8ab4bfa52ac164a",
   "dependencies": [
-    {
-      "name": "argon2"
-    },
-    {
-      "name": "cpp-httplib"
-    },
-    {
-      "name": "nlohmann-json"
-    },
-    {
-      "name": "openssl"
-    },
-    {
-      "name": "libpq",
-      "platform": "windows"
-    },
-    {
-      "name": "libpqxx",
-      "platform": "windows"
-    }
+    "nlohmann-json",
+    "cpp-httplib",
+    "argon2",
+    "libpq",
+    "libpqxx",
+    "openssl"
   ]
 }
