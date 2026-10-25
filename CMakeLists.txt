@@ -3,6 +3,18 @@ cmake_minimum_required(VERSION 3.20)
 
 project(HMS_Miniproject VERSION 1.0.0 LANGUAGES CXX)
 
+include(FetchContent)
+
+FetchContent_Declare(
+    nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+    GIT_SHALLOW TRUE
+)
+
+FetchContent_MakeAvailable(nlohmann_json)
+
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -56,6 +68,9 @@ add_library(hms_appointments
 
 target_include_directories(hms_appointments PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(hms_appointments PUBLIC
+    nlohmann_json::nlohmann_json
 )
 
 # Appointments test
@@ -124,16 +139,17 @@ else()
     message(STATUS "Qt6 Widgets and Network not found; skipping hms_client")
 endif()
 
-# API server (Windows only)
-if(WIN32)
-    add_executable(hms_server
-        src/main.cpp
-    )
+# API server (cross-platform)
+add_executable(hms_server
+    src/main.cpp
+)
 
-    target_link_libraries(hms_server PRIVATE
-        hms_api
-        hms_auth
-        hms_patients
-        ws2_32
-    )
+target_link_libraries(hms_server PRIVATE
+    hms_api
+    hms_auth
+    hms_patients
+)
+
+if(WIN32)
+    target_link_libraries(hms_server PRIVATE ws2_32)
 endif()

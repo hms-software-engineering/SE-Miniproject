@@ -6,23 +6,30 @@ on:
 
 jobs:
   build-test:
+    name: Build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-latest]
-    runs-on: ${{ matrix.os }}
+        os:
+          - ubuntu-22.04
+          - windows-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Install dependencies (Linux)
+      - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake libssl-dev libpq-dev
-
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev
+      
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build --config Release
+        run: cmake --build build --config Release --parallel 4
 
       - name: Run tests
         run: ctest --test-dir build -C Release --output-on-failure
