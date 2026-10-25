@@ -11,6 +11,7 @@ find_package(OpenSSL CONFIG REQUIRED)
 find_package(httplib CONFIG REQUIRED)
 find_package(unofficial-argon2 CONFIG REQUIRED)
 find_package(PostgreSQL REQUIRED)
+find_package(libpqxx CONFIG REQUIRED)
 
 enable_testing()
 
@@ -118,6 +119,7 @@ target_link_libraries(hms_appointments
     PUBLIC
         nlohmann_json::nlohmann_json
         PostgreSQL::PostgreSQL
+        libpqxx::pqxx
 )
 
 add_executable(appointments_test
