@@ -33,6 +33,14 @@ public:
         const std::vector<BlindIndex>& name_prefix_indexes,
         const BlindIndex& phone_index) override
     {
+        if (!registration.linked_user_id.empty() &&
+            std::any_of(items_.begin(), items_.end(),
+                [&registration](const StoredPatient& item) {
+                    return item.patient.demographics.linked_user_id ==
+                           registration.linked_user_id;
+                })) {
+            return {};
+        }
         Patient patient{"PID-0000000" + std::to_string(next_id_++),
                         registration};
         items_.push_back({patient, name_prefix_indexes, phone_index});
@@ -232,6 +240,19 @@ int main()
     CHECK(no_match.matches.empty());
     CHECK(no_match.message == "No patient found");
     CHECK(service.search_patients("   ").message == "Search query is required.");
+
+    Registration profile = valid_registration();
+    profile.name = "Linked Patient";
+    profile.phone = "9876543213";
+    profile.linked_user_id = "42";
+    const auto linked_profile =
+        service.register_patient(profile, "21-10-2026");
+    CHECK(linked_profile.saved);
+    CHECK(linked_profile.patient.demographics.linked_user_id == "42");
+    const auto duplicate_profile =
+        service.register_patient(profile, "21-10-2026");
+    CHECK(!duplicate_profile.saved);
+    CHECK(duplicate_profile.errors.front().field == "profile");
 
     const auto reject = [&service, &repository](Registration registration) {
         const std::size_t count_before = repository.size();

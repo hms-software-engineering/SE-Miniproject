@@ -6,6 +6,7 @@
 #endif
 #include <windows.h>
 #include <bcrypt.h>
+#include <argon2.h>
 
 struct pg_conn;
 struct pg_result;
@@ -19,6 +20,7 @@ constexpr int PGRES_TUPLES_OK = 2;
 constexpr int PGRES_FATAL_ERROR = 7;
 constexpr int PG_DIAG_SQLSTATE = 'C';
 #else
+#include <argon2.h>
 #include <libpq-fe.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
@@ -42,7 +44,12 @@ constexpr std::size_t SALT_LENGTH = 16;
 constexpr std::size_t PASSWORD_HASH_LENGTH = 32;
 constexpr std::size_t TOKEN_LENGTH = 32;
 constexpr char HEX_DIGITS[] = "0123456789abcdef";
-constexpr char HASH_PREFIX[] = "pbkdf2-sha256$600000$";
+constexpr std::uint32_t ARGON2_ITERATIONS = 3;
+constexpr std::uint32_t ARGON2_MEMORY_KIB = 65536;
+constexpr std::uint32_t ARGON2_PARALLELISM = 1;
+constexpr std::size_t ARGON2_SALT_LENGTH = 16;
+constexpr std::size_t ARGON2_HASH_LENGTH = 32;
+constexpr char LEGACY_HASH_PREFIX[] = "pbkdf2-sha256$600000$";
 
 using Digest = std::array<unsigned char, PASSWORD_HASH_LENGTH>;
 
@@ -292,33 +299,23 @@ bool derive_password_hash(const std::string& password,
 #endif
 }
 
-std::string hash_password(const std::string& password)
+bool verify_legacy_password(const std::string& password,
+                            const std::string& encoded_hash)
 {
-    std::array<unsigned char, SALT_LENGTH> salt{};
-    Digest digest{};
-    if (!secure_random(salt.data(), salt.size()) ||
-        !derive_password_hash(password, salt.data(), salt.size(), digest)) {
-        throw std::runtime_error("Password hashing failed.");
-    }
-    return std::string(HASH_PREFIX) + encode_hex(salt.data(), salt.size()) +
-           "$" + encode_hex(digest.data(), digest.size());
-}
-
-bool verify_password(const std::string& password,
-                     const std::string& encoded_hash)
-{
-    if (encoded_hash.compare(0, sizeof(HASH_PREFIX) - 1, HASH_PREFIX) != 0) {
+    if (encoded_hash.compare(0, sizeof(LEGACY_HASH_PREFIX) - 1,
+                             LEGACY_HASH_PREFIX) != 0) {
         return false;
     }
     const std::size_t separator =
-        encoded_hash.find('$', sizeof(HASH_PREFIX) - 1);
+        encoded_hash.find('$', sizeof(LEGACY_HASH_PREFIX) - 1);
     if (separator == std::string::npos) {
         return false;
     }
     std::vector<unsigned char> salt;
     std::vector<unsigned char> expected;
-    if (!decode_hex(encoded_hash.substr(sizeof(HASH_PREFIX) - 1,
-                                        separator - (sizeof(HASH_PREFIX) - 1)),
+    if (!decode_hex(encoded_hash.substr(
+                        sizeof(LEGACY_HASH_PREFIX) - 1,
+                        separator - (sizeof(LEGACY_HASH_PREFIX) - 1)),
                     salt) ||
         salt.size() != SALT_LENGTH ||
         !decode_hex(encoded_hash.substr(separator + 1), expected) ||
@@ -335,6 +332,44 @@ bool verify_password(const std::string& password,
         difference |= static_cast<unsigned char>(actual[i] ^ expected[i]);
     }
     return difference == 0;
+}
+
+std::string hash_password(const std::string& password)
+{
+    const std::size_t encoded_length = argon2_encodedlen(
+        ARGON2_ITERATIONS, ARGON2_MEMORY_KIB, ARGON2_PARALLELISM,
+        ARGON2_SALT_LENGTH, ARGON2_HASH_LENGTH, Argon2_id);
+    std::vector<char> encoded(encoded_length);
+    std::array<unsigned char, ARGON2_SALT_LENGTH> salt{};
+    if (!secure_random(salt.data(), salt.size())) {
+        throw std::runtime_error("Password hashing failed.");
+    }
+    const int result = argon2id_hash_encoded(
+        ARGON2_ITERATIONS, ARGON2_MEMORY_KIB, ARGON2_PARALLELISM,
+        password.data(), password.size(), salt.data(), salt.size(),
+        ARGON2_HASH_LENGTH, encoded.data(), encoded.size());
+    if (result != ARGON2_OK) {
+        throw std::runtime_error(
+            std::string("Argon2id password hashing failed: ") +
+            argon2_error_message(result));
+    }
+    return encoded.data();
+}
+
+bool is_legacy_password_hash(const std::string& encoded_hash)
+{
+    return encoded_hash.compare(0, sizeof(LEGACY_HASH_PREFIX) - 1,
+                                LEGACY_HASH_PREFIX) == 0;
+}
+
+bool verify_password(const std::string& password,
+                     const std::string& encoded_hash)
+{
+    if (encoded_hash.compare(0, 10, "$argon2id$") == 0) {
+        return argon2id_verify(encoded_hash.c_str(), password.data(),
+                                password.size()) == ARGON2_OK;
+    }
+    return verify_legacy_password(password, encoded_hash);
 }
 
 std::string hash_token(const std::string& token)
@@ -506,11 +541,23 @@ AuthResult AuthService::authenticate_user(const std::string& username,
         return {false, "", "", "Invalid username or password."};
     }
     const std::optional<AuthUser> user = repository_.find_user(username);
-    if (!user.has_value() || !user->active ||
-        !verify_password(password, user->password_hash)) {
+    if (!user.has_value() || !user->active) {
+        return {false, "", "", "Invalid username or password."};
+    }
+    if (user->account_locked) {
+        return {false, "", "", "Account locked.", Role::Patient, true};
+    }
+    if (!verify_password(password, user->password_hash)) {
+        if (repository_.record_failed_login(username)) {
+            return {false, "", "", "Account locked.", Role::Patient, true};
+        }
         return {false, "", "", "Invalid username or password."};
     }
 
+    if (is_legacy_password_hash(user->password_hash)) {
+        repository_.update_password_hash(username, hash_password(password));
+    }
+    repository_.reset_failed_logins(username);
     const std::string token = make_session_token();
     repository_.create_session(hash_token(token), user->user_id);
     return {true, user->user_id, token, "Login successful.", user->role};
@@ -582,8 +629,17 @@ CreateUserStatus PostgresAuthRepository::create_user(
                             role_value.c_str()};
     PGresult* raw = pg_exec_params(
         connection_->value,
+        "WITH new_user AS ("
         "INSERT INTO users (username, password_hash, role) "
-        "VALUES ($1, $2, $3) RETURNING user_id::text",
+        "VALUES ($1, $2, $3) RETURNING user_id, role"
+        "), new_doctor AS ("
+        "INSERT INTO doctors (user_id, specialty, fee, working_hours) "
+        "SELECT user_id, 'General Medicine', 0, "
+        "'{\"monday\":\"09:00-17:00\",\"tuesday\":\"09:00-17:00\","
+        "\"wednesday\":\"09:00-17:00\",\"thursday\":\"09:00-17:00\","
+        "\"friday\":\"09:00-17:00\"}'::jsonb "
+        "FROM new_user WHERE role = 'Doctor' RETURNING doctor_id"
+        ") SELECT user_id::text FROM new_user",
         3, nullptr, values, nullptr, nullptr, 0);
     if (raw != nullptr &&
         pg_result_status(raw) == PGRES_FATAL_ERROR &&
@@ -605,9 +661,20 @@ std::optional<AuthUser> PostgresAuthRepository::find_user(
     const std::string& username) const
 {
     const char* values[] = {username.c_str()};
+    PGresult* expired_raw = pg_exec_params(
+        connection_->value,
+        "UPDATE users SET failed_attempts = 0, locked_until = NULL "
+        "WHERE username = $1 AND locked_until IS NOT NULL "
+        "AND locked_until <= CURRENT_TIMESTAMP",
+        1, nullptr, values, nullptr, nullptr, 0);
+    require_status(connection_->value, expired_raw, PGRES_COMMAND_OK,
+                   "Could not clear expired login lock");
+    pg_clear(expired_raw);
+
     PGresult* raw = pg_exec_params(
         connection_->value,
-        "SELECT user_id::text, username, password_hash, role, active "
+        "SELECT user_id::text, username, password_hash, role, active, "
+        "(locked_until > CURRENT_TIMESTAMP) "
         "FROM users WHERE username = $1",
         1, nullptr, values, nullptr, nullptr, 0);
     require_status(connection_->value, raw, PGRES_TUPLES_OK,
@@ -626,8 +693,62 @@ std::optional<AuthUser> PostgresAuthRepository::find_user(
         pg_value(result.get(), 0, 1),
         pg_value(result.get(), 0, 2),
         role,
-        std::string(pg_value(result.get(), 0, 4)) == "t"
+        std::string(pg_value(result.get(), 0, 4)) == "t",
+        std::string(pg_value(result.get(), 0, 5)) == "t"
     };
+}
+
+bool PostgresAuthRepository::record_failed_login(
+    const std::string& username)
+{
+    const char* values[] = {username.c_str()};
+    PGresult* raw = pg_exec_params(
+        connection_->value,
+        "UPDATE users SET "
+        "failed_attempts = LEAST(failed_attempts + 1, 5), "
+        "locked_until = CASE WHEN failed_attempts + 1 >= 5 "
+        "THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes' "
+        "ELSE locked_until END "
+        "WHERE username = $1 AND active = TRUE "
+        "RETURNING locked_until > CURRENT_TIMESTAMP",
+        1, nullptr, values, nullptr, nullptr, 0);
+    require_status(connection_->value, raw, PGRES_TUPLES_OK,
+                   "Could not record failed login");
+    Result result(raw);
+    return pg_tuples(result.get()) > 0 &&
+           std::string(pg_value(result.get(), 0, 0)) == "t";
+}
+
+void PostgresAuthRepository::reset_failed_logins(
+    const std::string& username)
+{
+    const char* values[] = {username.c_str()};
+    PGresult* raw = pg_exec_params(
+        connection_->value,
+        "UPDATE users SET failed_attempts = 0, locked_until = NULL "
+        "WHERE username = $1",
+        1, nullptr, values, nullptr, nullptr, 0);
+    require_status(connection_->value, raw, PGRES_COMMAND_OK,
+                   "Could not reset failed login count");
+    pg_clear(raw);
+}
+
+void PostgresAuthRepository::update_password_hash(
+    const std::string& username, const std::string& password_hash)
+{
+    const char* values[] = {username.c_str(), password_hash.c_str()};
+    PGresult* raw = pg_exec_params(
+        connection_->value,
+        "UPDATE users SET password_hash = $2, updated_at = CURRENT_TIMESTAMP "
+        "WHERE username = $1 AND active = TRUE RETURNING user_id",
+        2, nullptr, values, nullptr, nullptr, 0);
+    require_status(connection_->value, raw, PGRES_TUPLES_OK,
+                   "Could not upgrade password hash");
+    Result result(raw);
+    if (pg_tuples(result.get()) != 1) {
+        throw std::runtime_error(
+            "Could not upgrade password hash: user is no longer active.");
+    }
 }
 
 void PostgresAuthRepository::create_session(const std::string& token_hash,
@@ -637,7 +758,7 @@ void PostgresAuthRepository::create_session(const std::string& token_hash,
     PGresult* raw = pg_exec_params(
         connection_->value,
         "INSERT INTO auth_sessions (token_hash, user_id, expires_at) "
-        "VALUES ($1, $2::bigint, CURRENT_TIMESTAMP + INTERVAL '30 minutes')",
+        "VALUES ($1, $2::bigint, CURRENT_TIMESTAMP + INTERVAL '10 minutes')",
         2, nullptr, values, nullptr, nullptr, 0);
     require_status(connection_->value, raw, PGRES_COMMAND_OK,
                    "Could not create session");
@@ -650,10 +771,12 @@ std::optional<SessionPrincipal> PostgresAuthRepository::find_session(
     const char* values[] = {token_hash.c_str()};
     PGresult* raw = pg_exec_params(
         connection_->value,
-        "SELECT s.user_id::text, u.role "
-        "FROM auth_sessions s JOIN users u ON u.user_id = s.user_id "
+        "UPDATE auth_sessions s "
+        "SET expires_at = CURRENT_TIMESTAMP + INTERVAL '10 minutes' "
+        "FROM users u "
         "WHERE s.token_hash = $1 AND s.expires_at > CURRENT_TIMESTAMP "
-        "AND u.active = TRUE",
+        "AND u.user_id = s.user_id AND u.active = TRUE "
+        "RETURNING s.user_id::text, u.role",
         1, nullptr, values, nullptr, nullptr, 0);
     require_status(connection_->value, raw, PGRES_TUPLES_OK,
                    "Could not verify session");

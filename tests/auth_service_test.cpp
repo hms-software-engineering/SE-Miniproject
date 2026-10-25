@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstdlib>
 #include <iostream>
+#include <set>
 #include <unordered_map>
 
 #define CHECK(condition)                                                     \
@@ -42,7 +43,36 @@ public:
         if (found == users_.end()) {
             return std::nullopt;
         }
-        return found->second;
+        hms::AuthUser user = found->second;
+        user.account_locked = locked_users_.find(username) !=
+                              locked_users_.end();
+        return user;
+    }
+
+    bool record_failed_login(const std::string& username) override
+    {
+        const auto found = users_.find(username);
+        if (found == users_.end() || !found->second.active) {
+            return false;
+        }
+        const std::size_t failures = ++failed_attempts_[username];
+        if (failures >= 5) {
+            locked_users_.insert(username);
+            return true;
+        }
+        return false;
+    }
+
+    void reset_failed_logins(const std::string& username) override
+    {
+        failed_attempts_.erase(username);
+        locked_users_.erase(username);
+    }
+
+    void update_password_hash(const std::string& username,
+                              const std::string& password_hash) override
+    {
+        users_.at(username).password_hash = password_hash;
     }
 
     void create_session(const std::string& token_hash,
@@ -83,10 +113,18 @@ public:
         return users_.at(username).password_hash;
     }
 
+    void set_password_hash(const std::string& username,
+                           const std::string& password_hash)
+    {
+        users_.at(username).password_hash = password_hash;
+    }
+
 private:
     std::size_t next_id_ = 1;
     std::unordered_map<std::string, hms::AuthUser> users_;
     std::unordered_map<std::string, std::string> sessions_;
+    std::unordered_map<std::string, std::size_t> failed_attempts_;
+    std::set<std::string> locked_users_;
 };
 
 void test_role_permissions()
@@ -102,8 +140,9 @@ void test_role_permissions()
         CHECK(hms::is_permitted(role, Permission::LoginLogout));
     }
 
-    constexpr std::array<Permission, 14> permissions = {
+    constexpr std::array<Permission, 15> permissions = {
         Permission::RegisterPatient,
+        Permission::CreateOwnPatientProfile,
         Permission::SearchPatients,
         Permission::UpdatePatientData,
         Permission::ViewFreeSlots,
@@ -118,8 +157,9 @@ void test_role_permissions()
         Permission::ManageUsers,
         Permission::ViewAuditLog
     };
-    constexpr bool expected[14][5] = {
+    constexpr bool expected[15][5] = {
         {false, true,  false, false, false},
+        {true,  false, false, false, false},
         {false, true,  true,  false, false},
         {false, true,  false, false, false},
         {true,  true,  false, false, false},
@@ -217,8 +257,21 @@ void test_authentication()
     CHECK(registered.role == hms::Role::Patient);
     CHECK(registered.token.empty());
     const std::string encoded = repository.stored_password_hash("patient");
-    CHECK(encoded.find("pbkdf2-sha256$600000$") == 0);
+    CHECK(encoded.find("$argon2id$v=19$m=65536,t=3,p=1$") == 0);
     CHECK(encoded != "GoodPass1!");
+
+    const auto legacy_user =
+        service.register_patient("legacy", "GoodPass1!");
+    CHECK(legacy_user.success);
+    repository.set_password_hash(
+        "legacy",
+        "pbkdf2-sha256$600000$000102030405060708090a0b0c0d0e0f$"
+        "dc359d39624353945baa85dbde4fe47d7ea9b9db0f9639ce53e1f6fbfde4dbe3");
+    const auto upgraded_login =
+        service.authenticate_user("legacy", "GoodPass1!");
+    CHECK(upgraded_login.success);
+    CHECK(repository.stored_password_hash("legacy").find("$argon2id$") == 0);
+    service.logout(upgraded_login.token);
 
     auto duplicate =
         service.register_patient("patient", "GoodPass1!");
@@ -232,6 +285,22 @@ void test_authentication()
     CHECK(!unknown.success);
     CHECK(unknown.message == invalid.message);
 
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        auto failed = service.authenticate_user("patient", "WrongPass1!");
+        CHECK(!failed.success);
+        CHECK(failed.message == "Invalid username or password.");
+    }
+    auto fifth_failure =
+        service.authenticate_user("patient", "WrongPass1!");
+    CHECK(!fifth_failure.success);
+    CHECK(fifth_failure.account_locked);
+    CHECK(fifth_failure.message == "Account locked.");
+    auto locked_login =
+        service.authenticate_user("patient", "GoodPass1!");
+    CHECK(!locked_login.success);
+    CHECK(locked_login.account_locked);
+
+    repository.reset_failed_logins("patient");
     auto login = service.authenticate_user("patient", "GoodPass1!");
     CHECK(login.success);
     CHECK(login.user_id == registered.user_id);

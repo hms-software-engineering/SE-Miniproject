@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_path(ARGON2_INCLUDE_DIR NAMES argon2.h REQUIRED)
+find_library(ARGON2_LIBRARY NAMES argon2 REQUIRED)
+
 add_library(hms_auth
     src/services/auth_service.cpp
     src/services/rbac_service.cpp
@@ -15,6 +18,8 @@ add_library(hms_auth
 target_include_directories(hms_auth PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+target_include_directories(hms_auth PRIVATE ${ARGON2_INCLUDE_DIR})
+target_link_libraries(hms_auth PRIVATE ${ARGON2_LIBRARY})
 
 if(WIN32)
     target_link_libraries(hms_auth PRIVATE bcrypt)
@@ -57,6 +62,22 @@ add_library(hms_appointments
 target_include_directories(hms_appointments PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+if(NOT WIN32)
+    target_link_libraries(hms_appointments PRIVATE PostgreSQL::PostgreSQL)
+endif()
+
+# Clinical records are encrypted with AES-256-GCM before they are persisted.
+find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+add_library(hms_clinical
+    src/clinical/clinical_service.cpp
+)
+target_include_directories(hms_clinical PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(hms_clinical PRIVATE OpenSSL::Crypto)
+if(NOT WIN32)
+    target_link_libraries(hms_clinical PRIVATE PostgreSQL::PostgreSQL)
+endif()
 
 # Appointments test
 add_executable(appointments_test
@@ -100,6 +121,12 @@ add_executable(patient_service_test
 target_link_libraries(patient_service_test PRIVATE hms_patients)
 add_test(NAME patient_service_test COMMAND patient_service_test)
 
+add_executable(clinical_service_test
+    tests/clinical_service_test.cpp
+)
+target_link_libraries(clinical_service_test PRIVATE hms_clinical)
+add_test(NAME clinical_service_test COMMAND clinical_service_test)
+
 # Qt desktop client (built when Qt6 is available)
 find_package(Qt6 QUIET COMPONENTS Widgets Network)
 
@@ -114,6 +141,8 @@ if(Qt6_FOUND)
         src/client/apiclient.cpp
         src/client/patientmanagementwindow.h
         src/client/patientmanagementwindow.cpp
+        src/client/workflowwindow.h
+        src/client/workflowwindow.cpp
     )
 
     target_link_libraries(hms_client PRIVATE
@@ -126,6 +155,7 @@ endif()
 
 # API server (Windows only)
 if(WIN32)
+    find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
     add_executable(hms_server
         src/main.cpp
     )
@@ -134,6 +164,10 @@ if(WIN32)
         hms_api
         hms_auth
         hms_patients
+        hms_appointments
+        hms_clinical
+        OpenSSL::SSL
+        OpenSSL::Crypto
         ws2_32
     )
 endif()

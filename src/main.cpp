@@ -1,5 +1,7 @@
 
 #include "api/api.h"
+#include "appointments/appointments.h"
+#include "clinical/clinical_service.h"
 #include "services/auth_service.h"
 #include "services/rbac_service.h"
 #include "patients/patient_service.h"
@@ -7,6 +9,8 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #include <algorithm>
 #include <cctype>
@@ -24,7 +28,7 @@
 
 namespace {
 
-constexpr unsigned short PORT = 8080;
+constexpr unsigned short PORT = 8443;
 constexpr std::size_t MAX_REQUEST_SIZE = 1024 * 1024;
 constexpr std::size_t MAX_HEADER_SIZE = 16 * 1024;
 
@@ -43,6 +47,7 @@ std::string status_text(int status)
     case 413: return "Payload Too Large";
     case 415: return "Unsupported Media Type";
     case 431: return "Request Header Fields Too Large";
+    case 423: return "Locked";
     case 500: return "Internal Server Error";
     case 501: return "Not Implemented";
     default:  return "Error";
@@ -254,7 +259,11 @@ std::string to_lower(std::string value)
     return value;
 }
 
-bool send_all(SOCKET client, const std::string& data)
+struct TlsConnection {
+    SSL* ssl;
+};
+
+bool send_all(TlsConnection& client, const std::string& data)
 {
     std::size_t sent = 0;
 
@@ -263,10 +272,10 @@ bool send_all(SOCKET client, const std::string& data)
         const int chunk = static_cast<int>(
             std::min<std::size_t>(remaining, 64 * 1024));
 
-        const int result = send(
-            client, data.data() + sent, chunk, 0);
+        const int result = SSL_write(
+            client.ssl, data.data() + sent, chunk);
 
-        if (result == SOCKET_ERROR || result == 0)
+        if (result <= 0)
             return false;
 
         sent += static_cast<std::size_t>(result);
@@ -276,7 +285,7 @@ bool send_all(SOCKET client, const std::string& data)
 }
 
 void send_response(
-    SOCKET client,
+    TlsConnection& client,
     int status,
     const std::string& body)
 {
@@ -291,13 +300,12 @@ void send_response(
              << body;
 
     if (!send_all(client, response.str())) {
-        std::cerr << "Failed to send HTTP response: "
-                  << WSAGetLastError() << '\n';
+        std::cerr << "Failed to send HTTPS response.\n";
     }
 }
 
 void send_error(
-    SOCKET client,
+    TlsConnection& client,
     int status,
     const std::string& code,
     const std::string& message,
@@ -308,6 +316,25 @@ void send_error(
     };
 
     send_response(client, status, hms::make_error_json(error));
+}
+
+void send_slot_taken_error(
+    TlsConnection& client,
+    const hms::BookingResult& result,
+    const std::string& request_id)
+{
+    const hms::ApiError error{
+        result.http_status, result.code, result.message, request_id, result.field
+    };
+    std::string body = hms::make_error_json(error);
+    body.pop_back();
+    body += ",\"suggestedSlots\":[";
+    for (std::size_t i = 0; i < result.suggested_slots.size(); ++i) {
+        if (i != 0) body += ',';
+        body += json_string(result.suggested_slots[i]);
+    }
+    body += "]}";
+    send_response(client, result.http_status, body);
 }
 
 bool parse_json_body(const std::string& body,
@@ -391,6 +418,23 @@ bool parse_patient_registration(
     return true;
 }
 
+bool parse_positive_id(const std::string& value, long long& id)
+{
+    if (value.empty() ||
+        !std::all_of(value.begin(), value.end(), [](unsigned char ch) {
+            return ch >= '0' && ch <= '9';
+        })) {
+        return false;
+    }
+    try {
+        std::size_t consumed = 0;
+        id = std::stoll(value, &consumed);
+        return consumed == value.size() && id > 0;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
 std::string json_patient(const hms::patients::Patient& patient)
 {
     return "{\"patientId\":" + json_string(patient.patient_id) +
@@ -431,7 +475,7 @@ bool is_json_content_type(const std::string& content_type)
 }
 
 bool require_principal(
-    SOCKET client,
+    TlsConnection& client,
     const std::string& authorization,
     const std::string& request_id,
     hms::AuthService& auth_service,
@@ -459,6 +503,9 @@ std::optional<hms::Permission> permission_for_request(
 {
     if (method == "POST" && path == "/api/v1/patients") {
         return hms::Permission::RegisterPatient;
+    }
+    if (method == "POST" && path == "/api/v1/patients/me/profile") {
+        return hms::Permission::CreateOwnPatientProfile;
     }
     if (method == "GET" && path == "/api/v1/patients/search") {
         return hms::Permission::SearchPatients;
@@ -501,6 +548,14 @@ std::optional<hms::Permission> permission_for_request(
         return hms::Permission::RecordVisitPrescribe;
     }
     if (method == "POST" &&
+        path.rfind("/api/v1/visits/", 0) == 0 &&
+        path.size() > std::string("/api/v1/visits/").size() &&
+        path.find("/prescriptions",
+                  std::string("/api/v1/visits/").size()) !=
+            std::string::npos) {
+        return hms::Permission::RecordVisitPrescribe;
+    }
+    if (method == "POST" &&
         (path == "/api/v1/bills" || path == "/api/v1/payments" ||
          path == "/api/v1/receipts")) {
         return hms::Permission::BillingPaymentsReceipts;
@@ -516,9 +571,11 @@ std::optional<hms::Permission> permission_for_request(
     return std::nullopt;
 }
 
-void handle_client(SOCKET client,
+void handle_client(TlsConnection& client,
                    hms::AuthService& auth_service,
-                   hms::patients::PatientService& patient_service)
+                   hms::patients::PatientService& patient_service,
+                   hms::PostgresAppointmentRepository& appointment_repository,
+                   hms::clinical::ClinicalService& clinical_service)
 {
     const std::string request_id = make_request_id();
     std::string raw;
@@ -537,12 +594,15 @@ void handle_client(SOCKET client,
 
     // Read headers and the declared body, subject to a size limit.
     while (raw.size() < MAX_REQUEST_SIZE) {
-        const int received = recv(
-            client, buffer, static_cast<int>(sizeof(buffer)), 0);
+        const int received = SSL_read(
+            client.ssl, buffer, static_cast<int>(sizeof(buffer)));
 
-        if (received == SOCKET_ERROR) {
-            std::cerr << "recv() failed: "
-                      << WSAGetLastError() << '\n';
+        if (received < 0) {
+            const int ssl_error = SSL_get_error(client.ssl, received);
+            if (ssl_error != SSL_ERROR_ZERO_RETURN) {
+                std::cerr << "TLS request read failed (error "
+                          << ssl_error << ").\n";
+            }
             return;
         }
 
@@ -796,8 +856,14 @@ void handle_client(SOCKET client,
             return;
         }
         if (!result.success) {
-            send_error(client, 401, "INVALID_CREDENTIALS",
-                       "Invalid username or password.", request_id);
+            if (result.account_locked) {
+                send_error(client, 423, "ACCOUNT_LOCKED",
+                           "Account locked after repeated failed logins.",
+                           request_id);
+            } else {
+                send_error(client, 401, "INVALID_CREDENTIALS",
+                           "Invalid username or password.", request_id);
+            }
             return;
         }
         send_response(client, 200,
@@ -872,10 +938,20 @@ void handle_client(SOCKET client,
                        result.message, request_id);
             return;
         }
-        send_response(client, 201,
+        std::string response =
             "{\"userId\":" + json_string(result.user_id) +
             ",\"role\":" + json_string(
-                std::string(hms::role_name(result.role))) + "}");
+                std::string(hms::role_name(result.role)));
+        if (result.role == hms::Role::Doctor) {
+            const std::string doctor_id =
+                appointment_repository.doctor_id_for_user(result.user_id);
+            if (doctor_id.empty()) {
+                throw std::runtime_error(
+                    "Created doctor account is missing its doctor profile.");
+            }
+            response += ",\"doctorId\":" + json_string(doctor_id);
+        }
+        send_response(client, 201, response + "}");
         return;
     }
 
@@ -911,6 +987,234 @@ void handle_client(SOCKET client,
             }
             body += "],\"message\":" + json_string(result.message) + "}";
             send_response(client, 200, body);
+            return;
+        }
+
+        if (method == "POST" &&
+            path == "/api/v1/patients/me/profile") {
+            if (!is_json_content_type(content_type)) {
+                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                           "Content-Type must be application/json.",
+                           request_id);
+                return;
+            }
+            const std::size_t body_start = header_end + 4;
+            std::map<std::string, std::string> fields;
+            hms::patients::Registration registration;
+            if (!has_content_length ||
+                raw.size() < body_start + content_length ||
+                !parse_json_body(raw.substr(body_start, content_length), fields) ||
+                !parse_patient_registration(fields, registration)) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide name, dateOfBirth, gender, phone, and address.",
+                           request_id);
+                return;
+            }
+            registration.linked_user_id = principal.user_id;
+            const auto result = patient_service.register_patient(
+                registration, current_date_ddmmyyyy());
+            if (!result.saved) {
+                const bool duplicate = !result.errors.empty() &&
+                    result.errors.front().field == "profile";
+                send_error(client, duplicate ? 409 : 400,
+                           duplicate ? "PROFILE_ALREADY_EXISTS"
+                                     : "INVALID_PATIENT",
+                           validation_error(result.errors), request_id);
+                return;
+            }
+            send_response(client, 201,
+                "{\"patient\":" + json_patient(result.patient) + "}");
+            return;
+        }
+
+        if (method == "GET" &&
+            path == "/api/v1/appointments/free-slots") {
+            std::string doctor_text;
+            std::string date;
+            long long doctor_id = 0;
+            if (!read_query_parameter(query_string, "doctorId", doctor_text) ||
+                !read_query_parameter(query_string, "date", date) ||
+                !parse_positive_id(doctor_text, doctor_id) ||
+                !hms::appointment_date_valid(date)) {
+                send_error(client, 400, "INVALID_QUERY",
+                           "Provide a valid doctorId and date (YYYY-MM-DD).",
+                           request_id);
+                return;
+            }
+            if (appointment_repository.working_hours(doctor_id).empty()) {
+                send_error(client, 404, "DOCTOR_NOT_FOUND",
+                           "Doctor was not found.", request_id);
+                return;
+            }
+            const auto slots = hms::free_slots(
+                appointment_repository, doctor_id, date);
+            send_response(client, 200, hms::slots_to_json(slots));
+            return;
+        }
+
+        if (method == "POST" && path == "/api/v1/appointments") {
+            if (!is_json_content_type(content_type)) {
+                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                           "Content-Type must be application/json.",
+                           request_id);
+                return;
+            }
+            const std::size_t body_start = header_end + 4;
+            std::map<std::string, std::string> fields;
+            long long doctor_id = 0;
+            if (!has_content_length ||
+                raw.size() < body_start + content_length ||
+                !parse_json_body(raw.substr(body_start, content_length), fields) ||
+                fields.size() != 4 ||
+                fields.find("patientId") == fields.end() ||
+                fields.find("doctorId") == fields.end() ||
+                fields.find("date") == fields.end() ||
+                fields.find("time") == fields.end() ||
+                !parse_positive_id(fields.at("doctorId"), doctor_id)) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide patientId, doctorId, date, and time as strings.",
+                           request_id);
+                return;
+            }
+            if (principal.role == hms::Role::Patient &&
+                !appointment_repository.patient_belongs_to_user(
+                    fields.at("patientId"), principal.user_id)) {
+                send_error(client, 403, "ACCESS_DENIED", "Access denied",
+                           request_id);
+                return;
+            }
+            const auto result = hms::book_appointment(
+                appointment_repository, fields.at("patientId"), doctor_id,
+                fields.at("date"), fields.at("time"));
+            if (!result.ok) {
+                if (result.code == "SLOT_TAKEN") {
+                    send_slot_taken_error(client, result, request_id);
+                } else {
+                    send_error(client, result.http_status, result.code,
+                               result.message, request_id);
+                }
+                return;
+            }
+            send_response(client, result.http_status,
+                "{\"appointment\":" +
+                    hms::appointment_to_json(result.appointment) + "}");
+            return;
+        }
+
+        if (method == "POST" && path == "/api/v1/visits") {
+            if (!is_json_content_type(content_type)) {
+                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                           "Content-Type must be application/json.",
+                           request_id);
+                return;
+            }
+            const std::size_t body_start = header_end + 4;
+            std::map<std::string, std::string> fields;
+            long long appointment_id = 0;
+            if (!has_content_length ||
+                raw.size() < body_start + content_length ||
+                !parse_json_body(raw.substr(body_start, content_length), fields) ||
+                fields.size() != 4 ||
+                fields.find("appointmentId") == fields.end() ||
+                fields.find("symptoms") == fields.end() ||
+                fields.find("diagnosis") == fields.end() ||
+                fields.find("notes") == fields.end() ||
+                fields.at("symptoms").empty() ||
+                fields.at("diagnosis").empty() ||
+                fields.at("symptoms").size() > 4000 ||
+                fields.at("diagnosis").size() > 4000 ||
+                fields.at("notes").size() > 8000 ||
+                !parse_positive_id(fields.at("appointmentId"), appointment_id)) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide appointmentId, symptoms, diagnosis, and notes.",
+                           request_id);
+                return;
+            }
+            const auto visit = clinical_service.record_visit(
+                {appointment_id, fields.at("symptoms"),
+                 fields.at("diagnosis"), fields.at("notes")},
+                principal.user_id);
+            if (visit.status == hms::clinical::VisitRecordStatus::
+                                    AppointmentUnavailable) {
+                send_error(client, 404, "APPOINTMENT_NOT_FOUND",
+                           "A confirmed appointment for this doctor was not found.",
+                           request_id);
+                return;
+            }
+            if (visit.status ==
+                hms::clinical::VisitRecordStatus::AlreadyRecorded) {
+                send_error(client, 409, "VISIT_ALREADY_RECORDED",
+                           "A consultation is already recorded for this appointment.",
+                           request_id);
+                return;
+            }
+            send_response(client, 201,
+                "{\"visitId\":" + json_string(std::to_string(visit.visit_id)) +
+                "}");
+            return;
+        }
+
+        constexpr char visit_path[] = "/api/v1/visits/";
+        constexpr char prescription_suffix[] = "/prescriptions";
+        if (method == "POST" &&
+            path.rfind(visit_path, 0) == 0 &&
+            path.size() > sizeof(visit_path) - 1 +
+                              sizeof(prescription_suffix) - 1 &&
+            path.compare(path.size() - sizeof(prescription_suffix) + 1,
+                         sizeof(prescription_suffix) - 1,
+                         prescription_suffix) == 0) {
+            const std::string visit_id_text = path.substr(
+                sizeof(visit_path) - 1,
+                path.size() - (sizeof(visit_path) - 1) -
+                    (sizeof(prescription_suffix) - 1));
+            long long visit_id = 0;
+            if (!parse_positive_id(visit_id_text, visit_id)) {
+                send_error(client, 404, "VISIT_NOT_FOUND",
+                           "Visit was not found.", request_id);
+                return;
+            }
+            if (!is_json_content_type(content_type)) {
+                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                           "Content-Type must be application/json.",
+                           request_id);
+                return;
+            }
+            const std::size_t body_start = header_end + 4;
+            std::map<std::string, std::string> fields;
+            long long days = 0;
+            if (!has_content_length ||
+                raw.size() < body_start + content_length ||
+                !parse_json_body(raw.substr(body_start, content_length), fields) ||
+                fields.size() != 4 ||
+                fields.find("item") == fields.end() ||
+                fields.find("dosage") == fields.end() ||
+                fields.find("frequency") == fields.end() ||
+                fields.find("days") == fields.end() ||
+                fields.at("item").empty() ||
+                fields.at("item").size() > 200 ||
+                fields.at("dosage").empty() ||
+                fields.at("dosage").size() > 120 ||
+                fields.at("frequency").empty() ||
+                fields.at("frequency").size() > 120 ||
+                !parse_positive_id(fields.at("days"), days) ||
+                days > 3650) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide item, dosage, frequency, and positive days.",
+                           request_id);
+                return;
+            }
+            const hms::clinical::PrescriptionInput prescription{
+                visit_id, fields.at("item"), fields.at("dosage"),
+                fields.at("frequency"), static_cast<int>(days)
+            };
+            if (!clinical_service.add_prescription(
+                    prescription, principal.user_id)) {
+                send_error(client, 404, "VISIT_NOT_FOUND",
+                           "Visit was not found for this doctor.",
+                           request_id);
+                return;
+            }
+            send_response(client, 201, "{\"created\":true}");
             return;
         }
 
@@ -1012,10 +1316,39 @@ int main()
 
     std::cout << "Starting HMS server...\n";
 
+    const char* certificate_file = std::getenv("HMS_TLS_CERT_FILE");
+    const char* private_key_file = std::getenv("HMS_TLS_KEY_FILE");
+    if (certificate_file == nullptr || *certificate_file == '\0' ||
+        private_key_file == nullptr || *private_key_file == '\0') {
+        std::cerr << "Set HMS_TLS_CERT_FILE and HMS_TLS_KEY_FILE to a "
+                     "TLS certificate chain and matching private key.\n";
+        return 1;
+    }
+    std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)> tls_context(
+        SSL_CTX_new(TLS_server_method()), SSL_CTX_free);
+    if (!tls_context ||
+        SSL_CTX_set_min_proto_version(
+            tls_context.get(), TLS1_2_VERSION) != 1 ||
+        SSL_CTX_use_certificate_chain_file(
+            tls_context.get(), certificate_file) != 1 ||
+        SSL_CTX_use_PrivateKey_file(
+            tls_context.get(), private_key_file, SSL_FILETYPE_PEM) != 1 ||
+        SSL_CTX_check_private_key(tls_context.get()) != 1) {
+        std::cerr << "Could not initialize the TLS certificate/key: ";
+        ERR_print_errors_fp(stderr);
+        return 1;
+    }
+    SSL_CTX_set_options(tls_context.get(), SSL_OP_NO_COMPRESSION);
+
     std::unique_ptr<hms::PostgresAuthRepository> auth_repository;
     std::unique_ptr<hms::patients::PostgresPatientRepository>
         patient_repository;
     std::unique_ptr<hms::patients::PatientService> patient_service;
+    std::unique_ptr<hms::PostgresAppointmentRepository>
+        appointment_repository;
+    std::unique_ptr<hms::clinical::PostgresClinicalRepository>
+        clinical_repository;
+    std::unique_ptr<hms::clinical::ClinicalService> clinical_service;
     try {
         auth_repository = std::make_unique<hms::PostgresAuthRepository>();
         const char* data_key = std::getenv("HMS_PATIENT_DATA_KEY");
@@ -1040,6 +1373,14 @@ int main()
         patient_service =
             std::make_unique<hms::patients::PatientService>(
                 *patient_repository, name_index_key, phone_index_key);
+        appointment_repository =
+            std::make_unique<hms::PostgresAppointmentRepository>();
+        clinical_repository =
+            std::make_unique<hms::clinical::PostgresClinicalRepository>(
+                data_key);
+        clinical_service =
+            std::make_unique<hms::clinical::ClinicalService>(
+                *clinical_repository);
         hms::AuthService auth_service(*auth_repository);
 
         const char* bootstrap_username =
@@ -1121,7 +1462,7 @@ int main()
         return 1;
     }
 
-    std::cout << "HMS API listening at http://127.0.0.1:"
+    std::cout << "HMS API listening at https://localhost:"
               << PORT << "/api/v1\n"
               << "Health endpoint: GET /api/v1/health\n"
               << "Stop with Ctrl+C or close this console.\n";
@@ -1140,16 +1481,44 @@ int main()
         }
 
         std::cout << "Accepted client connection.\n";
+        const DWORD io_timeout_ms = 15000;
+        if (setsockopt(client, SOL_SOCKET, SO_RCVTIMEO,
+                       reinterpret_cast<const char*>(&io_timeout_ms),
+                       sizeof(io_timeout_ms)) == SOCKET_ERROR ||
+            setsockopt(client, SOL_SOCKET, SO_SNDTIMEO,
+                       reinterpret_cast<const char*>(&io_timeout_ms),
+                       sizeof(io_timeout_ms)) == SOCKET_ERROR) {
+            std::cerr << "Could not configure TLS socket timeouts: "
+                      << WSAGetLastError() << '\n';
+            shutdown(client, SD_BOTH);
+            closesocket(client);
+            continue;
+        }
+        SSL* ssl = SSL_new(tls_context.get());
+        if (ssl == nullptr ||
+            SSL_set_fd(ssl, static_cast<int>(client)) != 1 ||
+            SSL_accept(ssl) != 1) {
+            std::cerr << "TLS handshake failed.\n";
+            ERR_print_errors_fp(stderr);
+            if (ssl != nullptr) {
+                SSL_free(ssl);
+            }
+            shutdown(client, SD_BOTH);
+            closesocket(client);
+            continue;
+        }
+        TlsConnection connection{ssl};
 
         // Ensure the socket closes even if request handling throws.
         try {
-            handle_client(client, auth_service, *patient_service);
+            handle_client(connection, auth_service, *patient_service,
+                          *appointment_repository, *clinical_service);
         } catch (const std::exception& e) {
             std::cerr << "Request handler exception: "
                       << e.what() << '\n';
 
             try {
-                send_error(client, 500, "INTERNAL_ERROR",
+                send_error(connection, 500, "INTERNAL_ERROR",
                            "Internal server error.", make_request_id());
             } catch (...) {
                 // Do not allow an error response failure to escape.
@@ -1158,6 +1527,8 @@ int main()
             std::cerr << "Unknown request handler exception.\n";
         }
 
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
         shutdown(client, SD_BOTH);
         closesocket(client);
 

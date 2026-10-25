@@ -16,13 +16,44 @@ jobs:
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake libssl-dev libpq-dev
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake libssl-dev libpq-dev libargon2-dev
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-make
+            mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-argon2
 
       - name: Configure
+        if: runner.os == 'Linux'
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$MSYSTEM_PREFIX"
+
       - name: Build
+        if: runner.os == 'Linux'
+        run: cmake --build build --config Release
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
         run: cmake --build build --config Release
 
       - name: Run tests
+        if: runner.os == 'Linux'
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
         run: ctest --test-dir build -C Release --output-on-failure
