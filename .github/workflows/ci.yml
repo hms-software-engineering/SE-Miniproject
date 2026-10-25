@@ -1,3 +1,4 @@
+
 name: CI
 
 on:
@@ -11,9 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-22.04
-          - windows-latest
+        os: [ubuntu-22.04, windows-latest]
 
     steps:
       - name: Checkout repository
@@ -24,9 +23,21 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev
-      
-      - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: '67972e92edd181d433927b42d8ab4bfa52ac164a'
+
+      - name: Configure (Linux)
+        if: runner.os == 'Linux'
+        run: cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
+        shell: bash
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -S . -B build "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
+        shell: pwsh
 
       - name: Build
         run: cmake --build build --config Release --parallel 4

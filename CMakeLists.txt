@@ -19,6 +19,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Password hashing dependency for SEC-001
+find_package(unofficial-argon2 CONFIG REQUIRED)
+
+# Authentication and RBAC
 add_library(hms_auth
     src/services/auth_service.cpp
     src/services/rbac_service.cpp
@@ -33,6 +37,7 @@ if(WIN32)
 else()
     find_package(PostgreSQL REQUIRED)
     find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+
     target_link_libraries(hms_auth PRIVATE
         PostgreSQL::PostgreSQL
         OpenSSL::Crypto
@@ -42,6 +47,7 @@ endif()
 add_executable(auth_service_test
     tests/auth_service_test.cpp
 )
+
 target_link_libraries(auth_service_test PRIVATE hms_auth)
 
 # API library
@@ -54,12 +60,38 @@ target_include_directories(hms_api PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+# SEC-001 password security
+add_library(hms_password_security
+    src/password_security.cpp
+)
+
+target_include_directories(hms_password_security PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(hms_password_security
+    PUBLIC unofficial::argon2::libargon2
+)
+
+if(WIN32)
+    target_link_libraries(hms_password_security PRIVATE bcrypt)
+endif()
+
 # API test
 add_executable(api_test
     tests/api_test.cpp
 )
 
 target_link_libraries(api_test PRIVATE hms_api)
+
+# SEC-001 password security test
+add_executable(password_security_test
+    tests/password_security_test.cpp
+)
+
+target_link_libraries(password_security_test
+    PRIVATE hms_password_security
+)
 
 # Appointments library
 add_library(hms_appointments
@@ -86,6 +118,7 @@ enable_testing()
 add_test(NAME api_test COMMAND api_test)
 add_test(NAME appointments_test COMMAND appointments_test)
 add_test(NAME auth_service_test COMMAND auth_service_test)
+add_test(NAME password_security_test COMMAND password_security_test)
 
 # Patient registration and search
 add_library(hms_patients
@@ -102,6 +135,7 @@ if(WIN32)
 else()
     find_package(PostgreSQL REQUIRED)
     find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+
     target_link_libraries(hms_patients PRIVATE
         PostgreSQL::PostgreSQL
         OpenSSL::Crypto
@@ -113,6 +147,7 @@ add_executable(patient_service_test
 )
 
 target_link_libraries(patient_service_test PRIVATE hms_patients)
+
 add_test(NAME patient_service_test COMMAND patient_service_test)
 
 # Qt desktop client (built when Qt6 is available)
