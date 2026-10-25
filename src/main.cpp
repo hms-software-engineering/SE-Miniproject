@@ -3,11 +3,6 @@
 #include "services/auth_service.h"
 #include "services/rbac_service.h"
 #include "patients/patient_service.h"
-
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <windows.h>
-
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
@@ -21,6 +16,34 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#ifdef _WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #include <windows.h>
+#else
+    #include <sys/types.h>
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+    #include <unistd.h>
+    #include <cerrno>
+
+    using SOCKET = int;
+
+    constexpr int INVALID_SOCKET = -1;
+    constexpr int SOCKET_ERROR = -1;
+
+    #define SD_BOTH SHUT_RDWR
+    #define closesocket close
+    #define WSAGetLastError() errno
+
+    struct WSADATA {};
+
+    #define MAKEWORD(a, b) 0
+
+    inline int WSAStartup(int, WSADATA*) { return 0; }
+    inline int WSACleanup() { return 0; }
+#endif
 
 namespace {
 
@@ -234,10 +257,18 @@ std::string make_request_id()
 std::string current_date_ddmmyyyy()
 {
     const std::time_t now = std::time(nullptr);
+    
     std::tm local_time{};
+
+    #ifdef _WIN32
     if (localtime_s(&local_time, &now) != 0) {
         throw std::runtime_error("Could not determine the current date.");
     }
+    #else
+    if (localtime_r(&now, &local_time) == nullptr) {
+        throw std::runtime_error("Could not determine the current date.");
+    }
+    #endif
     std::ostringstream date;
     date << (local_time.tm_mday < 10 ? "0" : "") << local_time.tm_mday
          << '-' << (local_time.tm_mon + 1 < 10 ? "0" : "")
