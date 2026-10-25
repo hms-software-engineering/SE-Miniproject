@@ -44,7 +44,7 @@ jobs:
         run: |
           # This runs strictly inside the GitHub Actions runner to satisfy Windows 
           # missing development headers, without touching your repo code or local files.
-          vcpkg install libpqxx:x64-windows cpp-httplib:x64-windows nlohmann-json:x64-windows argon2:x64-windows openssl:x64-windows
+          vcpkg install --triplet x64-windows
 
       - name: Configure on Ubuntu
         if: runner.os == 'Linux'

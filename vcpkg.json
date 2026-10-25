@@ -17,6 +17,10 @@
     {
       "name": "libpq",
       "platform": "windows"
+    },
+    {
+      "name": "libpqxx",
+      "platform": "windows"
     }
   ]
 }
