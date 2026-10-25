@@ -6,18 +6,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Dependencies supplied by vcpkg.
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(OpenSSL CONFIG REQUIRED)
-find_package(libpqxx CONFIG REQUIRED)
 find_package(httplib CONFIG REQUIRED)
 find_package(unofficial-argon2 CONFIG REQUIRED)
-
-# Linux uses the system PostgreSQL client library because the source code
-# directly includes libpq-fe.h.
-if(NOT WIN32)
-    find_package(PostgreSQL REQUIRED)
-endif()
+find_package(PostgreSQL REQUIRED)
 
 enable_testing()
 
@@ -35,6 +28,11 @@ target_include_directories(hms_auth
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+target_link_libraries(hms_auth
+    PRIVATE
+        PostgreSQL::PostgreSQL
+)
+
 if(WIN32)
     target_link_libraries(hms_auth
         PRIVATE
@@ -43,7 +41,6 @@ if(WIN32)
 else()
     target_link_libraries(hms_auth
         PRIVATE
-            PostgreSQL::PostgreSQL
             OpenSSL::Crypto
     )
 endif()
@@ -83,12 +80,10 @@ target_link_libraries(hms_api
         OpenSSL::Crypto
 )
 
-if(NOT WIN32)
-    target_link_libraries(hms_api
-        PRIVATE
-            PostgreSQL::PostgreSQL
-    )
-endif()
+target_link_libraries(hms_api
+    PRIVATE
+        PostgreSQL::PostgreSQL
+)
 
 add_executable(api_test
     tests/api_test.cpp
@@ -122,7 +117,7 @@ target_include_directories(hms_appointments
 target_link_libraries(hms_appointments
     PUBLIC
         nlohmann_json::nlohmann_json
-        libpqxx::pqxx
+        PostgreSQL::PostgreSQL
 )
 
 add_executable(appointments_test
@@ -153,6 +148,11 @@ target_include_directories(hms_patients
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+target_link_libraries(hms_patients
+    PRIVATE
+        PostgreSQL::PostgreSQL
+)
+
 if(WIN32)
     target_link_libraries(hms_patients
         PRIVATE
@@ -161,7 +161,6 @@ if(WIN32)
 else()
     target_link_libraries(hms_patients
         PRIVATE
-            PostgreSQL::PostgreSQL
             OpenSSL::Crypto
     )
 endif()
