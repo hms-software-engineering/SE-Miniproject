@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(nlohmann_json REQUIRED)
 find_package(OpenSSL REQUIRED)
-find_package(httplib REQUIRED)
+find_package(cpp-httplib REQUIRED)
 find_package(argon2 REQUIRED)
 find_package(PostgreSQL REQUIRED)
 find_package(libpqxx REQUIRED)
@@ -196,7 +196,7 @@ target_link_libraries(hms_server
         hms_patients
         hms_appointments
         nlohmann_json::nlohmann_json
-        httplib
+        cpp-httplib::cpp-httplib
 )
 
 if(WIN32)
