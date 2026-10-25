@@ -3,71 +3,39 @@ name: CI
 on:
   push:
   pull_request:
-  workflow_dispatch:
 
 jobs:
-  build:
-    name: Build and test (${{ matrix.os }})
+  build-test:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-22.04
-          - windows-latest
-
+        os: [ubuntu-22.04, windows-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Ubuntu dependencies
+      - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            ninja-build \
-            pkg-config \
-            libssl-dev \
-            libpq-dev \
-            libpqxx-dev
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake libssl-dev libpq-dev
 
-      - name: Bootstrap vcpkg (Ubuntu)
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: '67972e92edd181d433927b42d8ab4bfa52ac164a'
+
+      - name: Configure (Linux)
         if: runner.os == 'Linux'
+        run: cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
         shell: bash
-        run: |
-          git clone https://github.com/microsoft/vcpkg.git \
-            "$RUNNER_TEMP/vcpkg"
-          "$RUNNER_TEMP/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
-
-      - name: Bootstrap vcpkg (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          git clone https://github.com/microsoft/vcpkg.git `
-            "$env:RUNNER_TEMP\vcpkg"
-          & "$env:RUNNER_TEMP\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
-
-      - name: Configure (Ubuntu)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE="$RUNNER_TEMP/vcpkg/scripts/buildsystems/vcpkg.cmake"
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
+        run: cmake -S . -B build "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
         shell: pwsh
-        run: |
-          cmake -S . -B build -A x64 `
-            -DCMAKE_TOOLCHAIN_FILE="$env:RUNNER_TEMP/vcpkg/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build
-        run: cmake --build build --config Release --parallel 4
+        run: cmake --build build --config Release
 
       - name: Run tests
         run: ctest --test-dir build -C Release --output-on-failure
