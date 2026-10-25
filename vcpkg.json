@@ -9,11 +9,5 @@
     "libpq",
     "libpqxx",
     "openssl"
-  ],
-  "overrides": [
-    {
-      "name": "libpqxx",
-      "version": "7.10.5"
-    }
   ]
 }

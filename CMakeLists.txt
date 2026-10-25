@@ -15,10 +15,6 @@ find_package(libpqxx CONFIG REQUIRED)
 
 enable_testing()
 
-# ---------------------------------------------------------------------------
-# Authentication and RBAC
-# ---------------------------------------------------------------------------
-
 add_library(hms_auth
     src/services/auth_service.cpp
     src/services/rbac_service.cpp
@@ -40,15 +36,18 @@ if(WIN32)
             bcrypt
     )
 else()
-    target_link_libraries(hms_auth
-        PRIVATE
-            OpenSSL::Crypto
+    target_link_libraries(hms_auth PRIVATE
+        PostgreSQL::PostgreSQL
+        OpenSSL::Crypto
     )
 endif()
 
 add_executable(auth_service_test
     tests/auth_service_test.cpp
 )
+
+target_link_libraries(auth_service_test PRIVATE hms_auth)
+
 
 target_link_libraries(auth_service_test
     PRIVATE
@@ -60,9 +59,7 @@ add_test(
     COMMAND auth_service_test
 )
 
-# ---------------------------------------------------------------------------
 # API library
-# ---------------------------------------------------------------------------
 
 add_library(hms_api
     src/api.cpp
@@ -86,6 +83,24 @@ target_link_libraries(hms_api
         PostgreSQL::PostgreSQL
 )
 
+# SEC-001 password security
+add_library(hms_password_security
+    src/password_security.cpp
+)
+
+target_include_directories(hms_password_security PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(hms_password_security
+    PUBLIC unofficial::argon2::libargon2
+)
+
+if(WIN32)
+    target_link_libraries(hms_password_security PRIVATE bcrypt)
+endif()
+
+# API test
 add_executable(api_test
     tests/api_test.cpp
 )
@@ -105,6 +120,16 @@ add_test(
 # Appointments
 # ---------------------------------------------------------------------------
 
+# SEC-001 password security test
+add_executable(password_security_test
+    tests/password_security_test.cpp
+)
+
+target_link_libraries(password_security_test
+    PRIVATE hms_password_security
+)
+
+# Appointments library
 add_library(hms_appointments
     src/appointments/appointments.cpp
     src/appointments/postgres_appointment_repository.cpp
@@ -136,9 +161,12 @@ add_test(
     COMMAND appointments_test
 )
 
-# ---------------------------------------------------------------------------
 # Patients
-# ---------------------------------------------------------------------------
+
+add_test(NAME api_test COMMAND api_test)
+add_test(NAME appointments_test COMMAND appointments_test)
+add_test(NAME auth_service_test COMMAND auth_service_test)
+add_test(NAME password_security_test COMMAND password_security_test)
 
 add_library(hms_patients
     src/patients/patient_service.cpp
@@ -161,9 +189,9 @@ if(WIN32)
             bcrypt
     )
 else()
-    target_link_libraries(hms_patients
-        PRIVATE
-            OpenSSL::Crypto
+    target_link_libraries(hms_patients PRIVATE
+        PostgreSQL::PostgreSQL
+        OpenSSL::Crypto
     )
 endif()
 
@@ -181,9 +209,7 @@ add_test(
     COMMAND patient_service_test
 )
 
-# ---------------------------------------------------------------------------
 # HTTP server
-# ---------------------------------------------------------------------------
 
 add_executable(hms_server
     src/main.cpp
@@ -206,9 +232,7 @@ if(WIN32)
     )
 endif()
 
-# ---------------------------------------------------------------------------
 # Optional Qt desktop client
-# ---------------------------------------------------------------------------
 
 find_package(Qt6 QUIET COMPONENTS Widgets Network)
 
