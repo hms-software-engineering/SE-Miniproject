@@ -30,6 +30,11 @@ struct PrescriptionItem {
     std::string override_reason;  // set only when an allergy was overridden
 };
 
+struct VisitRecord {
+    Visit visit;
+    std::vector<PrescriptionItem> prescriptions;
+};
+
 // What a doctor needs to know about an appointment before recording a visit.
 struct AppointmentInfo {
     long long id = 0;
@@ -50,6 +55,7 @@ public:
     virtual bool find_visit(long long visit_id, Visit& out) const = 0;
     virtual Visit insert_visit(const Visit& v) = 0;
     virtual PrescriptionItem insert_prescription(const PrescriptionItem& p) = 0;
+    virtual std::vector<Visit> visits_for_patient(const std::string& patient_id) const = 0;
     virtual std::vector<PrescriptionItem> prescriptions_for_visit(long long visit_id) const = 0;
 };
 
@@ -65,6 +71,7 @@ public:
     bool find_visit(long long visit_id, Visit& out) const override;
     Visit insert_visit(const Visit& v) override;
     PrescriptionItem insert_prescription(const PrescriptionItem& p) override;
+    std::vector<Visit> visits_for_patient(const std::string& patient_id) const override;
     std::vector<PrescriptionItem> prescriptions_for_visit(long long visit_id) const override;
 
 private:
@@ -88,6 +95,7 @@ struct ClinicalResult {
     std::string code, message, field;
     Visit visit;
     PrescriptionItem item;
+    std::vector<VisitRecord> history;
 };
 
 // HMS-F-030: the visit is stamped with now and the calling doctor's ID.
@@ -113,5 +121,12 @@ ClinicalResult add_prescription(ClinicalRepository& repo,
 // Allergens from the list that match the medicine (case-insensitive).
 std::vector<std::string> matching_allergies(const std::string& medicine,
                                             const std::vector<std::string>& allergies);
+
+// HMS-F-033: doctors only. Newest first.
+ClinicalResult patient_history(const ClinicalRepository& repo,
+                               const Caller& caller,
+                               const std::string& patient_id);
+
+std::string history_to_json(const std::vector<VisitRecord>& history);
 
 }  // namespace hms
