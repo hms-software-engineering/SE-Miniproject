@@ -15,6 +15,15 @@ struct BillItem {
     Paise amount = 0;
 };
 
+struct Payment {
+    long long id = 0;
+    long long bill_id = 0;
+    Paise amount = 0;
+    std::string mode;        // "Cash", "Card" or "UPI"
+    std::string receipt_no;  // unique per payment
+    std::string paid_at;     // "YYYY-MM-DD HH:MM"
+};
+
 struct Bill {
     long long id = 0;
     long long visit_id = 0;
@@ -23,6 +32,7 @@ struct Bill {
     Paise subtotal = 0;
     Paise tax = 0;
     Paise total = 0;
+    Paise paid = 0;
     std::string status;  // "Unpaid", "Partially Paid" or "Paid"
     std::string created_at;
 };
@@ -36,6 +46,9 @@ public:
     virtual bool has_bill_for_visit(long long visit_id) const = 0;
     virtual bool find_bill(long long bill_id, Bill& out) const = 0;
     virtual Bill insert_bill(const Bill& b) = 0;
+    // Must be atomic with the status update. The database version locks the bill row.
+    virtual Payment insert_payment(const Payment& p, const std::string& new_status) = 0;
+    virtual std::vector<Payment> payments_for_bill(long long bill_id) const = 0;
 };
 
 class InMemoryBillingRepository : public BillingRepository {
@@ -47,11 +60,15 @@ public:
     bool has_bill_for_visit(long long visit_id) const override;
     bool find_bill(long long bill_id, Bill& out) const override;
     Bill insert_bill(const Bill& b) override;
+    Payment insert_payment(const Payment& p, const std::string& new_status) override;
+    std::vector<Payment> payments_for_bill(long long bill_id) const override;
 
 private:
     std::map<long long, std::string> visits_;
     std::map<long long, Bill> bills_;
+    std::vector<Payment> payments_;
     long long next_bill_id_ = 1;
+    long long next_payment_id_ = 1;
 };
 
 struct BillingResult {
@@ -59,6 +76,7 @@ struct BillingResult {
     int http_status = 0;
     std::string code, message, field;
     Bill bill;
+    Payment payment;
     Paise balance = 0;
 };
 
@@ -72,6 +90,14 @@ BillingResult generate_bill(BillingRepository& repo,
                             const std::vector<BillItem>& items,
                             int tax_rate_bp,
                             const std::string& now);
+
+// HMS-F-041: rejects any payment above the outstanding balance.
+BillingResult record_payment(BillingRepository& repo,
+                             Role caller,
+                             long long bill_id,
+                             Paise amount,
+                             const std::string& mode,
+                             const std::string& now);
 
 // 84000 -> "840.00"
 std::string format_amount(Paise amount);

@@ -43,6 +43,33 @@ int main() {
     CHECK(hms::generate_bill(repo, Role::BillingOfficer, 2, {{"X", 1}}, -5, "t").field == "taxRate");
     CHECK(hms::generate_bill(repo, Role::Doctor, 2, {{"X", 100}}, 500, "t").message == "Access denied");
 
+    // TC-BIL-02: on 840.00 pay (a) 400 UPI, (b) 500 rejected, (c) 440 -> Paid.
+    const long long id = b.bill.id;
+    auto a = hms::record_payment(repo, Role::BillingOfficer, id, 40000, "UPI", "2026-10-20 10:05");
+    CHECK(a.ok);
+    CHECK(a.bill.status == "Partially Paid");
+    CHECK(a.balance == 44000);
+    CHECK(!a.payment.receipt_no.empty());
+
+    auto over = hms::record_payment(repo, Role::BillingOfficer, id, 50000, "Cash", "t");
+    CHECK(!over.ok);
+    CHECK(over.http_status == 400);
+    CHECK(over.code == "OVERPAYMENT");
+    CHECK(repo.payments_for_bill(id).size() == 1);
+
+    auto c = hms::record_payment(repo, Role::BillingOfficer, id, 44000, "Card", "2026-10-20 10:10");
+    CHECK(c.ok);
+    CHECK(c.bill.status == "Paid");
+    CHECK(c.balance == 0);
+    CHECK(c.payment.receipt_no != a.payment.receipt_no);
+
+    // Paid bill accepts nothing further; bad input is rejected.
+    CHECK(hms::record_payment(repo, Role::BillingOfficer, id, 1, "Cash", "t").code == "OVERPAYMENT");
+    CHECK(hms::record_payment(repo, Role::BillingOfficer, id, 1, "Cheque", "t").field == "mode");
+    CHECK(hms::record_payment(repo, Role::BillingOfficer, id, 0, "Cash", "t").field == "amount");
+    CHECK(hms::record_payment(repo, Role::BillingOfficer, 99, 1, "Cash", "t").http_status == 404);
+    CHECK(hms::record_payment(repo, Role::Receptionist, id, 1, "Cash", "t").http_status == 403);
+
     std::cout << "All billing tests passed.\n";
     return 0;
 }
