@@ -168,6 +168,25 @@ add_executable(patient_service_test tests/patient_service_test.cpp)
 target_link_libraries(patient_service_test PRIVATE hms_patients)
 add_test(NAME patient_service_test COMMAND patient_service_test)
 
+# Audit logger (HMS-SEC-008)
+add_library(hms_audit
+    src/audit/audit_logger.cpp
+)
+
+target_include_directories(hms_audit PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(hms_audit PUBLIC hms_auth)
+
+add_executable(audit_logger_test
+    tests/audit_logger_test.cpp
+)
+
+target_link_libraries(audit_logger_test PRIVATE hms_audit)
+
+add_test(NAME audit_logger_test COMMAND audit_logger_test)
+
 # ---- Qt desktop client (only if Qt6 is available) ----
 find_package(Qt6 QUIET COMPONENTS Widgets Network)
 if(Qt6_FOUND)
