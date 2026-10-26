@@ -135,6 +135,63 @@ target_link_libraries(patient_service_test PRIVATE hms_patients)
 
 add_test(NAME patient_service_test COMMAND patient_service_test)
 
+# Clinical records (HMS-F-030 to F-034)
+add_library(hms_clinical
+    src/clinical/clinical.cpp
+)
+
+target_include_directories(hms_clinical PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(hms_clinical PUBLIC hms_auth)
+
+add_executable(clinical_test
+    tests/clinical_test.cpp
+)
+
+target_link_libraries(clinical_test PRIVATE hms_clinical)
+
+add_test(NAME clinical_test COMMAND clinical_test)
+
+# Billing (HMS-F-040, F-041, F-034)
+add_library(hms_billing
+    src/billing/billing.cpp
+)
+
+target_include_directories(hms_billing PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(hms_billing PUBLIC hms_auth)
+
+add_executable(billing_test
+    tests/billing_test.cpp
+)
+
+target_link_libraries(billing_test PRIVATE hms_billing)
+
+add_test(NAME billing_test COMMAND billing_test)
+
+# Audit logger (HMS-SEC-008)
+add_library(hms_audit
+    src/audit/audit_logger.cpp
+)
+
+target_include_directories(hms_audit PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(hms_audit PUBLIC hms_auth)
+
+add_executable(audit_logger_test
+    tests/audit_logger_test.cpp
+)
+
+target_link_libraries(audit_logger_test PRIVATE hms_audit)
+
+add_test(NAME audit_logger_test COMMAND audit_logger_test)
+
 # Qt desktop client (built when Qt6 is available)
 find_package(Qt6 QUIET COMPONENTS Widgets Network)
 
