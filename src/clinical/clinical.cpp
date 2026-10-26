@@ -243,7 +243,14 @@ ClinicalResult patient_history(const ClinicalRepository& repo,
                                const Caller& caller,
                                const std::string& patient_id) {
     std::string err;
-    if (!authorize(caller.role, Permission::ViewPatientHistory, err)) return access_denied();
+    if (caller.role == Role::Patient) {
+        // HMS-F-034: a patient may only read their own records.
+        if (!authorize_record_access(caller.role, Permission::ViewOwnHistoryBills,
+                                     caller.patient_id, patient_id, err))
+            return access_denied();
+    } else if (!authorize(caller.role, Permission::ViewPatientHistory, err)) {
+        return access_denied();
+    }
 
     auto visits = repo.visits_for_patient(patient_id);
     // "YYYY-MM-DD HH:MM" sorts correctly as text; ties broken by newer id.

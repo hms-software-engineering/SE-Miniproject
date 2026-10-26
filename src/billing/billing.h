@@ -48,6 +48,7 @@ public:
     virtual Bill insert_bill(const Bill& b) = 0;
     // Must be atomic with the status update. The database version locks the bill row.
     virtual Payment insert_payment(const Payment& p, const std::string& new_status) = 0;
+    virtual std::vector<Bill> bills_for_patient(const std::string& patient_id) const = 0;
     virtual std::vector<Payment> payments_for_bill(long long bill_id) const = 0;
 };
 
@@ -61,6 +62,7 @@ public:
     bool find_bill(long long bill_id, Bill& out) const override;
     Bill insert_bill(const Bill& b) override;
     Payment insert_payment(const Payment& p, const std::string& new_status) override;
+    std::vector<Bill> bills_for_patient(const std::string& patient_id) const override;
     std::vector<Payment> payments_for_bill(long long bill_id) const override;
 
 private:
@@ -78,6 +80,7 @@ struct BillingResult {
     Bill bill;
     Payment payment;
     Paise balance = 0;
+    std::vector<Bill> bills;
 };
 
 // Tax on a subtotal, rate in basis points (500 = 5%), rounded half up to the paisa.
@@ -98,6 +101,12 @@ BillingResult record_payment(BillingRepository& repo,
                              Paise amount,
                              const std::string& mode,
                              const std::string& now);
+
+// HMS-F-034: a patient's own bills, newest first.
+BillingResult patient_bills(const BillingRepository& repo,
+                            Role caller,
+                            const std::string& caller_patient_id,
+                            const std::string& patient_id);
 
 // 84000 -> "840.00"
 std::string format_amount(Paise amount);

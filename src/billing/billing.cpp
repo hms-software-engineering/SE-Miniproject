@@ -1,5 +1,6 @@
 #include "billing/billing.h"
 
+#include <algorithm>
 #include <cstdio>
 
 namespace hms {
@@ -80,6 +81,13 @@ Payment InMemoryBillingRepository::insert_payment(const Payment& p, const std::s
     b.paid += p.amount;
     b.status = new_status;
     return saved;
+}
+
+std::vector<Bill> InMemoryBillingRepository::bills_for_patient(const std::string& patient_id) const {
+    std::vector<Bill> out;
+    for (const auto& kv : bills_)
+        if (kv.second.patient_id == patient_id) out.push_back(kv.second);
+    return out;
 }
 
 std::vector<Payment> InMemoryBillingRepository::payments_for_bill(long long bill_id) const {
@@ -176,6 +184,26 @@ BillingResult record_payment(BillingRepository& repo,
     r.payment = repo.insert_payment(p, status_for(b.paid + amount, b.total));
     repo.find_bill(bill_id, r.bill);
     r.balance = r.bill.total - r.bill.paid;
+    return r;
+}
+
+BillingResult patient_bills(const BillingRepository& repo,
+                            Role caller,
+                            const std::string& caller_patient_id,
+                            const std::string& patient_id) {
+    std::string err;
+    if (!authorize_record_access(caller, Permission::ViewOwnHistoryBills, caller_patient_id,
+                                 patient_id, err))
+        return access_denied();
+
+    BillingResult r;
+    r.ok = true;
+    r.http_status = 200;
+    r.bills = repo.bills_for_patient(patient_id);
+    std::sort(r.bills.begin(), r.bills.end(), [](const Bill& a, const Bill& b) {
+        if (a.created_at != b.created_at) return a.created_at > b.created_at;
+        return a.id > b.id;
+    });
     return r;
 }
 

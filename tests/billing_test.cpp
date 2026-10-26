@@ -70,6 +70,17 @@ int main() {
     CHECK(hms::record_payment(repo, Role::BillingOfficer, 99, 1, "Cash", "t").http_status == 404);
     CHECK(hms::record_payment(repo, Role::Receptionist, id, 1, "Cash", "t").http_status == 403);
 
+    // HMS-F-034: patient sees own bills newest first, not others'.
+    hms::generate_bill(repo, Role::BillingOfficer, 2, {{"Consultation", 50000}}, 500, "2026-10-22 09:00");
+    hms::generate_bill(repo, Role::BillingOfficer, 3, {{"Consultation", 50000}}, 500, "2026-10-23 09:00");
+    auto own = hms::patient_bills(repo, Role::Patient, "PID-00000001", "PID-00000001");
+    CHECK(own.ok);
+    CHECK(own.bills.size() == 2);
+    CHECK(own.bills[0].visit_id == 2);
+    CHECK(hms::patient_bills(repo, Role::Patient, "PID-00000001", "PID-00000002").message ==
+          "Access denied");
+    CHECK(hms::patient_bills(repo, Role::Doctor, "", "PID-00000001").http_status == 403);
+
     std::cout << "All billing tests passed.\n";
     return 0;
 }

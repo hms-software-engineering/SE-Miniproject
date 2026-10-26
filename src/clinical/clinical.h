@@ -83,10 +83,11 @@ private:
     long long next_item_id_ = 1;
 };
 
-// Who is making the request. doctor_id is set for doctors.
+// Who is making the request. doctor_id is set for doctors, patient_id for patients.
 struct Caller {
     Role role = Role::Patient;
     long long doctor_id = 0;
+    std::string patient_id;
 };
 
 struct ClinicalResult {
@@ -122,7 +123,7 @@ ClinicalResult add_prescription(ClinicalRepository& repo,
 std::vector<std::string> matching_allergies(const std::string& medicine,
                                             const std::vector<std::string>& allergies);
 
-// HMS-F-033: doctors only. Newest first.
+// HMS-F-033 (doctor) / HMS-F-034 (patient, own records only). Newest first.
 ClinicalResult patient_history(const ClinicalRepository& repo,
                                const Caller& caller,
                                const std::string& patient_id);
