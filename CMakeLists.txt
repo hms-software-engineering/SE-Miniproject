@@ -168,6 +168,25 @@ add_executable(patient_service_test tests/patient_service_test.cpp)
 target_link_libraries(patient_service_test PRIVATE hms_patients)
 add_test(NAME patient_service_test COMMAND patient_service_test)
 
+# Billing
+add_library(hms_billing
+    src/billing/billing.cpp
+)
+
+target_include_directories(hms_billing PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(hms_billing PUBLIC hms_auth)
+
+add_executable(billing_test
+    tests/billing_test.cpp
+)
+
+target_link_libraries(billing_test PRIVATE hms_billing)
+
+add_test(NAME billing_test COMMAND billing_test)
+
 # ---- Qt desktop client (only if Qt6 is available) ----
 find_package(Qt6 QUIET COMPONENTS Widgets Network)
 if(Qt6_FOUND)
