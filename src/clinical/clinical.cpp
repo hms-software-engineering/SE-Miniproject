@@ -44,11 +44,35 @@ bool InMemoryClinicalRepository::has_visit_for_appointment(long long appointment
                        [&](const Visit& v) { return v.appointment_id == appointment_id; });
 }
 
+bool InMemoryClinicalRepository::find_visit(long long visit_id, Visit& out) const {
+    for (const auto& v : visits_) {
+        if (v.id == visit_id) {
+            out = v;
+            return true;
+        }
+    }
+    return false;
+}
+
 Visit InMemoryClinicalRepository::insert_visit(const Visit& v) {
     Visit saved = v;
     saved.id = next_visit_id_++;
     visits_.push_back(saved);
     return saved;
+}
+
+PrescriptionItem InMemoryClinicalRepository::insert_prescription(const PrescriptionItem& p) {
+    PrescriptionItem saved = p;
+    saved.id = next_item_id_++;
+    prescriptions_.push_back(saved);
+    return saved;
+}
+
+std::vector<PrescriptionItem> InMemoryClinicalRepository::prescriptions_for_visit(long long visit_id) const {
+    std::vector<PrescriptionItem> out;
+    for (const auto& p : prescriptions_)
+        if (p.visit_id == visit_id) out.push_back(p);
+    return out;
 }
 
 ClinicalResult record_visit(ClinicalRepository& repo,
@@ -90,6 +114,44 @@ ClinicalResult record_visit(ClinicalRepository& repo,
     r.ok = true;
     r.http_status = 201;
     r.visit = repo.insert_visit(v);
+    return r;
+}
+
+ClinicalResult add_prescription(ClinicalRepository& repo,
+                                const Caller& caller,
+                                long long visit_id,
+                                const std::string& medicine,
+                                const std::string& dosage,
+                                const std::string& frequency,
+                                int days) {
+    std::string err;
+    if (!authorize(caller.role, Permission::RecordVisitPrescribe, err)) return access_denied();
+
+    if (trim(medicine).empty())
+        return fail(400, "VALIDATION_ERROR", "Medicine is required", "medicine");
+    if (trim(dosage).empty())
+        return fail(400, "VALIDATION_ERROR", "Dosage is required", "dosage");
+    if (trim(frequency).empty())
+        return fail(400, "VALIDATION_ERROR", "Frequency is required", "frequency");
+    if (days <= 0)
+        return fail(400, "VALIDATION_ERROR", "Duration must be at least 1 day", "days");
+
+    Visit visit;
+    if (!repo.find_visit(visit_id, visit))
+        return fail(404, "NOT_FOUND", "Visit not found", "visitId");
+    if (visit.doctor_id != caller.doctor_id) return access_denied();
+
+    PrescriptionItem item;
+    item.visit_id = visit_id;
+    item.medicine = trim(medicine);
+    item.dosage = trim(dosage);
+    item.frequency = trim(frequency);
+    item.days = days;
+
+    ClinicalResult r;
+    r.ok = true;
+    r.http_status = 201;
+    r.item = repo.insert_prescription(item);
     return r;
 }
 

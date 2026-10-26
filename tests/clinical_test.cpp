@@ -44,6 +44,18 @@ int main() {
     CHECK(denied.http_status == 403);
     CHECK(denied.message == "Access denied");
 
+    // TC-CLN-02: prescription item saved on the visit.
+    auto p1 = hms::add_prescription(repo, doctor, v1.visit.id, "Paracetamol 500 mg",
+                                    "500 mg", "3 times a day", 5);
+    CHECK(p1.ok);
+    CHECK(p1.http_status == 201);
+    CHECK(p1.item.days == 5);
+    CHECK(repo.prescriptions_for_visit(v1.visit.id).size() == 1);
+    CHECK(hms::add_prescription(repo, doctor, v1.visit.id, "X", "1", "daily", 0).field == "days");
+    CHECK(hms::add_prescription(repo, doctor, v1.visit.id, "", "1", "daily", 3).field == "medicine");
+    CHECK(hms::add_prescription(repo, doctor, 99, "X", "1", "daily", 3).http_status == 404);
+    CHECK(hms::add_prescription(repo, receptionist, v1.visit.id, "X", "1", "daily", 3).http_status == 403);
+
     std::cout << "All clinical tests passed.\n";
     return 0;
 }
