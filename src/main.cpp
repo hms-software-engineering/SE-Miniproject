@@ -1009,17 +1009,17 @@ void handle_client(TlsConnection& client,
             return;
         }
 
-        constexpr char patient_path[] = "/api/v1/patients/";
+        constexpr char history_patient_path[] = "/api/v1/patients/";
         constexpr char history_suffix[] = "/history";
         if (method == "GET" &&
-            path.rfind(patient_path, 0) == 0 &&
-            path.size() > sizeof(patient_path) - 1 +
+            path.rfind(history_patient_path, 0) == 0 &&
+            path.size() > sizeof(history_patient_path) - 1 +
                               sizeof(history_suffix) - 1 &&
             path.compare(path.size() - sizeof(history_suffix) + 1,
                          sizeof(history_suffix) - 1, history_suffix) == 0) {
             const std::string patient_id = path.substr(
-                sizeof(patient_path) - 1,
-                path.size() - (sizeof(patient_path) - 1) -
+                sizeof(history_patient_path) - 1,
+                path.size() - (sizeof(history_patient_path) - 1) -
                     (sizeof(history_suffix) - 1));
             if (patient_id.size() != 12 ||
                 patient_id.compare(0, 4, "PID-") != 0 ||
