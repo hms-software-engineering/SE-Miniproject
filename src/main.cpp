@@ -1,4 +1,3 @@
-
 #include "api/api.h"
 #include "appointments/appointments.h"
 #include "clinical/clinical_service.h"
@@ -6,11 +5,14 @@
 #include "services/rbac_service.h"
 #include "patients/patient_service.h"
 
+#ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
-#include <openssl/err.h>
+#endif
+
 #include <openssl/ssl.h>
+#include <openssl/err.h>
 
 #include <algorithm>
 #include <cctype>
@@ -240,9 +242,15 @@ std::string current_date_ddmmyyyy()
 {
     const std::time_t now = std::time(nullptr);
     std::tm local_time{};
+
+#ifdef _WIN32
     if (localtime_s(&local_time, &now) != 0) {
+#else
+    if (localtime_r(&now, &local_time) == nullptr) {
+#endif
         throw std::runtime_error("Could not determine the current date.");
     }
+
     std::ostringstream date;
     date << (local_time.tm_mday < 10 ? "0" : "") << local_time.tm_mday
          << '-' << (local_time.tm_mon + 1 < 10 ? "0" : "")
@@ -601,8 +609,10 @@ void handle_client(TlsConnection& client,
             const int ssl_error = SSL_get_error(client.ssl, received);
             if (ssl_error != SSL_ERROR_ZERO_RETURN) {
                 std::cerr << "TLS request read failed (error "
-                          << ssl_error << ").\n";
+                          << ssl_error << ").\\n";
             }
+            return;
+        }
             return;
         }
 
@@ -1418,19 +1428,22 @@ int main()
     }
     hms::AuthService auth_service(*auth_repository);
 
+#ifdef _WIN32
     WSADATA wsa_data{};
-
     const int startup = WSAStartup(MAKEWORD(2, 2), &wsa_data);
     if (startup != 0) {
         std::cerr << "WSAStartup failed: " << startup << '\n';
         return 1;
     }
+#endif
 
     SOCKET server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (server == INVALID_SOCKET) {
         std::cerr << "socket() failed: "
                   << WSAGetLastError() << '\n';
+#ifdef _WIN32
         WSACleanup();
+#endif
         return 1;
     }
 
@@ -1441,7 +1454,9 @@ int main()
     if (inet_pton(AF_INET, "127.0.0.1", &address.sin_addr) != 1) {
         std::cerr << "inet_pton() failed.\n";
         closesocket(server);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return 1;
     }
 
@@ -1450,7 +1465,9 @@ int main()
         std::cerr << "bind() failed: "
                   << WSAGetLastError() << '\n';
         closesocket(server);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return 1;
     }
 
@@ -1458,7 +1475,9 @@ int main()
         std::cerr << "listen() failed: "
                   << WSAGetLastError() << '\n';
         closesocket(server);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return 1;
     }
 
@@ -1480,7 +1499,8 @@ int main()
             break;
         }
 
-        std::cout << "Accepted client connection.\n";
+        std::cout << "Accepted client connection.\\n";
+#ifdef _WIN32
         const DWORD io_timeout_ms = 15000;
         if (setsockopt(client, SOL_SOCKET, SO_RCVTIMEO,
                        reinterpret_cast<const char*>(&io_timeout_ms),
@@ -1489,16 +1509,17 @@ int main()
                        reinterpret_cast<const char*>(&io_timeout_ms),
                        sizeof(io_timeout_ms)) == SOCKET_ERROR) {
             std::cerr << "Could not configure TLS socket timeouts: "
-                      << WSAGetLastError() << '\n';
+                      << WSAGetLastError() << '\\n';
             shutdown(client, SD_BOTH);
             closesocket(client);
             continue;
         }
+#endif
         SSL* ssl = SSL_new(tls_context.get());
         if (ssl == nullptr ||
             SSL_set_fd(ssl, static_cast<int>(client)) != 1 ||
             SSL_accept(ssl) != 1) {
-            std::cerr << "TLS handshake failed.\n";
+            std::cerr << "TLS handshake failed.\\n";
             ERR_print_errors_fp(stderr);
             if (ssl != nullptr) {
                 SSL_free(ssl);
@@ -1507,9 +1528,13 @@ int main()
             closesocket(client);
             continue;
         }
+            shutdown(client, SD_BOTH);
+            closesocket(client);
+            continue;
+        }
         TlsConnection connection{ssl};
 
-        // Ensure the socket closes even if request handling throws.
+        // Ensure the TLS session and socket close after each request.
         try {
             handle_client(connection, auth_service, *patient_service,
                           *appointment_repository, *clinical_service);
@@ -1536,7 +1561,10 @@ int main()
     }
 
     closesocket(server);
-    WSACleanup();
+    tls_context.reset();
+#ifdef _WIN32
+        WSACleanup();
+#endif
 
     std::cout << "HMS server stopped.\n";
     return 0;
