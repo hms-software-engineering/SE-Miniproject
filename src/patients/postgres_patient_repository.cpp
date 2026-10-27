@@ -509,6 +509,44 @@ std::string history_payload(const Registration& registration)
     return payload.str();
 }
 
+bool parse_history_payload(const std::string& payload,
+                           Registration& registration)
+{
+    std::string* fields[] = {
+        &registration.name, &registration.date_of_birth,
+        &registration.gender, &registration.phone, &registration.address
+    };
+    std::size_t position = 0;
+    for (std::string* field : fields) {
+        const std::size_t separator = payload.find(':', position);
+        if (separator == std::string::npos || separator == position) {
+            return false;
+        }
+
+        std::size_t length = 0;
+        for (std::size_t index = position; index < separator; ++index) {
+            const char digit = payload[index];
+            if (digit < '0' || digit > '9') {
+                return false;
+            }
+            const std::size_t value = static_cast<std::size_t>(digit - '0');
+            if (length > (std::numeric_limits<std::size_t>::max() - value) /
+                             10) {
+                return false;
+            }
+            length = length * 10 + value;
+        }
+
+        position = separator + 1;
+        if (length > payload.size() - position) {
+            return false;
+        }
+        field->assign(payload, position, length);
+        position += length;
+    }
+    return position == payload.size();
+}
+
 } // namespace
 
 struct PostgresPatientRepository::Connection {
@@ -587,22 +625,23 @@ Patient PostgresPatientRepository::create_patient(
         encrypt_hex(registration.phone, data_encryption_key_,
                     "patient:phone:v1"),
         encrypt_hex(registration.address, data_encryption_key_,
-                    "patient:address:v1")
+                    "patient:address:v1"),
+        registration.linked_user_id
     };
-    values.reserve(7 + name_prefix_indexes.size());
+    values.reserve(8 + name_prefix_indexes.size());
     for (const auto& index : name_prefix_indexes) {
         values.push_back(encode_hex(index.data(), index.size()));
     }
     values.push_back(encode_hex(phone_index.data(), phone_index.size()));
 
-    const std::string array = prefix_array_sql(name_prefix_indexes.size(), 7);
+    const std::string array = prefix_array_sql(name_prefix_indexes.size(), 8);
     const std::string sql =
-        "INSERT INTO patients (patient_id,name,dob,gender,phone,address,"
+        "INSERT INTO patients (patient_id,name,dob,gender,phone,address,user_id,"
         "name_prefix_blind_indexes,phone_blind_index) "
         "VALUES ($1,decode($2,'hex'),decode($3,'hex'),$4,"
-        "decode($5,'hex'),decode($6,'hex')," + array + ",decode($" +
-        std::to_string(7 + name_prefix_indexes.size()) +
-        ",'hex')) RETURNING patient_id";
+        "decode($5,'hex'),decode($6,'hex'),NULLIF($7,'')::bigint," +
+        array + ",decode($" + std::to_string(8 + name_prefix_indexes.size()) +
+        ",'hex')) ON CONFLICT (user_id) DO NOTHING RETURNING patient_id";
     const auto params = pointers(values);
     PGresult* raw = pg_exec_params(
         connection_->value, sql.c_str(), static_cast<int>(params.size()),
@@ -610,6 +649,9 @@ Patient PostgresPatientRepository::create_patient(
     require_status(connection_->value, raw, PGRES_TUPLES_OK,
                    "Could not register patient");
     Result result(raw);
+    if (pg_tuples(result.get()) == 0) {
+        return {};
+    }
     return {pg_value(result.get(), 0, 0), registration};
 }
 
@@ -804,6 +846,44 @@ std::vector<Patient> PostgresPatientRepository::find_by_phone_index(
         "ORDER BY patient_id",
         {encode_hex(phone_index.data(), phone_index.size())},
         data_encryption_key_);
+}
+
+std::vector<PatientHistoryEntry> PostgresPatientRepository::patient_history(
+    const std::string& patient_id) const
+{
+    const char* values[] = {patient_id.c_str()};
+    PGresult* raw = pg_exec_params(
+        connection_->value,
+        "SELECT encode(h.old_values,'hex'),"
+        "to_char(h.changed_at AT TIME ZONE 'UTC',"
+        "'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'),"
+        "COALESCE(u.username,'Deleted user') "
+        "FROM patient_history h LEFT JOIN users u "
+        "ON u.user_id=h.changed_by WHERE h.patient_id=$1 "
+        "ORDER BY h.changed_at DESC,h.history_id DESC",
+        1, values);
+    require_status(connection_->value, raw, PGRES_TUPLES_OK,
+                   "Could not read patient history");
+    Result result(raw);
+
+    std::vector<PatientHistoryEntry> entries;
+    entries.reserve(static_cast<std::size_t>(pg_tuples(result.get())));
+    for (int row = 0; row < pg_tuples(result.get()); ++row) {
+        Registration old_values;
+        const std::string payload = decrypt_value(
+            pg_value(result.get(), row, 0), data_encryption_key_,
+            "patient:history:v1");
+        if (!parse_history_payload(payload, old_values)) {
+            throw std::runtime_error(
+                "Stored patient history has an invalid format.");
+        }
+        entries.push_back({
+            std::move(old_values),
+            pg_value(result.get(), row, 1),
+            pg_value(result.get(), row, 2)
+        });
+    }
+    return entries;
 }
 
 } // namespace hms::patients

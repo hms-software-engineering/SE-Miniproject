@@ -15,12 +15,19 @@ struct Registration {
     std::string gender;
     std::string phone;
     std::string address;
+    std::string linked_user_id;
 };
 
 struct Patient {
     std::string patient_id;
     Registration demographics;
     std::string owner_user_id;
+};
+
+struct PatientHistoryEntry {
+    Registration old_values;
+    std::string changed_at;
+    std::string changed_by;
 };
 
 struct ValidationError {
@@ -30,6 +37,7 @@ struct ValidationError {
 
 struct RegistrationResult {
     bool saved = false;
+    bool duplicate_warning = false;
     Patient patient;
     std::vector<ValidationError> errors;
 };
@@ -59,6 +67,8 @@ public:
         const BlindIndex& name_prefix_index) const = 0;
     virtual std::vector<Patient> find_by_phone_index(
         const BlindIndex& phone_index) const = 0;
+    virtual std::vector<PatientHistoryEntry> patient_history(
+        const std::string& patient_id) const = 0;
 };
 
 class PatientService {
@@ -68,11 +78,14 @@ public:
                    std::string phone_index_key);
 
     RegistrationResult register_patient(const Registration& registration,
-                                        const std::string& today) const;
+                                        const std::string& today,
+                                        bool confirm_duplicate = false) const;
     RegistrationResult update_patient(const std::string& patient_id,
                                      const Registration& registration,
                                      const std::string& today,
                                      const std::string& changed_by_user_id) const;
+    std::vector<PatientHistoryEntry> patient_history(
+        const std::string& patient_id) const;
     SearchResult search_patients(const std::string& query) const;
 
 private:
@@ -117,6 +130,8 @@ public:
         const BlindIndex& name_prefix_index) const override;
     std::vector<Patient> find_by_phone_index(
         const BlindIndex& phone_index) const override;
+    std::vector<PatientHistoryEntry> patient_history(
+        const std::string& patient_id) const override;
 
 private:
     struct Connection;

@@ -26,6 +26,11 @@ struct StoredPatient {
     BlindIndex phone_index;
 };
 
+struct StoredHistory {
+    std::string patient_id;
+    PatientHistoryEntry entry;
+};
+
 class InMemoryPatientRepository final : public PatientRepository {
 public:
     Patient create_patient(
@@ -33,6 +38,14 @@ public:
         const std::vector<BlindIndex>& name_prefix_indexes,
         const BlindIndex& phone_index) override
     {
+        if (!registration.linked_user_id.empty() &&
+            std::any_of(items_.begin(), items_.end(),
+                [&registration](const StoredPatient& item) {
+                    return item.patient.demographics.linked_user_id ==
+                           registration.linked_user_id;
+                })) {
+            return {};
+        }
         Patient patient{"PID-0000000" + std::to_string(next_id_++),
                         registration};
         items_.push_back({patient, name_prefix_indexes, phone_index});
@@ -44,10 +57,15 @@ public:
         const Registration& registration,
         const std::vector<BlindIndex>& name_prefix_indexes,
         const BlindIndex& phone_index,
-        const std::string&) override
+        const std::string& changed_by_user_id) override
     {
         for (auto& item : items_) {
             if (item.patient.patient_id == patient_id) {
+                history_.push_back({
+                    patient_id,
+                    {item.patient.demographics,
+                     "2026-10-21T12:00:00.000000Z", changed_by_user_id}
+                });
                 item.patient.demographics = registration;
                 item.name_prefix_indexes = name_prefix_indexes;
                 item.phone_index = phone_index;
@@ -95,6 +113,18 @@ public:
         return matches;
     }
 
+    std::vector<PatientHistoryEntry> patient_history(
+        const std::string& patient_id) const override
+    {
+        std::vector<PatientHistoryEntry> entries;
+        for (auto item = history_.rbegin(); item != history_.rend(); ++item) {
+            if (item->patient_id == patient_id) {
+                entries.push_back(item->entry);
+            }
+        }
+        return entries;
+    }
+
     std::size_t size() const
     {
         return items_.size();
@@ -103,6 +133,7 @@ public:
 private:
     std::size_t next_id_ = 1;
     std::vector<StoredPatient> items_;
+    std::vector<StoredHistory> history_;
 };
 
 Registration valid_registration()
@@ -192,24 +223,60 @@ int main()
     CHECK(first.patient.patient_id == "PID-00000001");
     CHECK(first.patient.patient_id.size() == 12);
 
+    Registration duplicate_registration = valid_registration();
+    duplicate_registration.name = "  asha   nair ";
+    const auto duplicate = service.register_patient(
+        duplicate_registration, "21-10-2026");
+    CHECK(!duplicate.saved);
+    CHECK(duplicate.duplicate_warning);
+    CHECK(duplicate.errors.empty());
+    CHECK(repository.size() == 1);
+
+    const auto confirmed_duplicate = service.register_patient(
+        duplicate_registration, "21-10-2026", true);
+    CHECK(confirmed_duplicate.saved);
+    CHECK(!confirmed_duplicate.duplicate_warning);
+    CHECK(confirmed_duplicate.patient.patient_id == "PID-00000002");
+
+    Registration same_name_different_dob = valid_registration();
+    same_name_different_dob.date_of_birth = "15-03-1990";
+    const auto different_dob = service.register_patient(
+        same_name_different_dob, "21-10-2026");
+    CHECK(different_dob.saved);
+    CHECK(!different_dob.duplicate_warning);
+
+    Registration same_name_different_phone = valid_registration();
+    same_name_different_phone.phone = "9876543214";
+    const auto different_phone = service.register_patient(
+        same_name_different_phone, "21-10-2026");
+    CHECK(different_phone.saved);
+    CHECK(!different_phone.duplicate_warning);
+
+    Registration same_dob_and_phone = valid_registration();
+    same_dob_and_phone.name = "Maya Nair";
+    const auto different_name = service.register_patient(
+        same_dob_and_phone, "21-10-2026");
+    CHECK(different_name.saved);
+    CHECK(!different_name.duplicate_warning);
+
     Registration second_registration = valid_registration();
     second_registration.name = "Ashwin Rao";
     second_registration.phone = "9876543211";
     const auto second = service.register_patient(
         second_registration, "21-10-2026");
     CHECK(second.saved);
-    CHECK(second.patient.patient_id == "PID-00000002");
+    CHECK(second.patient.patient_id == "PID-00000006");
 
     auto by_id = service.search_patients("PID-00000001");
     CHECK(by_id.matches.size() == 1);
     CHECK(by_id.matches.front().patient_id == first.patient.patient_id);
 
     auto by_prefix = service.search_patients("  aSH  ");
-    CHECK(by_prefix.matches.size() == 2);
+    CHECK(by_prefix.matches.size() == 5);
     CHECK(by_prefix.message.empty());
 
     auto by_phone = service.search_patients("9876543210");
-    CHECK(by_phone.matches.size() == 1);
+    CHECK(by_phone.matches.size() == 4);
     CHECK(by_phone.matches.front().patient_id == first.patient.patient_id);
 
     Registration updated_registration = valid_registration();
@@ -219,9 +286,29 @@ int main()
         first.patient.patient_id, updated_registration, "21-10-2026", "8");
     CHECK(updated.saved);
     CHECK(updated.patient.demographics.name == "Asha Menon");
-    CHECK(service.search_patients("Asha").matches.size() == 1);
-    CHECK(service.search_patients("9876543210").matches.empty());
+    const auto patient_history =
+        service.patient_history(first.patient.patient_id);
+    CHECK(patient_history.size() == 1);
+    CHECK(patient_history.front().old_values.name == "Asha Nair");
+    CHECK(patient_history.front().old_values.phone == "9876543210");
+    CHECK(patient_history.front().changed_at ==
+          "2026-10-21T12:00:00.000000Z");
+    CHECK(patient_history.front().changed_by == "8");
+    CHECK(service.search_patients("Asha").matches.size() == 4);
+    CHECK(service.search_patients("9876543210").matches.size() == 3);
     CHECK(service.search_patients("9876543212").matches.size() == 1);
+
+    Registration second_update = updated_registration;
+    second_update.phone = "9876543213";
+    const auto second_result = service.update_patient(
+        first.patient.patient_id, second_update, "22-10-2026", "9");
+    CHECK(second_result.saved);
+    const auto subsequent_history =
+        service.patient_history(first.patient.patient_id);
+    CHECK(subsequent_history.size() == 2);
+    CHECK(subsequent_history.front().old_values.name == "Asha Menon");
+    CHECK(subsequent_history.front().old_values.phone == "9876543212");
+    CHECK(subsequent_history.front().changed_by == "9");
 
     const auto missing = service.update_patient(
         "PID-00000099", updated_registration, "21-10-2026", "8");
@@ -232,6 +319,19 @@ int main()
     CHECK(no_match.matches.empty());
     CHECK(no_match.message == "No patient found");
     CHECK(service.search_patients("   ").message == "Search query is required.");
+
+    Registration profile = valid_registration();
+    profile.name = "Linked Patient";
+    profile.phone = "9876543213";
+    profile.linked_user_id = "42";
+    const auto linked_profile =
+        service.register_patient(profile, "21-10-2026");
+    CHECK(linked_profile.saved);
+    CHECK(linked_profile.patient.demographics.linked_user_id == "42");
+    const auto duplicate_profile =
+        service.register_patient(profile, "21-10-2026");
+    CHECK(!duplicate_profile.saved);
+    CHECK(duplicate_profile.errors.front().field == "profile");
 
     const auto reject = [&service, &repository](Registration registration) {
         const std::size_t count_before = repository.size();
