@@ -15,6 +15,7 @@ struct Registration {
     std::string gender;
     std::string phone;
     std::string address;
+    std::string linked_user_id;
 };
 
 struct Patient {

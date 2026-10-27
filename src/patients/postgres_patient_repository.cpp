@@ -587,22 +587,23 @@ Patient PostgresPatientRepository::create_patient(
         encrypt_hex(registration.phone, data_encryption_key_,
                     "patient:phone:v1"),
         encrypt_hex(registration.address, data_encryption_key_,
-                    "patient:address:v1")
+                    "patient:address:v1"),
+        registration.linked_user_id
     };
-    values.reserve(7 + name_prefix_indexes.size());
+    values.reserve(8 + name_prefix_indexes.size());
     for (const auto& index : name_prefix_indexes) {
         values.push_back(encode_hex(index.data(), index.size()));
     }
     values.push_back(encode_hex(phone_index.data(), phone_index.size()));
 
-    const std::string array = prefix_array_sql(name_prefix_indexes.size(), 7);
+    const std::string array = prefix_array_sql(name_prefix_indexes.size(), 8);
     const std::string sql =
-        "INSERT INTO patients (patient_id,name,dob,gender,phone,address,"
+        "INSERT INTO patients (patient_id,name,dob,gender,phone,address,user_id,"
         "name_prefix_blind_indexes,phone_blind_index) "
         "VALUES ($1,decode($2,'hex'),decode($3,'hex'),$4,"
-        "decode($5,'hex'),decode($6,'hex')," + array + ",decode($" +
-        std::to_string(7 + name_prefix_indexes.size()) +
-        ",'hex')) RETURNING patient_id";
+        "decode($5,'hex'),decode($6,'hex'),NULLIF($7,'')::bigint," +
+        array + ",decode($" + std::to_string(8 + name_prefix_indexes.size()) +
+        ",'hex')) ON CONFLICT (user_id) DO NOTHING RETURNING patient_id";
     const auto params = pointers(values);
     PGresult* raw = pg_exec_params(
         connection_->value, sql.c_str(), static_cast<int>(params.size()),
@@ -610,6 +611,9 @@ Patient PostgresPatientRepository::create_patient(
     require_status(connection_->value, raw, PGRES_TUPLES_OK,
                    "Could not register patient");
     Result result(raw);
+    if (pg_tuples(result.get()) == 0) {
+        return {};
+    }
     return {pg_value(result.get(), 0, 0), registration};
 }
 

@@ -57,6 +57,8 @@ bool is_permitted(Role role, Permission permission)
     switch (permission) {
     case Permission::LoginLogout:
         return true;
+    case Permission::CreateOwnPatientProfile:
+        return role == Role::Patient;
     case Permission::RegisterPatient:
     case Permission::UpdatePatientData:
         return role == Role::Receptionist;

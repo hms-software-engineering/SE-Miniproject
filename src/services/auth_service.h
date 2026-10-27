@@ -14,6 +14,7 @@ struct AuthUser {
     std::string password_hash;
     Role role = Role::Patient;
     bool active = true;
+    bool account_locked = false;
 };
 
 struct SessionPrincipal {
@@ -36,6 +37,10 @@ public:
                                          std::string& user_id) = 0;
     virtual std::optional<AuthUser> find_user(
         const std::string& username) const = 0;
+    virtual bool record_failed_login(const std::string& username) = 0;
+    virtual void reset_failed_logins(const std::string& username) = 0;
+    virtual void update_password_hash(const std::string& username,
+                                      const std::string& password_hash) = 0;
     virtual void create_session(const std::string& token_hash,
                                 const std::string& user_id) = 0;
     virtual std::optional<SessionPrincipal> find_session(
@@ -49,6 +54,7 @@ struct AuthResult {
     std::string token;
     std::string message;
     Role role = Role::Patient;
+    bool account_locked = false;
 };
 
 class AuthService {
@@ -84,6 +90,10 @@ public:
                                  std::string& user_id) override;
     std::optional<AuthUser> find_user(
         const std::string& username) const override;
+    bool record_failed_login(const std::string& username) override;
+    void reset_failed_logins(const std::string& username) override;
+    void update_password_hash(const std::string& username,
+                              const std::string& password_hash) override;
     void create_session(const std::string& token_hash,
                         const std::string& user_id) override;
     std::optional<SessionPrincipal> find_session(

@@ -11,6 +11,7 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -35,13 +36,25 @@ PatientManagementWindow::PatientManagementWindow(
       newPatientButton(new QPushButton("New patient", this))
 {
     setWindowTitle("Patient management");
-    resize(850, 680);
+    resize(850, 600);
 
     auto *root = new QVBoxLayout(this);
+    auto *toolbar = new QHBoxLayout;
+    auto *sessionLabel = new QLabel(
+        QString("Logged in as %1 | %2")
+            .arg(client->username(), client->role()), this);
+    auto *helpButton = new QPushButton("Help", this);
+    auto *logoutButton = new QPushButton("Logout", this);
+    toolbar->addWidget(sessionLabel);
+    toolbar->addStretch();
+    toolbar->addWidget(helpButton);
+    toolbar->addWidget(logoutButton);
+    root->addLayout(toolbar);
     auto *searchBox = new QGroupBox("Search patients", this);
     auto *searchLayout = new QVBoxLayout(searchBox);
     auto *searchRow = new QHBoxLayout;
     searchInput->setPlaceholderText("Patient ID, name prefix, or phone");
+    searchInput->setAccessibleName("Patient search");
     auto *searchButton = new QPushButton("Search", searchBox);
     searchRow->addWidget(searchInput);
     searchRow->addWidget(searchButton);
@@ -54,6 +67,7 @@ PatientManagementWindow::PatientManagementWindow(
     results->setSelectionBehavior(QAbstractItemView::SelectRows);
     results->setSelectionMode(QAbstractItemView::SingleSelection);
     results->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    results->setMaximumHeight(180);
     searchLayout->addWidget(results);
     root->addWidget(searchBox);
 
@@ -61,24 +75,35 @@ PatientManagementWindow::PatientManagementWindow(
     auto *form = new QFormLayout(formBox);
     genderInput->addItems({"Female", "Male", "Other"});
     dateOfBirthInput->setPlaceholderText("DD-MM-YYYY");
+    nameInput->setAccessibleName("Patient name");
+    dateOfBirthInput->setAccessibleName("Date of birth");
+    genderInput->setAccessibleName("Gender");
+    phoneInput->setAccessibleName("Phone");
+    addressInput->setAccessibleName("Address");
     phoneInput->setMaxLength(10);
     addressInput->setMaxLength(120);
     form->addRow("Patient ID", patientIdLabel);
-    form->addRow("Name", nameInput);
-    form->addRow("Date of birth", dateOfBirthInput);
-    form->addRow("Gender", genderInput);
-    form->addRow("Phone", phoneInput);
-    form->addRow("Address", addressInput);
+    form->addRow("Name *", nameInput);
+    form->addRow("Date of birth *", dateOfBirthInput);
+    form->addRow("Gender *", genderInput);
+    form->addRow("Phone *", phoneInput);
+    form->addRow("Address *", addressInput);
     if (!canManagePatients) {
         formBox->hide();
     }
     root->addWidget(formBox);
 
     statusLabel->setWordWrap(true);
+    statusLabel->setStyleSheet("color: #a61b1b;");
     root->addWidget(statusLabel);
     if (canManagePatients) {
-        root->addWidget(newPatientButton);
-        root->addWidget(submitButton);
+        auto *patientActions = new QHBoxLayout;
+        patientActions->addWidget(newPatientButton);
+        patientActions->addWidget(submitButton, 1);
+        root->addLayout(patientActions);
+    } else {
+        newPatientButton->hide();
+        submitButton->hide();
     }
 
     connect(searchButton, &QPushButton::clicked,
@@ -91,6 +116,17 @@ PatientManagementWindow::PatientManagementWindow(
             this, &PatientManagementWindow::submitPatient);
     connect(newPatientButton, &QPushButton::clicked,
             this, &PatientManagementWindow::clearForm);
+    connect(helpButton, &QPushButton::clicked, this, [this]() {
+        QMessageBox::information(
+            this, "Patient management help",
+            "Search by patient ID, name prefix, or phone. "
+            "Receptionists can register or update a patient by selecting "
+            "a search result. Fields marked with * are required.");
+    });
+    connect(logoutButton, &QPushButton::clicked, this, [this]() {
+        apiClient->logout();
+        close();
+    });
     connect(apiClient, &ApiClient::patientOperationSucceeded,
             this, &PatientManagementWindow::handlePatientSuccess);
     connect(apiClient, &ApiClient::patientOperationFailed,
@@ -101,9 +137,11 @@ void PatientManagementWindow::searchPatients()
 {
     const QString query = searchInput->text().trimmed();
     if (query.isEmpty()) {
+        statusLabel->setStyleSheet("color: #a61b1b;");
         statusLabel->setText("Enter a patient ID, name prefix, or phone.");
         return;
     }
+    statusLabel->setStyleSheet("color: #334155;");
     statusLabel->setText("Searching...");
     apiClient->searchPatients(query);
 }
@@ -125,10 +163,12 @@ void PatientManagementWindow::submitPatient()
         dateOfBirthInput->text().trimmed().isEmpty() ||
         phoneInput->text().trimmed().isEmpty() ||
         addressInput->text().trimmed().isEmpty()) {
+        statusLabel->setStyleSheet("color: #a61b1b;");
         statusLabel->setText("Complete all patient fields before saving.");
         return;
     }
     submitButton->setEnabled(false);
+    statusLabel->setStyleSheet("color: #334155;");
     statusLabel->setText("Saving patient...");
     if (patientIdLabel->text() == "New patient") {
         apiClient->registerPatient(patientForm());
@@ -194,6 +234,7 @@ void PatientManagementWindow::handlePatientSuccess(
     statusLabel->setText(operation == "register"
         ? "Patient registered successfully."
         : "Patient updated successfully.");
+    statusLabel->setStyleSheet("color: #14532d;");
     submitButton->setEnabled(true);
     submitButton->setText("Save patient changes");
 }
@@ -202,6 +243,7 @@ void PatientManagementWindow::handlePatientError(
     const QString &,
     const QString &message)
 {
+    statusLabel->setStyleSheet("color: #a61b1b;");
     statusLabel->setText(message);
     submitButton->setEnabled(true);
 }

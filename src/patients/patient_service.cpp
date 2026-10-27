@@ -368,7 +368,11 @@ RegistrationResult PatientService::register_patient(
         make_phone_blind_index(registration.phone, phone_index_key_);
     result.patient = repository_.create_patient(
         registration, name_indexes, phone_index);
-    result.saved = true;
+    result.saved = !result.patient.patient_id.empty();
+    if (!result.saved) {
+        result.errors.push_back(
+            {"profile", "A patient profile is already linked to this account."});
+    }
     return result;
 }
 
