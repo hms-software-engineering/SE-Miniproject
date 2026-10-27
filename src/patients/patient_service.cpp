@@ -419,6 +419,12 @@ RegistrationResult PatientService::update_patient(
     return result;
 }
 
+std::vector<PatientHistoryEntry> PatientService::patient_history(
+    const std::string& patient_id) const
+{
+    return repository_.patient_history(patient_id);
+}
+
 SearchResult PatientService::search_patients(const std::string& query) const
 {
     const std::string trimmed = trim_ascii(query);

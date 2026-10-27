@@ -61,6 +61,26 @@ Patient management is available to authenticated Receptionist users:
   values to encrypted `patient_history`.
 - `GET /api/v1/patients/search?query=...` searches by patient ID, exact phone,
   or case-insensitive name prefix. Receptionists and Doctors may search.
+- `GET /api/v1/patients/{patientId}/history` retrieves prior demographic
+  values newest-first. Receptionists and Doctors may view the history. Each
+  entry includes `changedAt` (UTC ISO-8601), `changedBy` (username), and
+  `oldValues` (`name`, `dateOfBirth`, `gender`, `phone`, and `address`):
+
+  ```json
+  {
+    "history": [{
+      "changedAt": "2026-10-21T12:00:00.000000Z",
+      "changedBy": "receptionist",
+      "oldValues": {
+        "name": "Asha Nair",
+        "dateOfBirth": "04-05-1980",
+        "gender": "Female",
+        "phone": "9876543210",
+        "address": "12 Example Road"
+      }
+    }]
+  }
+  ```
 
 Set `HMS_PATIENT_DATA_KEY` to a secret containing exactly 32 bytes and set
 `HMS_PATIENT_NAME_INDEX_KEY` and `HMS_PATIENT_PHONE_INDEX_KEY` to different

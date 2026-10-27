@@ -44,4 +44,5 @@ private:
     QLabel *statusLabel;
     QPushButton *submitButton;
     QPushButton *newPatientButton;
+    QPushButton *historyButton;
 };
