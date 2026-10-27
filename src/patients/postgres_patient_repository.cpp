@@ -758,6 +758,7 @@ std::vector<Patient> read_patients(PGconn* connection,
                 decrypt_value(pg_value(result.get(), row, 5), key,
                               "patient:address:v1")
             }
+            ,pg_value(result.get(), row, 6)
         });
     }
     return patients;
@@ -771,7 +772,8 @@ std::vector<Patient> PostgresPatientRepository::find_by_id(
     return read_patients(
         connection_->value,
         "SELECT patient_id,encode(name,'hex'),encode(dob,'hex'),gender,"
-        "encode(phone,'hex'),encode(address,'hex') "
+        "encode(phone,'hex'),encode(address,'hex'),"
+        "COALESCE(user_id::text,'') "
         "FROM patients WHERE patient_id=$1",
         {patient_id}, data_encryption_key_);
 }
@@ -782,7 +784,8 @@ std::vector<Patient> PostgresPatientRepository::find_by_name_prefix(
     return read_patients(
         connection_->value,
         "SELECT patient_id,encode(name,'hex'),encode(dob,'hex'),gender,"
-        "encode(phone,'hex'),encode(address,'hex') "
+        "encode(phone,'hex'),encode(address,'hex'),"
+        "COALESCE(user_id::text,'') "
         "FROM patients WHERE name_prefix_blind_indexes "
         "@> ARRAY[decode($1,'hex')]::bytea[] ORDER BY patient_id",
         {encode_hex(name_prefix_index.data(), name_prefix_index.size())},
@@ -795,7 +798,8 @@ std::vector<Patient> PostgresPatientRepository::find_by_phone_index(
     return read_patients(
         connection_->value,
         "SELECT patient_id,encode(name,'hex'),encode(dob,'hex'),gender,"
-        "encode(phone,'hex'),encode(address,'hex') "
+        "encode(phone,'hex'),encode(address,'hex'),"
+        "COALESCE(user_id::text,'') "
         "FROM patients WHERE phone_blind_index=decode($1,'hex') "
         "ORDER BY patient_id",
         {encode_hex(phone_index.data(), phone_index.size())},
