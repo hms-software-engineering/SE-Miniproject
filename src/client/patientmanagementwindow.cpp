@@ -131,6 +131,8 @@ PatientManagementWindow::PatientManagementWindow(
             this, &PatientManagementWindow::handlePatientSuccess);
     connect(apiClient, &ApiClient::patientOperationFailed,
             this, &PatientManagementWindow::handlePatientError);
+    connect(apiClient, &ApiClient::patientDuplicateDetected,
+            this, &PatientManagementWindow::confirmDuplicateRegistration);
 }
 
 void PatientManagementWindow::searchPatients()
@@ -245,6 +247,25 @@ void PatientManagementWindow::handlePatientError(
 {
     statusLabel->setStyleSheet("color: #a61b1b;");
     statusLabel->setText(message);
+    submitButton->setEnabled(true);
+}
+
+void PatientManagementWindow::confirmDuplicateRegistration(
+    const QString &message)
+{
+    const auto answer = QMessageBox::warning(
+        this, "Possible duplicate patient",
+        message + "\n\nDo you want to save this patient anyway?",
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer == QMessageBox::Yes) {
+        statusLabel->setStyleSheet("color: #334155;");
+        statusLabel->setText("Saving confirmed duplicate...");
+        apiClient->registerPatient(patientForm(), true);
+        return;
+    }
+
+    statusLabel->setStyleSheet("color: #a61b1b;");
+    statusLabel->setText("Registration cancelled; no patient was saved.");
     submitButton->setEnabled(true);
 }
 

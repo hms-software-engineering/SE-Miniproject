@@ -354,7 +354,8 @@ PatientService::PatientService(PatientRepository& repository,
 
 RegistrationResult PatientService::register_patient(
     const Registration& registration,
-    const std::string& today) const
+    const std::string& today,
+    bool confirm_duplicate) const
 {
     RegistrationResult result;
     result.errors = validate_registration(registration, today);
@@ -366,6 +367,23 @@ RegistrationResult PatientService::register_patient(
         make_name_prefix_blind_indexes(registration.name, name_index_key_);
     const BlindIndex phone_index =
         make_phone_blind_index(registration.phone, phone_index_key_);
+
+    if (!confirm_duplicate) {
+        const auto possible_duplicates = repository_.find_by_name_prefix(
+            make_name_prefix_blind_index(registration.name, name_index_key_));
+        const std::string normalized_name =
+            normalize_name_search(registration.name);
+        for (const auto& patient : possible_duplicates) {
+            const auto& existing = patient.demographics;
+            if (normalize_name_search(existing.name) == normalized_name &&
+                existing.date_of_birth == registration.date_of_birth &&
+                existing.phone == registration.phone) {
+                result.duplicate_warning = true;
+                return result;
+            }
+        }
+    }
+
     result.patient = repository_.create_patient(
         registration, name_indexes, phone_index);
     result.saved = !result.patient.patient_id.empty();

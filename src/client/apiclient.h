@@ -16,7 +16,8 @@ public:
 
     void login(const QString &username, const QString &password);
     void logout();
-    void registerPatient(const QJsonObject &patient);
+    void registerPatient(const QJsonObject &patient,
+                         bool confirmDuplicate = false);
     void updatePatient(const QString &patientId, const QJsonObject &patient);
     void searchPatients(const QString &query);
     void getFreeSlots(const QString &doctorId, const QString &date);
@@ -44,6 +45,7 @@ signals:
                                    const QJsonObject &response);
     void patientOperationFailed(const QString &operation,
                                 const QString &message);
+    void patientDuplicateDetected(const QString &message);
     void workflowOperationSucceeded(const QString &operation,
                                     const QJsonObject &response);
     void workflowOperationFailed(const QString &operation,
