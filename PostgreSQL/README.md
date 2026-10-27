@@ -53,6 +53,10 @@ Patient management is available to authenticated Receptionist users:
 
 - `POST /api/v1/patients` registers demographic fields `name`, `dateOfBirth`
   (`DD-MM-YYYY`), `gender`, `phone`, and `address`.
+- If a patient with the same normalized name, date of birth, and phone number
+  already exists, registration returns `409 DUPLICATE_PATIENT` without saving.
+  After the user confirms the warning, retry the same request with
+  `?confirmDuplicate=true` to save the record.
 - `PUT /api/v1/patients/{patientId}` updates those fields and writes previous
   values to encrypted `patient_history`.
 - `GET /api/v1/patients/search?query=...` searches by patient ID, exact phone,

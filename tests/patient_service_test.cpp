@@ -200,24 +200,60 @@ int main()
     CHECK(first.patient.patient_id == "PID-00000001");
     CHECK(first.patient.patient_id.size() == 12);
 
+    Registration duplicate_registration = valid_registration();
+    duplicate_registration.name = "  asha   nair ";
+    const auto duplicate = service.register_patient(
+        duplicate_registration, "21-10-2026");
+    CHECK(!duplicate.saved);
+    CHECK(duplicate.duplicate_warning);
+    CHECK(duplicate.errors.empty());
+    CHECK(repository.size() == 1);
+
+    const auto confirmed_duplicate = service.register_patient(
+        duplicate_registration, "21-10-2026", true);
+    CHECK(confirmed_duplicate.saved);
+    CHECK(!confirmed_duplicate.duplicate_warning);
+    CHECK(confirmed_duplicate.patient.patient_id == "PID-00000002");
+
+    Registration same_name_different_dob = valid_registration();
+    same_name_different_dob.date_of_birth = "15-03-1990";
+    const auto different_dob = service.register_patient(
+        same_name_different_dob, "21-10-2026");
+    CHECK(different_dob.saved);
+    CHECK(!different_dob.duplicate_warning);
+
+    Registration same_name_different_phone = valid_registration();
+    same_name_different_phone.phone = "9876543214";
+    const auto different_phone = service.register_patient(
+        same_name_different_phone, "21-10-2026");
+    CHECK(different_phone.saved);
+    CHECK(!different_phone.duplicate_warning);
+
+    Registration same_dob_and_phone = valid_registration();
+    same_dob_and_phone.name = "Maya Nair";
+    const auto different_name = service.register_patient(
+        same_dob_and_phone, "21-10-2026");
+    CHECK(different_name.saved);
+    CHECK(!different_name.duplicate_warning);
+
     Registration second_registration = valid_registration();
     second_registration.name = "Ashwin Rao";
     second_registration.phone = "9876543211";
     const auto second = service.register_patient(
         second_registration, "21-10-2026");
     CHECK(second.saved);
-    CHECK(second.patient.patient_id == "PID-00000002");
+    CHECK(second.patient.patient_id == "PID-00000006");
 
     auto by_id = service.search_patients("PID-00000001");
     CHECK(by_id.matches.size() == 1);
     CHECK(by_id.matches.front().patient_id == first.patient.patient_id);
 
     auto by_prefix = service.search_patients("  aSH  ");
-    CHECK(by_prefix.matches.size() == 2);
+    CHECK(by_prefix.matches.size() == 5);
     CHECK(by_prefix.message.empty());
 
     auto by_phone = service.search_patients("9876543210");
-    CHECK(by_phone.matches.size() == 1);
+    CHECK(by_phone.matches.size() == 4);
     CHECK(by_phone.matches.front().patient_id == first.patient.patient_id);
 
     Registration updated_registration = valid_registration();
@@ -227,8 +263,8 @@ int main()
         first.patient.patient_id, updated_registration, "21-10-2026", "8");
     CHECK(updated.saved);
     CHECK(updated.patient.demographics.name == "Asha Menon");
-    CHECK(service.search_patients("Asha").matches.size() == 1);
-    CHECK(service.search_patients("9876543210").matches.empty());
+    CHECK(service.search_patients("Asha").matches.size() == 4);
+    CHECK(service.search_patients("9876543210").matches.size() == 3);
     CHECK(service.search_patients("9876543212").matches.size() == 1);
 
     const auto missing = service.update_patient(

@@ -1051,7 +1051,7 @@ void handle_client(TlsConnection& client,
             }
             registration.linked_user_id = principal.user_id;
             const auto result = patient_service.register_patient(
-                registration, current_date_ddmmyyyy());
+                registration, current_date_ddmmyyyy(), true);
             if (!result.saved) {
                 const bool duplicate = !result.errors.empty() &&
                     result.errors.front().field == "profile";
@@ -1275,8 +1275,28 @@ void handle_client(TlsConnection& client,
                            request_id);
                 return;
             }
+            bool confirm_duplicate = false;
+            if (!query_string.empty()) {
+                std::string confirmation;
+                if (!read_query_parameter(
+                        query_string, "confirmDuplicate", confirmation) ||
+                    confirmation != "true" ||
+                    query_string != "confirmDuplicate=true") {
+                    send_error(client, 400, "INVALID_QUERY",
+                               "Use confirmDuplicate=true to confirm saving a duplicate.",
+                               request_id);
+                    return;
+                }
+                confirm_duplicate = true;
+            }
             const auto result = patient_service.register_patient(
-                registration, current_date_ddmmyyyy());
+                registration, current_date_ddmmyyyy(), confirm_duplicate);
+            if (result.duplicate_warning) {
+                send_error(client, 409, "DUPLICATE_PATIENT",
+                           "A patient with the same name, date of birth, and phone number already exists.",
+                           request_id);
+                return;
+            }
             if (!result.saved) {
                 send_error(client, 400, "INVALID_PATIENT",
                            validation_error(result.errors), request_id);

@@ -171,12 +171,18 @@ void ApiClient::logout()
     });
 }
 
-void ApiClient::registerPatient(const QJsonObject &patient)
+void ApiClient::registerPatient(const QJsonObject &patient,
+                                bool confirmDuplicate)
 {
+    QUrl url = endpoint("/api/v1/patients");
+    if (confirmDuplicate) {
+        QUrlQuery parameters;
+        parameters.addQueryItem("confirmDuplicate", "true");
+        url.setQuery(parameters);
+    }
     sendPatientRequest(
         QNetworkAccessManager::PostOperation,
-        endpoint("/api/v1/patients"),
-        patient, "register");
+        url, patient, "register");
 }
 
 void ApiClient::updatePatient(const QString &patientId,
@@ -366,6 +372,14 @@ void ApiClient::sendPatientRequest(
         } else {
             QString message = response.value("error").toObject()
                                   .value("message").toString();
+            const QString errorCode = response.value("error").toObject()
+                                         .value("code").toString();
+            if (action == "register" &&
+                errorCode == "DUPLICATE_PATIENT") {
+                emit patientDuplicateDetected(message);
+                reply->deleteLater();
+                return;
+            }
             if (message.isEmpty()) {
                 message = status == 0
                     ? "Cannot connect to the HMS server."

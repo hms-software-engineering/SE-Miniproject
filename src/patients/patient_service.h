@@ -30,6 +30,7 @@ struct ValidationError {
 
 struct RegistrationResult {
     bool saved = false;
+    bool duplicate_warning = false;
     Patient patient;
     std::vector<ValidationError> errors;
 };
@@ -68,7 +69,8 @@ public:
                    std::string phone_index_key);
 
     RegistrationResult register_patient(const Registration& registration,
-                                        const std::string& today) const;
+                                        const std::string& today,
+                                        bool confirm_duplicate = false) const;
     RegistrationResult update_patient(const std::string& patient_id,
                                      const Registration& registration,
                                      const std::string& today,
