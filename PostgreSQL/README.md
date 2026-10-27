@@ -103,6 +103,15 @@ credentials are never given defaults. An authenticated administrator can
 provision role accounts through `POST /api/v1/users`. Public self-registration
 always creates a Patient account.
 
+The API writes successful logins, failed login attempts, logout, account and
+patient views, patient/appointment/visit/prescription creation, and patient
+updates to the insert-only `audit_log` table. Each event stores the user ID
+(when known), role, action, affected record ID (when applicable), database
+timestamp, and peer IP address from the TLS connection. Failed login events
+record the attempted username only when it is within the normal username
+length limit. Audit writes use parameterized SQL; passwords, bearer tokens,
+and patient field contents are not included in audit records.
+
 New passwords must be at least eight characters and include uppercase,
 lowercase, digit, and special characters. New password hashes use Argon2id with
 a random salt (three iterations, 64 MiB memory, one lane). Existing

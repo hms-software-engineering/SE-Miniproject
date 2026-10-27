@@ -541,17 +541,23 @@ AuthResult AuthService::authenticate_user(const std::string& username,
         return {false, "", "", "Invalid username or password."};
     }
     const std::optional<AuthUser> user = repository_.find_user(username);
-    if (!user.has_value() || !user->active) {
+    if (!user.has_value()) {
         return {false, "", "", "Invalid username or password."};
     }
+    if (!user->active) {
+        return {false, user->user_id, "",
+                "Invalid username or password.", user->role};
+    }
     if (user->account_locked) {
-        return {false, "", "", "Account locked.", Role::Patient, true};
+        return {false, user->user_id, "", "Account locked.", user->role, true};
     }
     if (!verify_password(password, user->password_hash)) {
         if (repository_.record_failed_login(username)) {
-            return {false, "", "", "Account locked.", Role::Patient, true};
+            return {false, user->user_id, "", "Account locked.", user->role,
+                    true};
         }
-        return {false, "", "", "Invalid username or password."};
+        return {false, user->user_id, "",
+                "Invalid username or password.", user->role};
     }
 
     if (is_legacy_password_hash(user->password_hash)) {
@@ -585,6 +591,11 @@ void AuthService::logout(const std::string& token)
     if (decode_hex(token, decoded) && decoded.size() == TOKEN_LENGTH) {
         repository_.delete_session(hash_token(token));
     }
+}
+
+void AuthService::record_audit_event(const AuditEvent& event)
+{
+    repository_.record_audit_event(event);
 }
 
 struct PostgresAuthRepository::Connection {
@@ -801,6 +812,23 @@ void PostgresAuthRepository::delete_session(const std::string& token_hash)
         1, nullptr, values, nullptr, nullptr, 0);
     require_status(connection_->value, raw, PGRES_COMMAND_OK,
                    "Could not revoke session");
+    pg_clear(raw);
+}
+
+void PostgresAuthRepository::record_audit_event(const AuditEvent& event)
+{
+    const char* values[] = {
+        event.user_id.c_str(), event.role.c_str(), event.action.c_str(),
+        event.record_id.c_str(), event.source_ip.c_str()
+    };
+    PGresult* raw = pg_exec_params(
+        connection_->value,
+        "INSERT INTO audit_log(user_id,role,action,record_id,source_ip) "
+        "VALUES(NULLIF($1,'')::bigint,$2,$3,NULLIF($4,''),"
+        "NULLIF($5,'')::inet)",
+        5, nullptr, values, nullptr, nullptr, 0);
+    require_status(connection_->value, raw, PGRES_COMMAND_OK,
+                   "Could not write audit event");
     pg_clear(raw);
 }
 

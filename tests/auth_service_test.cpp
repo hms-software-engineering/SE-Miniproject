@@ -7,6 +7,7 @@
 #include <iostream>
 #include <set>
 #include <unordered_map>
+#include <vector>
 
 #define CHECK(condition)                                                     \
     do {                                                                      \
@@ -102,6 +103,13 @@ public:
     {
         sessions_.erase(token_hash);
     }
+
+    void record_audit_event(const hms::AuditEvent& event) override
+    {
+        audit_events.push_back(event);
+    }
+
+    std::vector<hms::AuditEvent> audit_events;
 
     std::size_t session_count() const
     {
@@ -283,9 +291,12 @@ void test_authentication()
     auto invalid = service.authenticate_user("patient", "WrongPass1!");
     CHECK(!invalid.success);
     CHECK(invalid.message == "Invalid username or password.");
+    CHECK(invalid.user_id == registered.user_id);
+    CHECK(invalid.role == hms::Role::Patient);
     auto unknown = service.authenticate_user("unknown", "WrongPass1!");
     CHECK(!unknown.success);
     CHECK(unknown.message == invalid.message);
+    CHECK(unknown.user_id.empty());
 
     for (int attempt = 0; attempt < 3; ++attempt) {
         auto failed = service.authenticate_user("patient", "WrongPass1!");
@@ -309,6 +320,17 @@ void test_authentication()
     CHECK(login.role == hms::Role::Patient);
     CHECK(login.token.size() == 64);
     CHECK(repository.session_count() == 1);
+
+    const hms::AuditEvent audit_event{
+        login.user_id, "Patient", "LOGIN", login.user_id, "127.0.0.1"
+    };
+    service.record_audit_event(audit_event);
+    CHECK(repository.audit_events.size() == 1);
+    CHECK(repository.audit_events.front().user_id == login.user_id);
+    CHECK(repository.audit_events.front().role == "Patient");
+    CHECK(repository.audit_events.front().action == "LOGIN");
+    CHECK(repository.audit_events.front().record_id == login.user_id);
+    CHECK(repository.audit_events.front().source_ip == "127.0.0.1");
 
     auto principal = service.authenticate_token(login.token);
     CHECK(principal.has_value());
