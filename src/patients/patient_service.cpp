@@ -368,7 +368,7 @@ RegistrationResult PatientService::register_patient(
     const BlindIndex phone_index =
         make_phone_blind_index(registration.phone, phone_index_key_);
 
-    if (!confirm_duplicate) {
+    if (!confirm_duplicate && registration.linked_user_id.empty()) {
         const auto possible_duplicates = repository_.find_by_name_prefix(
             make_name_prefix_blind_index(registration.name, name_index_key_));
         const std::string normalized_name =
