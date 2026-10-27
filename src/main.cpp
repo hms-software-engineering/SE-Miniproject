@@ -264,14 +264,10 @@ std::string make_request_id()
 std::string current_date_ddmmyyyy()
 {
     const std::time_t now = std::time(nullptr);
-    
     std::tm local_time{};
 
 #ifdef _WIN32
     if (localtime_s(&local_time, &now) != 0) {
-#else
-    if (localtime_r(&now, &local_time) == nullptr) {
-#endif
         throw std::runtime_error("Could not determine the current date.");
     }
 #else
@@ -279,6 +275,7 @@ std::string current_date_ddmmyyyy()
         throw std::runtime_error("Could not determine the current date.");
     }
 #endif
+
     std::ostringstream date;
     date << (local_time.tm_mday < 10 ? "0" : "") << local_time.tm_mday
          << '-' << (local_time.tm_mon + 1 < 10 ? "0" : "")

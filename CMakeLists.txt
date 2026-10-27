@@ -194,8 +194,3 @@ target_link_libraries(hms_server PRIVATE
 if(WIN32)
     target_link_libraries(hms_server PRIVATE ws2_32)
 endif()
-
-
-if(WIN32)
-    target_link_libraries(hms_server PRIVATE ws2_32)
-endif()
