@@ -563,9 +563,8 @@ std::optional<hms::Permission> permission_for_request(
     if (method == "GET" &&
         path.rfind("/api/v1/patients/", 0) == 0 &&
         path.size() > std::string("/api/v1/patients/").size() &&
-        path.find("/history",
-                  std::string("/api/v1/patients/").size()) !=
-            std::string::npos) {
+        path.compare(path.size() - std::string("/history").size(),
+                     std::string("/history").size(), "/history") == 0) {
         return hms::Permission::ViewPatientHistory;
     }
     if (method == "GET" &&
@@ -1007,6 +1006,56 @@ void handle_client(TlsConnection& client,
                             authorization_error)) {
             send_error(client, 403, "ACCESS_DENIED", authorization_error,
                        request_id);
+            return;
+        }
+
+        constexpr char history_patient_path[] = "/api/v1/patients/";
+        constexpr char history_suffix[] = "/history";
+        if (method == "GET" &&
+            path.rfind(history_patient_path, 0) == 0 &&
+            path.size() > sizeof(history_patient_path) - 1 +
+                              sizeof(history_suffix) - 1 &&
+            path.compare(path.size() - sizeof(history_suffix) + 1,
+                         sizeof(history_suffix) - 1, history_suffix) == 0) {
+            const std::string patient_id = path.substr(
+                sizeof(history_patient_path) - 1,
+                path.size() - (sizeof(history_patient_path) - 1) -
+                    (sizeof(history_suffix) - 1));
+            if (patient_id.size() != 12 ||
+                patient_id.compare(0, 4, "PID-") != 0 ||
+                !std::all_of(patient_id.begin() + 4, patient_id.end(),
+                    [](unsigned char digit) {
+                        return digit >= '0' && digit <= '9';
+                    })) {
+                send_error(client, 404, "PATIENT_NOT_FOUND",
+                           "Patient was not found.", request_id);
+                return;
+            }
+
+            if (patient_service.search_patients(patient_id).matches.empty()) {
+                send_error(client, 404, "PATIENT_NOT_FOUND",
+                           "Patient was not found.", request_id);
+                return;
+            }
+
+            const auto entries = patient_service.patient_history(patient_id);
+            std::string body = "{\"history\":[";
+            for (std::size_t index = 0; index < entries.size(); ++index) {
+                if (index != 0) body += ',';
+                const auto& entry = entries[index];
+                body += "{\"changedAt\":" + json_string(entry.changed_at) +
+                    ",\"changedBy\":" + json_string(entry.changed_by) +
+                    ",\"oldValues\":{\"name\":" +
+                    json_string(entry.old_values.name) +
+                    ",\"dateOfBirth\":" +
+                    json_string(entry.old_values.date_of_birth) +
+                    ",\"gender\":" + json_string(entry.old_values.gender) +
+                    ",\"phone\":" + json_string(entry.old_values.phone) +
+                    ",\"address\":" +
+                    json_string(entry.old_values.address) + "}}";
+            }
+            body += "]}";
+            send_response(client, 200, body);
             return;
         }
 

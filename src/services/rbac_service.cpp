@@ -70,8 +70,9 @@ bool is_permitted(Role role, Permission permission)
         return role == Role::Patient || role == Role::Receptionist;
     case Permission::ViewOwnSchedule:
     case Permission::RecordVisitPrescribe:
-    case Permission::ViewPatientHistory:
         return role == Role::Doctor;
+    case Permission::ViewPatientHistory:
+        return role == Role::Doctor || role == Role::Receptionist;
     case Permission::ViewOwnHistoryBills:
         return role == Role::Patient;
     case Permission::BillingPaymentsReceipts:

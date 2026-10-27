@@ -26,6 +26,11 @@ struct StoredPatient {
     BlindIndex phone_index;
 };
 
+struct StoredHistory {
+    std::string patient_id;
+    PatientHistoryEntry entry;
+};
+
 class InMemoryPatientRepository final : public PatientRepository {
 public:
     Patient create_patient(
@@ -52,10 +57,15 @@ public:
         const Registration& registration,
         const std::vector<BlindIndex>& name_prefix_indexes,
         const BlindIndex& phone_index,
-        const std::string&) override
+        const std::string& changed_by_user_id) override
     {
         for (auto& item : items_) {
             if (item.patient.patient_id == patient_id) {
+                history_.push_back({
+                    patient_id,
+                    {item.patient.demographics,
+                     "2026-10-21T12:00:00.000000Z", changed_by_user_id}
+                });
                 item.patient.demographics = registration;
                 item.name_prefix_indexes = name_prefix_indexes;
                 item.phone_index = phone_index;
@@ -103,6 +113,18 @@ public:
         return matches;
     }
 
+    std::vector<PatientHistoryEntry> patient_history(
+        const std::string& patient_id) const override
+    {
+        std::vector<PatientHistoryEntry> entries;
+        for (auto item = history_.rbegin(); item != history_.rend(); ++item) {
+            if (item->patient_id == patient_id) {
+                entries.push_back(item->entry);
+            }
+        }
+        return entries;
+    }
+
     std::size_t size() const
     {
         return items_.size();
@@ -111,6 +133,7 @@ public:
 private:
     std::size_t next_id_ = 1;
     std::vector<StoredPatient> items_;
+    std::vector<StoredHistory> history_;
 };
 
 Registration valid_registration()
@@ -263,9 +286,29 @@ int main()
         first.patient.patient_id, updated_registration, "21-10-2026", "8");
     CHECK(updated.saved);
     CHECK(updated.patient.demographics.name == "Asha Menon");
+    const auto patient_history =
+        service.patient_history(first.patient.patient_id);
+    CHECK(patient_history.size() == 1);
+    CHECK(patient_history.front().old_values.name == "Asha Nair");
+    CHECK(patient_history.front().old_values.phone == "9876543210");
+    CHECK(patient_history.front().changed_at ==
+          "2026-10-21T12:00:00.000000Z");
+    CHECK(patient_history.front().changed_by == "8");
     CHECK(service.search_patients("Asha").matches.size() == 4);
     CHECK(service.search_patients("9876543210").matches.size() == 3);
     CHECK(service.search_patients("9876543212").matches.size() == 1);
+
+    Registration second_update = updated_registration;
+    second_update.phone = "9876543213";
+    const auto second_result = service.update_patient(
+        first.patient.patient_id, second_update, "22-10-2026", "9");
+    CHECK(second_result.saved);
+    const auto subsequent_history =
+        service.patient_history(first.patient.patient_id);
+    CHECK(subsequent_history.size() == 2);
+    CHECK(subsequent_history.front().old_values.name == "Asha Menon");
+    CHECK(subsequent_history.front().old_values.phone == "9876543212");
+    CHECK(subsequent_history.front().changed_by == "9");
 
     const auto missing = service.update_patient(
         "PID-00000099", updated_registration, "21-10-2026", "8");

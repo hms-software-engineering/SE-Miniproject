@@ -167,7 +167,7 @@ void test_role_permissions()
         {true,  true,  false, false, false},
         {false, false, true,  false, false},
         {false, false, true,  false, false},
-        {false, false, true,  false, false},
+        {false, true,  true,  false, false},
         {true,  false, false, false, false},
         {false, false, false, true,  false},
         {false, false, false, true,  true},
@@ -208,6 +208,8 @@ void test_role_permissions()
 
     CHECK(hms::is_permitted(Role::Doctor, Permission::ViewOwnSchedule));
     CHECK(hms::is_permitted(Role::Doctor, Permission::RecordVisitPrescribe));
+    CHECK(hms::is_permitted(
+        Role::Receptionist, Permission::ViewPatientHistory));
     CHECK(hms::is_permitted(Role::Doctor, Permission::ViewPatientHistory));
     CHECK(hms::is_permitted(Role::Patient, Permission::ViewOwnHistoryBills));
     CHECK(hms::is_permitted(

@@ -13,6 +13,7 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QStringList>
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QVBoxLayout>
@@ -33,7 +34,8 @@ PatientManagementWindow::PatientManagementWindow(
       addressInput(new QLineEdit(this)),
       statusLabel(new QLabel(this)),
       submitButton(new QPushButton("Register patient", this)),
-      newPatientButton(new QPushButton("New patient", this))
+      newPatientButton(new QPushButton("New patient", this)),
+      historyButton(new QPushButton("View history", this))
 {
     setWindowTitle("Patient management");
     resize(850, 600);
@@ -96,14 +98,25 @@ PatientManagementWindow::PatientManagementWindow(
     statusLabel->setWordWrap(true);
     statusLabel->setStyleSheet("color: #a61b1b;");
     root->addWidget(statusLabel);
-    if (canManagePatients) {
+    const bool canViewPatientHistory =
+        canManagePatients ||
+        client->role().compare("Doctor", Qt::CaseInsensitive) == 0;
+    if (canManagePatients || canViewPatientHistory) {
         auto *patientActions = new QHBoxLayout;
-        patientActions->addWidget(newPatientButton);
-        patientActions->addWidget(submitButton, 1);
+        if (canManagePatients) {
+            patientActions->addWidget(newPatientButton);
+            patientActions->addWidget(submitButton, 1);
+        } else {
+            newPatientButton->hide();
+            submitButton->hide();
+        }
+        historyButton->setEnabled(false);
+        patientActions->addWidget(historyButton);
         root->addLayout(patientActions);
     } else {
         newPatientButton->hide();
         submitButton->hide();
+        historyButton->hide();
     }
 
     connect(searchButton, &QPushButton::clicked,
@@ -116,12 +129,21 @@ PatientManagementWindow::PatientManagementWindow(
             this, &PatientManagementWindow::submitPatient);
     connect(newPatientButton, &QPushButton::clicked,
             this, &PatientManagementWindow::clearForm);
+    connect(historyButton, &QPushButton::clicked, this, [this]() {
+        const QString patientId = patientIdLabel->text();
+        if (patientId == "New patient") return;
+        statusLabel->setStyleSheet("color: #334155;");
+        statusLabel->setText("Loading patient history...");
+        apiClient->getPatientHistory(patientId);
+    });
     connect(helpButton, &QPushButton::clicked, this, [this]() {
         QMessageBox::information(
             this, "Patient management help",
             "Search by patient ID, name prefix, or phone. "
             "Receptionists can register or update a patient by selecting "
-            "a search result. Fields marked with * are required.");
+            "a search result. Receptionists and doctors can view the "
+            "selected patient's change history. Fields marked with * "
+            "are required.");
     });
     connect(logoutButton, &QPushButton::clicked, this, [this]() {
         apiClient->logout();
@@ -186,6 +208,7 @@ void PatientManagementWindow::showSearchResult(int row, int)
         results->item(row, 0)->data(Qt::UserRole).toString();
     if (patientId.isEmpty()) return;
     patientIdLabel->setText(patientId);
+    historyButton->setEnabled(true);
     nameInput->setText(results->item(row, 1)->text());
     dateOfBirthInput->setText(results->item(row, 2)->text());
     phoneInput->setText(results->item(row, 3)->text());
@@ -200,6 +223,36 @@ void PatientManagementWindow::handlePatientSuccess(
     const QString &operation,
     const QJsonObject &response)
 {
+    if (operation == "history") {
+        const QJsonArray history = response.value("history").toArray();
+        if (history.isEmpty()) {
+            QMessageBox::information(
+                this, "Patient history",
+                "No previous patient changes were recorded.");
+            return;
+        }
+
+        QStringList changes;
+        for (const QJsonValue &value : history) {
+            const QJsonObject entry = value.toObject();
+            const QJsonObject oldValues = entry.value("oldValues").toObject();
+            changes.append(
+                QString("Changed at: %1\nChanged by: %2\n"
+                        "Name: %3\nDate of birth: %4\nGender: %5\n"
+                        "Phone: %6\nAddress: %7")
+                    .arg(entry.value("changedAt").toString(),
+                         entry.value("changedBy").toString(),
+                         oldValues.value("name").toString(),
+                         oldValues.value("dateOfBirth").toString(),
+                         oldValues.value("gender").toString(),
+                         oldValues.value("phone").toString(),
+                         oldValues.value("address").toString()));
+        }
+        QMessageBox::information(
+            this, "Patient change history", changes.join("\n\n"));
+        return;
+    }
+
     if (operation == "search") {
         const QJsonArray patients = response.value("matches").toArray();
         results->setRowCount(patients.size());
@@ -272,6 +325,7 @@ void PatientManagementWindow::confirmDuplicateRegistration(
 void PatientManagementWindow::clearForm()
 {
     patientIdLabel->setText("New patient");
+    historyButton->setEnabled(false);
     nameInput->clear();
     dateOfBirthInput->clear();
     genderInput->setCurrentIndex(0);

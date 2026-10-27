@@ -20,6 +20,7 @@ public:
                          bool confirmDuplicate = false);
     void updatePatient(const QString &patientId, const QJsonObject &patient);
     void searchPatients(const QString &query);
+    void getPatientHistory(const QString &patientId);
     void getFreeSlots(const QString &doctorId, const QString &date);
     void bookAppointment(const QString &patientId, const QString &doctorId,
                          const QString &date, const QString &time);

@@ -23,6 +23,12 @@ struct Patient {
     Registration demographics;
 };
 
+struct PatientHistoryEntry {
+    Registration old_values;
+    std::string changed_at;
+    std::string changed_by;
+};
+
 struct ValidationError {
     std::string field;
     std::string message;
@@ -60,6 +66,8 @@ public:
         const BlindIndex& name_prefix_index) const = 0;
     virtual std::vector<Patient> find_by_phone_index(
         const BlindIndex& phone_index) const = 0;
+    virtual std::vector<PatientHistoryEntry> patient_history(
+        const std::string& patient_id) const = 0;
 };
 
 class PatientService {
@@ -75,6 +83,8 @@ public:
                                      const Registration& registration,
                                      const std::string& today,
                                      const std::string& changed_by_user_id) const;
+    std::vector<PatientHistoryEntry> patient_history(
+        const std::string& patient_id) const;
     SearchResult search_patients(const std::string& query) const;
 
 private:
@@ -119,6 +129,8 @@ public:
         const BlindIndex& name_prefix_index) const override;
     std::vector<Patient> find_by_phone_index(
         const BlindIndex& phone_index) const override;
+    std::vector<PatientHistoryEntry> patient_history(
+        const std::string& patient_id) const override;
 
 private:
     struct Connection;

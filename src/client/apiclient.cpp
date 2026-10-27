@@ -203,6 +203,14 @@ void ApiClient::searchPatients(const QString &query)
                        "search");
 }
 
+void ApiClient::getPatientHistory(const QString &patientId)
+{
+    sendPatientRequest(
+        QNetworkAccessManager::GetOperation,
+        endpoint("/api/v1/patients/" + patientId + "/history"), {},
+        "history");
+}
+
 void ApiClient::getFreeSlots(const QString &doctorId, const QString &date)
 {
     QUrl url = endpoint("/api/v1/appointments/free-slots");
