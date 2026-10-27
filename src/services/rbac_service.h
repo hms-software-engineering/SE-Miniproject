@@ -16,6 +16,7 @@ enum class Role {
 enum class Permission {
     LoginLogout,
     RegisterPatient,
+    CreateOwnPatientProfile,
     SearchPatients,
     UpdatePatientData,
     ViewFreeSlots,

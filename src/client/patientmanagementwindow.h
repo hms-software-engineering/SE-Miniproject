@@ -28,6 +28,7 @@ private slots:
                               const QJsonObject &response);
     void handlePatientError(const QString &operation,
                             const QString &message);
+    void confirmDuplicateRegistration(const QString &message);
 
 private:
     QJsonObject patientForm() const;
@@ -43,4 +44,5 @@ private:
     QLabel *statusLabel;
     QPushButton *submitButton;
     QPushButton *newPatientButton;
+    QPushButton *historyButton;
 };

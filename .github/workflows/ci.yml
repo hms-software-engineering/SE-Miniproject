@@ -1,4 +1,3 @@
-
 name: CI
 
 on:
@@ -22,25 +21,43 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev
+          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev
 
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
         with:
-          vcpkgGitCommitId: '67972e92edd181d433927b42d8ab4bfa52ac164a'
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-make
+            mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-argon2
+            mingw-w64-ucrt-x86_64-postgresql
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
-        shell: bash
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
-        run: cmake -S . -B build "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
-        shell: pwsh
-
-      - name: Build
+        
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
         run: cmake --build build --config Release --parallel 4
 
-      - name: Run tests
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: cmake --build build --config Release --parallel 4
+        shell: pwsh
+
+      - name: Run tests (Linux)
+        if: runner.os == 'Linux'
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
         run: ctest --test-dir build -C Release --output-on-failure
