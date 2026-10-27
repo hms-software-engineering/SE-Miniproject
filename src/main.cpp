@@ -4,9 +4,27 @@
 #include "services/rbac_service.h"
 #include "patients/patient_service.h"
 
+#ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#else
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <cerrno>
+using SOCKET = int;
+constexpr int INVALID_SOCKET = -1;
+constexpr int SOCKET_ERROR = -1;
+#define closesocket close
+#define SD_BOTH SHUT_RDWR
+#define WSAGetLastError() errno
+#endif
+
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 #include <algorithm>
 #include <cctype>
@@ -27,6 +45,7 @@ namespace {
 constexpr unsigned short PORT = 8080;
 constexpr std::size_t MAX_REQUEST_SIZE = 1024 * 1024;
 constexpr std::size_t MAX_HEADER_SIZE = 16 * 1024;
+SSL* active_tls = nullptr;
 
 std::string status_text(int status)
 {
@@ -235,9 +254,15 @@ std::string current_date_ddmmyyyy()
 {
     const std::time_t now = std::time(nullptr);
     std::tm local_time{};
+
+#ifdef _WIN32
     if (localtime_s(&local_time, &now) != 0) {
+#else
+    if (localtime_r(&now, &local_time) == nullptr) {
+#endif
         throw std::runtime_error("Could not determine the current date.");
     }
+
     std::ostringstream date;
     date << (local_time.tm_mday < 10 ? "0" : "") << local_time.tm_mday
          << '-' << (local_time.tm_mon + 1 < 10 ? "0" : "")
@@ -263,8 +288,7 @@ bool send_all(SOCKET client, const std::string& data)
         const int chunk = static_cast<int>(
             std::min<std::size_t>(remaining, 64 * 1024));
 
-        const int result = send(
-            client, data.data() + sent, chunk, 0);
+        const int result = SSL_write(active_tls, data.data() + sent, chunk);
 
         if (result == SOCKET_ERROR || result == 0)
             return false;
@@ -537,8 +561,7 @@ void handle_client(SOCKET client,
 
     // Read headers and the declared body, subject to a size limit.
     while (raw.size() < MAX_REQUEST_SIZE) {
-        const int received = recv(
-            client, buffer, static_cast<int>(sizeof(buffer)), 0);
+        const int received = SSL_read(active_tls, buffer, static_cast<int>(sizeof(buffer)));
 
         if (received == SOCKET_ERROR) {
             std::cerr << "recv() failed: "
@@ -1077,11 +1100,41 @@ int main()
     }
     hms::AuthService auth_service(*auth_repository);
 
+#ifdef _WIN32
     WSADATA wsa_data{};
-
     const int startup = WSAStartup(MAKEWORD(2, 2), &wsa_data);
     if (startup != 0) {
         std::cerr << "WSAStartup failed: " << startup << '\n';
+        return 1;
+    }
+#endif
+
+    const char* cert_file = std::getenv("HMS_TLS_CERT_FILE");
+    const char* key_file = std::getenv("HMS_TLS_KEY_FILE");
+    if (!cert_file || !*cert_file || !key_file || !*key_file) {
+        std::cerr << "Set HMS_TLS_CERT_FILE and HMS_TLS_KEY_FILE to a TLS certificate and private key.\n";
+#ifdef _WIN32
+        WSACleanup();
+#endif
+        return 1;
+    }
+
+    SSL_CTX* tls_context = SSL_CTX_new(TLS_server_method());
+    if (!tls_context) {
+        ERR_print_errors_fp(stderr);
+        return 1;
+    }
+    SSL_CTX_set_min_proto_version(tls_context, TLS1_2_VERSION);
+    SSL_CTX_set_options(tls_context, SSL_OP_NO_COMPRESSION);
+    if (SSL_CTX_use_certificate_chain_file(tls_context, cert_file) != 1 ||
+        SSL_CTX_use_PrivateKey_file(tls_context, key_file, SSL_FILETYPE_PEM) != 1 ||
+        SSL_CTX_check_private_key(tls_context) != 1) {
+        std::cerr << "Failed to load TLS certificate/private key or they do not match.\n";
+        ERR_print_errors_fp(stderr);
+        SSL_CTX_free(tls_context);
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return 1;
     }
 
@@ -1089,7 +1142,9 @@ int main()
     if (server == INVALID_SOCKET) {
         std::cerr << "socket() failed: "
                   << WSAGetLastError() << '\n';
+#ifdef _WIN32
         WSACleanup();
+#endif
         return 1;
     }
 
@@ -1100,7 +1155,9 @@ int main()
     if (inet_pton(AF_INET, "127.0.0.1", &address.sin_addr) != 1) {
         std::cerr << "inet_pton() failed.\n";
         closesocket(server);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return 1;
     }
 
@@ -1109,7 +1166,9 @@ int main()
         std::cerr << "bind() failed: "
                   << WSAGetLastError() << '\n';
         closesocket(server);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return 1;
     }
 
@@ -1117,11 +1176,13 @@ int main()
         std::cerr << "listen() failed: "
                   << WSAGetLastError() << '\n';
         closesocket(server);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return 1;
     }
 
-    std::cout << "HMS API listening at http://127.0.0.1:"
+    std::cout << "HMS API listening at https://127.0.0.1:"
               << PORT << "/api/v1\n"
               << "Health endpoint: GET /api/v1/health\n"
               << "Stop with Ctrl+C or close this console.\n";
@@ -1139,9 +1200,19 @@ int main()
             break;
         }
 
-        std::cout << "Accepted client connection.\n";
+        std::cout << "Accepted client connection; starting TLS handshake.\n";
+        SSL* tls = SSL_new(tls_context);
+        if (!tls || SSL_set_fd(tls, static_cast<int>(client)) != 1 || SSL_accept(tls) != 1) {
+            std::cerr << "TLS handshake failed; rejecting connection.\n";
+            ERR_print_errors_fp(stderr);
+            if (tls) SSL_free(tls);
+            shutdown(client, SD_BOTH);
+            closesocket(client);
+            continue;
+        }
+        active_tls = tls;
 
-        // Ensure the socket closes even if request handling throws.
+        // Ensure the TLS session and socket close after each request.
         try {
             handle_client(client, auth_service, *patient_service);
         } catch (const std::exception& e) {
@@ -1158,6 +1229,9 @@ int main()
             std::cerr << "Unknown request handler exception.\n";
         }
 
+        SSL_shutdown(tls);
+        SSL_free(tls);
+        active_tls = nullptr;
         shutdown(client, SD_BOTH);
         closesocket(client);
 
@@ -1165,7 +1239,10 @@ int main()
     }
 
     closesocket(server);
-    WSACleanup();
+    SSL_CTX_free(tls_context);
+#ifdef _WIN32
+        WSACleanup();
+#endif
 
     std::cout << "HMS server stopped.\n";
     return 0;

@@ -159,16 +159,21 @@ else()
     message(STATUS "Qt6 Widgets and Network not found; skipping hms_client")
 endif()
 
-# API server (Windows only)
-if(WIN32)
-    add_executable(hms_server
-        src/main.cpp
-    )
+# SEC-002: TLS-enabled API server (Windows and macOS)
+find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
 
-    target_link_libraries(hms_server PRIVATE
-        hms_api
-        hms_auth
-        hms_patients
-        ws2_32
-    )
+add_executable(hms_server
+    src/main.cpp
+)
+
+target_link_libraries(hms_server PRIVATE
+    hms_api
+    hms_auth
+    hms_patients
+    OpenSSL::SSL
+    OpenSSL::Crypto
+)
+
+if(WIN32)
+    target_link_libraries(hms_server PRIVATE ws2_32)
 endif()
