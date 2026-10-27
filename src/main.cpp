@@ -9,6 +9,20 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#else
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/time.h>
+#include <unistd.h>
+#include <cerrno>
+using SOCKET = int;
+constexpr int INVALID_SOCKET = -1;
+constexpr int SOCKET_ERROR = -1;
+#define closesocket close
+#define SD_BOTH SHUT_RDWR
+#define WSAGetLastError() errno
 #endif
 
 #include <openssl/ssl.h>
@@ -270,6 +284,23 @@ std::string to_lower(std::string value)
 struct TlsConnection {
     SSL* ssl;
 };
+
+bool set_socket_timeouts(SOCKET client)
+{
+#ifdef _WIN32
+    const DWORD timeout = 15000;
+    const char* timeout_value =
+        reinterpret_cast<const char*>(&timeout);
+#else
+    const timeval timeout{15, 0};
+    const timeval* timeout_value = &timeout;
+#endif
+
+    return setsockopt(client, SOL_SOCKET, SO_RCVTIMEO,
+                      timeout_value, sizeof(timeout)) == 0 &&
+           setsockopt(client, SOL_SOCKET, SO_SNDTIMEO,
+                      timeout_value, sizeof(timeout)) == 0;
+}
 
 bool send_all(TlsConnection& client, const std::string& data)
 {
@@ -609,10 +640,8 @@ void handle_client(TlsConnection& client,
             const int ssl_error = SSL_get_error(client.ssl, received);
             if (ssl_error != SSL_ERROR_ZERO_RETURN) {
                 std::cerr << "TLS request read failed (error "
-                          << ssl_error << ").\\n";
+                          << ssl_error << ").\n";
             }
-            return;
-        }
             return;
         }
 
@@ -1499,35 +1528,23 @@ int main()
             break;
         }
 
-        std::cout << "Accepted client connection.\\n";
-#ifdef _WIN32
-        const DWORD io_timeout_ms = 15000;
-        if (setsockopt(client, SOL_SOCKET, SO_RCVTIMEO,
-                       reinterpret_cast<const char*>(&io_timeout_ms),
-                       sizeof(io_timeout_ms)) == SOCKET_ERROR ||
-            setsockopt(client, SOL_SOCKET, SO_SNDTIMEO,
-                       reinterpret_cast<const char*>(&io_timeout_ms),
-                       sizeof(io_timeout_ms)) == SOCKET_ERROR) {
+        std::cout << "Accepted client connection.\n";
+        if (!set_socket_timeouts(client)) {
             std::cerr << "Could not configure TLS socket timeouts: "
-                      << WSAGetLastError() << '\\n';
+                      << WSAGetLastError() << '\n';
             shutdown(client, SD_BOTH);
             closesocket(client);
             continue;
         }
-#endif
         SSL* ssl = SSL_new(tls_context.get());
         if (ssl == nullptr ||
             SSL_set_fd(ssl, static_cast<int>(client)) != 1 ||
             SSL_accept(ssl) != 1) {
-            std::cerr << "TLS handshake failed.\\n";
+            std::cerr << "TLS handshake failed.\n";
             ERR_print_errors_fp(stderr);
             if (ssl != nullptr) {
                 SSL_free(ssl);
             }
-            shutdown(client, SD_BOTH);
-            closesocket(client);
-            continue;
-        }
             shutdown(client, SD_BOTH);
             closesocket(client);
             continue;
