@@ -16,8 +16,10 @@
 } while (0)
 
 static std::string date_offset(int days) {
-    std::time_t now = std::time(nullptr);
-    std::tm local = *std::localtime(&now);
+    std::tm local{};
+    local.tm_year = 2026 - 1900;
+    local.tm_mon = 9;
+    local.tm_mday = 25;
     local.tm_hour = 12;
     local.tm_min = 0;
     local.tm_sec = 0;
@@ -36,10 +38,6 @@ static int weekday(const std::string& date) {
     return hms::weekday_of(date);
 }
 
-class BoundaryTestRepository : public hms::AppointmentRepository {
-public:
-    std::string working_hours(long long doctor_id) const override {
-        if (doctor_id != 1) return "";
 namespace {
 
 std::chrono::system_clock::time_point test_now()
@@ -52,11 +50,12 @@ std::chrono::system_clock::time_point test_now()
     return std::chrono::system_clock::from_time_t(std::mktime(&time));
 }
 
-}
+}  // namespace
 
-int main() {
-    hms::InMemoryAppointmentRepository repo;
-
+class BoundaryTestRepository : public hms::AppointmentRepository {
+public:
+    std::string working_hours(long long doctor_id) const override {
+        if (doctor_id != 1) return "";
         // Give doctor 1 working hours on every weekday so the
         // day-60 boundary test can never be skipped.
         return R"({"sunday":"09:00-13:00",

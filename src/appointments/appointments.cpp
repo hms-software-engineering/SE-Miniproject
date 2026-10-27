@@ -230,18 +230,13 @@ bool parse_date(const std::string& d, int& year, int& month, int& day) {
         }
     }
 
-    const int year = std::stoi(d.substr(0, 4));
-    const int month = std::stoi(d.substr(5, 2));
-    const int day = std::stoi(d.substr(8, 2));
-
-    if (year < 1 || month < 1 || month > 12 || day < 1) {
-        return false;
-    }
     year = std::stoi(d.substr(0, 4));
     month = std::stoi(d.substr(5, 2));
     day = std::stoi(d.substr(8, 2));
 
-    if (month < 1 || month > 12 || day < 1) return false;
+    if (year < 1 || month < 1 || month > 12 || day < 1) {
+        return false;
+    }
 
     static constexpr int month_days[] =
         {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
@@ -337,7 +332,6 @@ std::vector<std::string> upcoming_slots(
     }
     return result;
 }
-}
 
 
 // Reads the "HH:MM-HH:MM" value for a day name from the JSON text.
@@ -376,6 +370,7 @@ BookingResult fail(int status, const std::string& code, const std::string& msg,
 }
 
 }  // namespace
+
 bool is_valid_calendar_date(const std::string& date) {
     return valid_date(date);
 }
@@ -621,7 +616,6 @@ BookingResult book_appointment(AppointmentRepository& repo,
     if (!valid_date(date))
         return fail(400, "INVALID_DATE",
                     "date must be YYYY-MM-DD", "date");
-    }
 
     int year = 0, month = 0, day = 0;
     if (!parse_date(date, year, month, day)) {
@@ -646,78 +640,21 @@ BookingResult book_appointment(AppointmentRepository& repo,
 
     if (days_ahead < 0 ||
         (days_ahead == 0 && time <= format_time(current))) {
-        return fail(400, "BOOKING_IN_PAST",
-                    "Choose a date and time that have not passed.", "date");
+        return fail(400, "INVALID_DATE",
+                    "Choose a date and time that have not passed.",
+                    "slotStart");
     }
 
     if (days_ahead > 60) {
-        return fail(400, "BOOKING_TOO_FAR",
+        return fail(400, "INVALID_DATE",
                     "Appointments can be booked no more than 60 days ahead.",
-                    "date");
+                    "slotStart");
     }
 
     std::string hours = repo.working_hours(doctor_id);
     if (hours.empty())
         return fail(404, "NOT_FOUND",
                     "Doctor not found", "doctorId");
-
-    // Get today's date and current local time.
-    const std::time_t now = std::time(nullptr);
-    std::tm local_now = *std::localtime(&now);
-
-    char today_buffer[11];
-    char current_time_buffer[6];
-
-    std::strftime(today_buffer, sizeof(today_buffer),
-                  "%Y-%m-%d", &local_now);
-    std::strftime(current_time_buffer, sizeof(current_time_buffer),
-                  "%H:%M", &local_now);
-
-    const std::string today(today_buffer);
-    const std::string current_time(current_time_buffer);
-
-    // Reject dates before today.
-    if (date < today)
-        return fail(400, "INVALID_DATE",
-                    "Appointments cannot be booked in the past",
-                    "slotStart");
-
-    // Allow bookings through day 60, but not beyond it.
-    std::tm max_date_tm = local_now;
-    max_date_tm.tm_hour = 12;
-    max_date_tm.tm_min = 0;
-    max_date_tm.tm_sec = 0;
-    max_date_tm.tm_mday += 60;
-    max_date_tm.tm_isdst = -1;
-
-    if (std::mktime(&max_date_tm) == -1)
-        return fail(500, "INTERNAL_ERROR",
-                    "Could not calculate booking date limit");
-
-    char max_date_buffer[11];
-    std::strftime(max_date_buffer, sizeof(max_date_buffer),
-                  "%Y-%m-%d", &max_date_tm);
-
-    const std::string max_date(max_date_buffer);
-
-    if (date > max_date)
-        return fail(400, "INVALID_DATE",
-                    "Appointments can only be booked up to 60 days ahead",
-                    "slotStart");
-
-    // Reject a time that has already elapsed today.
-    if (date == today) {
-        int requested_minutes = 0;
-        int current_minutes = 0;
-
-        if (parse_hhmm(time, requested_minutes) &&
-            parse_hhmm(current_time, current_minutes) &&
-            requested_minutes <= current_minutes) {
-            return fail(400, "INVALID_DATE",
-                        "Appointment time has already elapsed",
-                        "slotStart");
-        }
-    }
 
     // Validate the requested time against the doctor's working slots.
     auto slots = slots_for_date(hours, date);
@@ -805,8 +742,8 @@ std::string booking_error_to_json(
         error["field"] = r.field;
     }
 
-    if (!r.next_slots.empty()) {
-        error["nextSlots"] = r.next_slots;
+    if (!r.suggested_slots.empty()) {
+        error["nextSlots"] = r.suggested_slots;
     }
 
     nlohmann::json response = {
