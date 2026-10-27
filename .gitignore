@@ -18,4 +18,13 @@ cmake-build-*/
 
 # Editor settings
 .vscode/
-/vcpkg_installed/
+
+vcpkg_installed/
+
+
+
+# Local TLS certificates and private keys
+certs/
+*.pem
+*.pfx
+*.key
