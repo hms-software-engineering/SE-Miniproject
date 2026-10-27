@@ -89,11 +89,11 @@ int main() {
 
     // Fewer than three alternatives remain after 12:00.
     CHECK(hms::book_appointment(
-        repo, "PID-00000001", 1, "2026-10-26", "12:00"
+        repo, "PID-00000001", 1, "2026-10-26", "12:00", test_now()
     ).ok);
 
     auto near_end = hms::book_appointment(
-        repo, "PID-00000002", 1, "2026-10-26", "12:00"
+        repo, "PID-00000002", 1, "2026-10-26", "12:00", test_now()
     );
 
     CHECK(near_end.http_status == 409);
@@ -102,11 +102,11 @@ int main() {
     CHECK(near_end.next_slots[0] == "12:30");
 
     CHECK(hms::book_appointment(
-        repo, "PID-00000001", 1, "2026-10-26", "12:30"
+        repo, "PID-00000001", 1, "2026-10-26", "12:30", test_now()
     ).ok);
 
     auto last_slot_duplicate = hms::book_appointment(
-        repo, "PID-00000002", 1, "2026-10-26", "12:30"
+        repo, "PID-00000002", 1, "2026-10-26", "12:30", test_now()
     );
 
     CHECK(last_slot_duplicate.http_status == 409);

@@ -619,14 +619,16 @@ BookingResult book_appointment(AppointmentRepository& repo,
     a.doctor_id = doctor_id;
     a.slot_start = date + " " + time;
     a.status = "Confirmed";
+
     SaveResult s = repo.insert(a);
     switch (s.status) {
     case SaveStatus::SlotTaken: {
         BookingResult result =
-            fail(409, "SLOT_TAKEN", "Slot is no longer available");
+            fail(409, "SLOT_TAKEN", "This slot is already booked.");
         result.suggested_slots =
             upcoming_slots(repo, doctor_id, date, time, now);
-        result.next_slots = result.suggested_slots;
+        result.next_slots =
+            next_free_slots(repo, doctor_id, date, time);
         return result;
     }
     case SaveStatus::PatientMissing:
@@ -636,13 +638,6 @@ BookingResult book_appointment(AppointmentRepository& repo,
     case SaveStatus::Ok:
         break;
     }
-
-    BookingResult r;
-    r.ok = true;
-    r.http_status = 201;
-    r.appointment = s.appointment;
-    return r;
-}
 
     BookingResult r;
     r.ok = true;
