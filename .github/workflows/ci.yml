@@ -43,6 +43,8 @@ jobs:
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$MSYSTEM_PREFIX"
         
       - name: Build (Linux)
         if: runner.os == 'Linux'
