@@ -283,6 +283,7 @@ std::string to_lower(std::string value)
 
 struct TlsConnection {
     SSL* ssl;
+    std::string source_ip;
 };
 
 bool set_socket_timeouts(SOCKET client)
@@ -886,6 +887,10 @@ void handle_client(TlsConnection& client,
                            result.message, request_id);
                 return;
             }
+            auth_service.record_audit_event({
+                result.user_id, std::string(hms::role_name(result.role)),
+                "CREATE_USER", result.user_id, client.source_ip
+            });
             send_response(client, 201,
                 "{\"message\":\"User registered successfully\","
                 "\"userId\":" + json_string(result.user_id) +
@@ -894,6 +899,18 @@ void handle_client(TlsConnection& client,
             return;
         }
         if (!result.success) {
+            const std::string attempted_user =
+                fields.at("username").size() <= 100
+                    ? fields.at("username") : "";
+            auth_service.record_audit_event({
+                result.user_id,
+                result.user_id.empty()
+                    ? "Unknown"
+                    : std::string(hms::role_name(result.role)),
+                "LOGIN_FAILED",
+                result.user_id.empty() ? attempted_user : result.user_id,
+                client.source_ip
+            });
             if (result.account_locked) {
                 send_error(client, 423, "ACCOUNT_LOCKED",
                            "Account locked after repeated failed logins.",
@@ -904,6 +921,10 @@ void handle_client(TlsConnection& client,
             }
             return;
         }
+        auth_service.record_audit_event({
+            result.user_id, std::string(hms::role_name(result.role)), "LOGIN",
+            result.user_id, client.source_ip
+        });
         send_response(client, 200,
             "{\"message\":\"Login successful\",\"userId\":" +
             json_string(result.user_id) + ",\"role\":" +
@@ -921,9 +942,19 @@ void handle_client(TlsConnection& client,
             return;
         }
         if (path == "/api/v1/auth/logout") {
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)), "LOGOUT",
+                principal.user_id, client.source_ip
+            });
             auth_service.logout(token);
             send_response(client, 200, "{\"message\":\"Logged out.\"}");
         } else {
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)), "VIEW_ACCOUNT",
+                principal.user_id, client.source_ip
+            });
             send_response(client, 200,
                 "{\"userId\":" + json_string(principal.user_id) +
                 ",\"role\":" + json_string(
@@ -976,6 +1007,11 @@ void handle_client(TlsConnection& client,
                        result.message, request_id);
             return;
         }
+        auth_service.record_audit_event({
+            principal.user_id,
+            std::string(hms::role_name(principal.role)),
+            "CREATE_USER", result.user_id, client.source_ip
+        });
         std::string response =
             "{\"userId\":" + json_string(result.user_id) +
             ",\"role\":" + json_string(
@@ -1039,6 +1075,11 @@ void handle_client(TlsConnection& client,
             }
 
             const auto entries = patient_service.patient_history(patient_id);
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "VIEW_PATIENT_HISTORY", patient_id, client.source_ip
+            });
             std::string body = "{\"history\":[";
             for (std::size_t index = 0; index < entries.size(); ++index) {
                 if (index != 0) body += ',';
@@ -1068,6 +1109,13 @@ void handle_client(TlsConnection& client,
                 return;
             }
             const auto result = patient_service.search_patients(query);
+            for (const auto& patient : result.matches) {
+                auth_service.record_audit_event({
+                    principal.user_id,
+                    std::string(hms::role_name(principal.role)),
+                    "VIEW_PATIENT", patient.patient_id, client.source_ip
+                });
+            }
             std::string body = "{\"matches\":[";
             for (std::size_t index = 0; index < result.matches.size(); ++index) {
                 if (index != 0) body += ',';
@@ -1110,6 +1158,12 @@ void handle_client(TlsConnection& client,
                            validation_error(result.errors), request_id);
                 return;
             }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "CREATE_PATIENT_PROFILE",
+                result.patient.patient_id, client.source_ip
+            });
             send_response(client, 201,
                 "{\"patient\":" + json_patient(result.patient) + "}");
             return;
@@ -1136,6 +1190,11 @@ void handle_client(TlsConnection& client,
             }
             const auto slots = hms::free_slots(
                 appointment_repository, doctor_id, date);
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "VIEW_FREE_SLOTS", doctor_text, client.source_ip
+            });
             send_response(client, 200, hms::slots_to_json(slots));
             return;
         }
@@ -1183,6 +1242,13 @@ void handle_client(TlsConnection& client,
                 }
                 return;
             }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "CREATE_APPOINTMENT",
+                std::to_string(result.appointment.id),
+                client.source_ip
+            });
             send_response(client, result.http_status,
                 "{\"appointment\":" +
                     hms::appointment_to_json(result.appointment) + "}");
@@ -1236,6 +1302,11 @@ void handle_client(TlsConnection& client,
                            request_id);
                 return;
             }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)), "CREATE_VISIT",
+                std::to_string(visit.visit_id), client.source_ip
+            });
             send_response(client, 201,
                 "{\"visitId\":" + json_string(std::to_string(visit.visit_id)) +
                 "}");
@@ -1302,6 +1373,11 @@ void handle_client(TlsConnection& client,
                            request_id);
                 return;
             }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "CREATE_PRESCRIPTION", visit_id_text, client.source_ip
+            });
             send_response(client, 201, "{\"created\":true}");
             return;
         }
@@ -1351,6 +1427,11 @@ void handle_client(TlsConnection& client,
                            validation_error(result.errors), request_id);
                 return;
             }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)), "CREATE_PATIENT",
+                result.patient.patient_id, client.source_ip
+            });
             send_response(client, 201,
                           "{\"patient\":" + json_patient(result.patient) + "}");
             return;
@@ -1399,6 +1480,11 @@ void handle_client(TlsConnection& client,
                            validation_error(result.errors), request_id);
                 return;
             }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)), "UPDATE_PATIENT",
+                patient_id, client.source_ip
+            });
             send_response(client, 200,
                           "{\"patient\":" + json_patient(result.patient) + "}");
             return;
@@ -1589,7 +1675,15 @@ int main()
     for (;;) {
         std::cout << "Waiting for a client...\n";
 
-        SOCKET client = accept(server, nullptr, nullptr);
+#ifdef _WIN32
+        int peer_address_length = sizeof(sockaddr_in);
+#else
+        socklen_t peer_address_length = sizeof(sockaddr_in);
+#endif
+        sockaddr_in peer_address{};
+        SOCKET client = accept(
+            server, reinterpret_cast<sockaddr*>(&peer_address),
+            &peer_address_length);
 
         if (client == INVALID_SOCKET) {
             std::cerr << "accept() failed: "
@@ -1598,6 +1692,14 @@ int main()
         }
 
         std::cout << "Accepted client connection.\n";
+        char source_ip[INET_ADDRSTRLEN]{};
+        if (inet_ntop(AF_INET, &peer_address.sin_addr, source_ip,
+                      sizeof(source_ip)) == nullptr) {
+            std::cerr << "Could not read the client source IP.\n";
+            shutdown(client, SD_BOTH);
+            closesocket(client);
+            continue;
+        }
         if (!set_socket_timeouts(client)) {
             std::cerr << "Could not configure TLS socket timeouts: "
                       << WSAGetLastError() << '\n';
@@ -1618,7 +1720,7 @@ int main()
             closesocket(client);
             continue;
         }
-        TlsConnection connection{ssl};
+        TlsConnection connection{ssl, source_ip};
 
         // Ensure the TLS session and socket close after each request.
         try {

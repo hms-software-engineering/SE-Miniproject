@@ -22,6 +22,14 @@ struct SessionPrincipal {
     Role role = Role::Patient;
 };
 
+struct AuditEvent {
+    std::string user_id;
+    std::string role;
+    std::string action;
+    std::string record_id;
+    std::string source_ip;
+};
+
 enum class CreateUserStatus {
     Created,
     AlreadyExists
@@ -46,6 +54,7 @@ public:
     virtual std::optional<SessionPrincipal> find_session(
         const std::string& token_hash) const = 0;
     virtual void delete_session(const std::string& token_hash) = 0;
+    virtual void record_audit_event(const AuditEvent& event) = 0;
 };
 
 struct AuthResult {
@@ -71,6 +80,7 @@ public:
     std::optional<SessionPrincipal> authenticate_token(
         const std::string& token) const;
     void logout(const std::string& token);
+    void record_audit_event(const AuditEvent& event);
 
 private:
     AuthRepository& repository_;
@@ -99,6 +109,7 @@ public:
     std::optional<SessionPrincipal> find_session(
         const std::string& token_hash) const override;
     void delete_session(const std::string& token_hash) override;
+    void record_audit_event(const AuditEvent& event) override;
 
 private:
     struct Connection;
