@@ -1,19 +1,11 @@
 {
-  "name": "hms-miniproject",
+  "name": "hms-team-repo",
   "version-string": "1.0.0",
   "builtin-baseline": "67972e92edd181d433927b42d8ab4bfa52ac164a",
   "dependencies": [
     "nlohmann-json",
-    "cpp-httplib",
     "argon2",
     "libpq",
-    "libpqxx",
     "openssl"
-  ],
-  "overrides": [
-    {
-      "name": "libpqxx",
-      "version": "7.10.5"
-    }
   ]
 }
