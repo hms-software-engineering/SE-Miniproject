@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <nlohmann/json.hpp>
 #include <cstring>
 #include <ctime>
 #include <iomanip>
@@ -623,9 +624,11 @@ BookingResult book_appointment(AppointmentRepository& repo,
     switch (s.status) {
     case SaveStatus::SlotTaken: {
         BookingResult result =
-            fail(409, "SLOT_TAKEN", "Slot is no longer available");
+            fail(409, "SLOT_TAKEN", "This slot is already booked.");
         result.suggested_slots =
             upcoming_slots(repo, doctor_id, date, time, now);
+        result.next_slots =
+            next_free_slots(repo, doctor_id, date, time);
         return result;
     }
     case SaveStatus::PatientMissing:
@@ -635,6 +638,7 @@ BookingResult book_appointment(AppointmentRepository& repo,
     case SaveStatus::Ok:
         break;
     }
+
     BookingResult r;
     r.ok = true;
     r.http_status = 201;
@@ -642,6 +646,57 @@ BookingResult book_appointment(AppointmentRepository& repo,
     return r;
 }
 
+std::vector<std::string> next_free_slots(
+    const AppointmentRepository& repo,
+    long long doctor_id,
+    const std::string& date,
+    const std::string& after_time,
+    size_t count
+) {
+    std::vector<std::string> result;
+
+    if (count == 0) {
+        return result;
+    }
+
+    for (const auto& slot : free_slots(repo, doctor_id, date)) {
+        // Slot strings use HH:MM, so lexical order is chronological.
+        if (slot > after_time) {
+            result.push_back(slot);
+
+            if (result.size() >= count) {
+                break;
+            }
+        }
+    }
+
+    return result;
+}
+
+std::string booking_error_to_json(
+    const BookingResult& r,
+    const std::string& request_id
+) {
+    nlohmann::json error = {
+        {"code", r.code},
+        {"message", r.message}
+    };
+
+    if (!r.field.empty()) {
+        error["field"] = r.field;
+    }
+
+    if (!r.next_slots.empty()) {
+        error["nextSlots"] = r.next_slots;
+    }
+
+    nlohmann::json response = {
+        {"error", error},
+        {"requestId", request_id}
+    };
+
+    return response.dump();
+}
 std::string slots_to_json(const std::vector<std::string>& slots) {
     std::string j = "{\"slots\":[";
     for (size_t i = 0; i < slots.size(); ++i) {

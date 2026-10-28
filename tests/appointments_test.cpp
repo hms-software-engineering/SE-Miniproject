@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <iostream>
+#include <nlohmann/json.hpp>
 
 #define CHECK(c)                                                          \
     do {                                                                  \
@@ -65,6 +66,53 @@ int main() {
     CHECK(dup.http_status == 409);
     CHECK(dup.suggested_slots.size() == 3);
     CHECK(dup.suggested_slots[0] == "2026-10-26 10:30");
+
+    // TC-APT-02: duplicate booking returns three later free slots.
+    CHECK(dup.code == "SLOT_TAKEN");
+    CHECK(dup.message == "This slot is already booked.");
+    CHECK(dup.next_slots.size() == 3);
+    CHECK(dup.next_slots[0] == "10:30");
+    CHECK(dup.next_slots[1] == "11:00");
+    CHECK(dup.next_slots[2] == "11:30");
+
+    const auto error_json =
+        hms::booking_error_to_json(dup, "req-1");
+
+    const auto parsed_error =
+        nlohmann::json::parse(error_json);
+
+    CHECK(parsed_error["error"]["code"] == "SLOT_TAKEN");
+    CHECK(parsed_error["error"]["message"] ==
+          "This slot is already booked.");
+    CHECK(parsed_error["error"]["nextSlots"].size() == 3);
+    CHECK(parsed_error["requestId"] == "req-1");
+
+    // Fewer than three alternatives remain after 12:00.
+    CHECK(hms::book_appointment(
+        repo, "PID-00000001", 1, "2026-10-26", "12:00", test_now()
+    ).ok);
+
+    auto near_end = hms::book_appointment(
+        repo, "PID-00000002", 1, "2026-10-26", "12:00", test_now()
+    );
+
+    CHECK(near_end.http_status == 409);
+    CHECK(near_end.code == "SLOT_TAKEN");
+    CHECK(near_end.next_slots.size() == 1);
+    CHECK(near_end.next_slots[0] == "12:30");
+
+    CHECK(hms::book_appointment(
+        repo, "PID-00000001", 1, "2026-10-26", "12:30", test_now()
+    ).ok);
+
+    auto last_slot_duplicate = hms::book_appointment(
+        repo, "PID-00000002", 1, "2026-10-26", "12:30", test_now()
+    );
+
+    CHECK(last_slot_duplicate.http_status == 409);
+    CHECK(last_slot_duplicate.code == "SLOT_TAKEN");
+    CHECK(last_slot_duplicate.next_slots.empty());
+
 
     // Validation.
     CHECK(hms::book_appointment(repo, "", 1, "2026-10-26", "11:00",
