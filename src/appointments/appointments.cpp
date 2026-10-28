@@ -498,6 +498,64 @@ std::string PostgresAppointmentRepository::doctor_id_for_user(
     if (pg_tuples(result.get()) == 0) return {};
     return pg_value(result.get(), 0, 0);
 }
+
+std::vector<reports::DailyReportRow>
+PostgresAppointmentRepository::daily_report(
+    const std::string& start_date, const std::string& end_date) const
+{
+    const std::vector<std::string> values{start_date, end_date};
+    PGresult* raw = execute(
+        connection_->value,
+        "WITH days AS ("
+        "  SELECT generate_series($1::date, $2::date, interval '1 day')::date AS report_day"
+        "), appointment_totals AS ("
+        "  SELECT slot_start::date AS report_day, count(*)::integer AS appointment_count,"
+        "    count(*) FILTER (WHERE status = 'Confirmed')::integer AS confirmed_count,"
+        "    count(*) FILTER (WHERE status = 'Cancelled')::integer AS cancelled_count,"
+        "    count(*) FILTER (WHERE status = 'Completed')::integer AS completed_count,"
+        "    count(*) FILTER (WHERE status = 'No-show')::integer AS no_show_count"
+        "  FROM appointments WHERE slot_start::date BETWEEN $1::date AND $2::date"
+        "  GROUP BY slot_start::date"
+        "), payment_totals AS ("
+        "  SELECT paid_at::date AS report_day,"
+        "    to_char(sum(payments.amount), 'FM999999999999990.00') AS revenue"
+        "  FROM payments"
+        "  JOIN bills ON bills.bill_id = payments.bill_id"
+        "  JOIN visits ON visits.visit_id = bills.visit_id"
+        "  WHERE paid_at::date BETWEEN $1::date AND $2::date"
+        "  GROUP BY paid_at::date"
+        ")"
+        " SELECT to_char(days.report_day, 'YYYY-MM-DD'),"
+        "   coalesce(appointment_totals.appointment_count, 0)::text,"
+        "   coalesce(appointment_totals.confirmed_count, 0)::text,"
+        "   coalesce(appointment_totals.cancelled_count, 0)::text,"
+        "   coalesce(appointment_totals.completed_count, 0)::text,"
+        "   coalesce(appointment_totals.no_show_count, 0)::text,"
+        "   coalesce(payment_totals.revenue, '0.00')"
+        " FROM days"
+        " LEFT JOIN appointment_totals USING (report_day)"
+        " LEFT JOIN payment_totals USING (report_day)"
+        " ORDER BY days.report_day",
+        values);
+    require_pg_status(connection_->value, raw, PGRES_TUPLES_OK,
+                      "Could not generate daily report");
+    PgResult result(raw);
+    std::vector<reports::DailyReportRow> rows;
+    rows.reserve(static_cast<std::size_t>(pg_tuples(result.get())));
+    for (int row = 0; row < pg_tuples(result.get()); ++row) {
+        rows.push_back({
+            pg_value(result.get(), row, 0),
+            std::stoi(pg_value(result.get(), row, 1)),
+            std::stoi(pg_value(result.get(), row, 2)),
+            std::stoi(pg_value(result.get(), row, 3)),
+            std::stoi(pg_value(result.get(), row, 4)),
+            std::stoi(pg_value(result.get(), row, 5)),
+            pg_value(result.get(), row, 6)
+        });
+    }
+    return rows;
+}
+
 // ---------- in-memory repository ----------
 
 InMemoryAppointmentRepository::InMemoryAppointmentRepository() {
