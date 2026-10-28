@@ -1,4 +1,6 @@
 #pragma once
+#include "reports/report_service.h"
+
 #include <map>
 #include <chrono>
 #include <set>
@@ -51,7 +53,8 @@ private:
     long long next_id_ = 1;
 };
 
-class PostgresAppointmentRepository final : public AppointmentRepository {
+class PostgresAppointmentRepository final : public AppointmentRepository,
+                                           public reports::ReportRepository {
 public:
     explicit PostgresAppointmentRepository(
         const char* connection_info = nullptr);
@@ -72,6 +75,9 @@ public:
         const std::string& patient_id,
         const std::string& user_id) const;
 
+    std::vector<reports::DailyReportRow> daily_report(
+        const std::string& start_date,
+        const std::string& end_date) const override;
     std::string doctor_id_for_user(const std::string& user_id) const;
 
 private:

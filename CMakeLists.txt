@@ -97,6 +97,17 @@ add_executable(clinical_service_test tests/clinical_service_test.cpp)
 target_link_libraries(clinical_service_test PRIVATE hms_clinical)
 add_test(NAME clinical_service_test COMMAND clinical_service_test)
 
+# ---- Reports ----
+add_library(hms_reports
+    src/reports/report_service.cpp
+)
+target_include_directories(hms_reports PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_executable(report_service_test tests/report_service_test.cpp)
+target_link_libraries(report_service_test PRIVATE hms_reports)
+add_test(NAME report_service_test COMMAND report_service_test)
+
 # ---- Patients ----
 add_library(hms_patients
     src/patients/patient_service.cpp
@@ -140,6 +151,7 @@ target_link_libraries(hms_server PRIVATE
     hms_auth
     hms_patients
     hms_appointments
+    hms_reports
     hms_clinical
     OpenSSL::SSL
     OpenSSL::Crypto
