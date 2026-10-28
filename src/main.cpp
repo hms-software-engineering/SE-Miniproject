@@ -1261,6 +1261,75 @@ void handle_client(TlsConnection& client,
                     hms::appointment_to_json(result.appointment) + "}");
             return;
         }
+        constexpr char appointment_path[] = "/api/v1/appointments/";
+        if ((method == "PUT" || method == "PATCH" || method == "DELETE") &&
+            path.rfind(appointment_path, 0) == 0) {
+            long long appointment_id = 0;
+            if (!parse_positive_id(path.substr(sizeof(appointment_path) - 1),
+                                   appointment_id)) {
+                send_error(client, 404, "NOT_FOUND",
+                           "Appointment not found", request_id);
+                return;
+            }
+            std::string action = "cancel", new_date, new_time;
+            if (method != "DELETE") {
+                if (!is_json_content_type(content_type)) {
+                    send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                               "Content-Type must be application/json.",
+                               request_id);
+                    return;
+                }
+                const std::size_t body_start = header_end + 4;
+                std::map<std::string, std::string> fields;
+                if (!has_content_length ||
+                    raw.size() < body_start + content_length ||
+                    !parse_json_body(raw.substr(body_start, content_length), fields) ||
+                    fields.find("action") == fields.end() ||
+                    fields.size() > 2 ||
+                    (fields.size() == 2 && fields.find("newSlot") == fields.end())) {
+                    send_error(client, 400, "VALIDATION_FAILED",
+                               "Provide action (cancel or reschedule) and, for reschedule, newSlot.",
+                               request_id);
+                    return;
+                }
+                action = fields.at("action");
+                const auto slot = fields.find("newSlot");
+                if (slot != fields.end() && slot->second.size() == 16 &&
+                    slot->second[10] == ' ') {          // "YYYY-MM-DD HH:MM"
+                    new_date = slot->second.substr(0, 10);
+                    new_time = slot->second.substr(11, 5);
+                }
+            }
+            const auto may_access = [&](const std::string& patient_id) {
+                if (principal.role == hms::Role::Receptionist) return true;
+                return principal.role == hms::Role::Patient &&
+                       appointment_repository.patient_belongs_to_user(
+                           patient_id, principal.user_id);
+            };
+            const auto result = hms::change_appointment(
+                appointment_repository, appointment_id, action,
+                new_date, new_time, may_access);
+            if (!result.ok) {
+                if (result.code == "SLOT_TAKEN") {
+                    send_slot_taken_error(client, result, request_id);
+                } else {
+                    send_error(client, result.http_status, result.code,
+                               result.message, request_id);
+                }
+                return;
+            }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                action == "cancel" ? "CANCEL_APPOINTMENT"
+                                   : "RESCHEDULE_APPOINTMENT",
+                std::to_string(appointment_id), client.source_ip
+            });
+            send_response(client, 200,
+                "{\"appointment\":" +
+                    hms::appointment_to_json(result.appointment) + "}");
+            return;
+        }
 
         if (method == "POST" && path == "/api/v1/visits") {
             if (!is_json_content_type(content_type)) {

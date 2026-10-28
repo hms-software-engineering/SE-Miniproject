@@ -84,7 +84,20 @@ endif()
 add_executable(appointments_test tests/appointments_test.cpp)
 target_link_libraries(appointments_test PRIVATE hms_appointments)
 add_test(NAME appointments_test COMMAND appointments_test)
+add_executable(
+    change_appointment_test
+    tests/change_appointment_test.cpp
+)
 
+target_link_libraries(
+    change_appointment_test
+    PRIVATE hms_appointments
+)
+
+add_test(
+    NAME change_appointment_test
+    COMMAND change_appointment_test
+)
 # ---- Clinical (AES-256-GCM) ----
 add_library(hms_clinical src/clinical/clinical_service.cpp)
 target_include_directories(hms_clinical PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
