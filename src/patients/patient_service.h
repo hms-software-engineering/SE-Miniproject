@@ -21,6 +21,7 @@ struct Registration {
 struct Patient {
     std::string patient_id;
     Registration demographics;
+    std::string owner_user_id;
 };
 
 struct PatientHistoryEntry {
