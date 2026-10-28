@@ -580,6 +580,13 @@ std::optional<hms::Permission> permission_for_request(
         return hms::Permission::ViewPatientHistory;
     }
     if (method == "GET" &&
+        path.rfind("/api/v1/patients/", 0) == 0 &&
+        path.find('/', std::string("/api/v1/patients/").size()) ==
+            std::string::npos &&
+        path.size() > std::string("/api/v1/patients/").size()) {
+        return hms::Permission::ViewPatientRecord;
+    }
+    if (method == "GET" &&
         path == "/api/v1/appointments/free-slots") {
         return hms::Permission::ViewFreeSlots;
     }
@@ -1449,6 +1456,46 @@ void handle_client(TlsConnection& client,
         }
 
         constexpr char patient_path[] = "/api/v1/patients/";
+        if (method == "GET" &&
+            path.rfind(patient_path, 0) == 0) {
+            const std::string patient_id =
+                path.substr(sizeof(patient_path) - 1);
+
+            if (patient_id.size() != 12 ||
+                patient_id.compare(0, 4, "PID-") != 0 ||
+                !std::all_of(patient_id.begin() + 4, patient_id.end(),
+                    [](unsigned char digit) {
+                        return digit >= '0' && digit <= '9';
+                    })) {
+                send_error(client, 404, "PATIENT_NOT_FOUND",
+                           "Patient was not found.", request_id);
+                return;
+            }
+
+            const auto result = patient_service.search_patients(patient_id);
+            if (result.matches.empty()) {
+                send_error(client, 404, "PATIENT_NOT_FOUND",
+                           "Patient was not found.", request_id);
+                return;
+            }
+
+            const auto& patient = result.matches.front();
+            std::string record_access_error;
+            if (!hms::authorize_record_access(
+                    principal.role,
+                    hms::Permission::ViewPatientRecord,
+                    principal.user_id,
+                    patient.owner_user_id,
+                    record_access_error)) {
+                send_error(client, 403, "ACCESS_DENIED",
+                           record_access_error, request_id);
+                return;
+            }
+
+            send_response(client, 200,
+                          "{\"patient\":" + json_patient(patient) + "}");
+            return;
+        }
         if ((method == "PUT" || method == "PATCH") &&
             path.rfind(patient_path, 0) == 0) {
             const std::string patient_id =

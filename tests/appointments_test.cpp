@@ -7,6 +7,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <nlohmann/json.hpp>
 
 #define CHECK(c) do { \
     if (!(c)) { \
@@ -229,6 +230,23 @@ int main() {
     CHECK(!unknown_doctor.ok);
     CHECK(unknown_doctor.http_status == 404);
     CHECK(unknown_doctor.code == "NOT_FOUND");
+
+    // Duplicate booking returns three later free slots (same-day "HH:MM").
+    CHECK(dup.code == "SLOT_TAKEN");
+    CHECK(dup.message == "This slot is already booked.");
+    CHECK(dup.next_slots.size() == 3);
+    CHECK(dup.next_slots[0] == "10:30");
+    CHECK(dup.next_slots[1] == "11:00");
+    CHECK(dup.next_slots[2] == "11:30");
+
+    const auto parsed_error =
+        nlohmann::json::parse(hms::booking_error_to_json(dup, "req-1"));
+    CHECK(parsed_error["error"]["code"] == "SLOT_TAKEN");
+    CHECK(parsed_error["error"]["nextSlots"].size() == 3);
+    CHECK(parsed_error["requestId"] == "req-1");
+
+    CHECK(hms::book_appointment(
+        repo, "PID-99999999", 1, monday, "11:00", test_now()).field == "patientId");
 
     CHECK(hms::slots_to_json({"09:00", "09:30"})
           == "{\"slots\":[\"09:00\",\"09:30\"]}");

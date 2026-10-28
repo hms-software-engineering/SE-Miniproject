@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <nlohmann/json.hpp>
 #include <cstring>
 #include <ctime>
 #include <iomanip>
@@ -676,10 +677,10 @@ BookingResult book_appointment(AppointmentRepository& repo,
     case SaveStatus::SlotTaken: {
         BookingResult result =
             fail(409, "SLOT_TAKEN", "This slot is already booked.");
-
         result.suggested_slots =
             upcoming_slots(repo, doctor_id, date, time, now);
-
+        result.next_slots =
+            next_free_slots(repo, doctor_id, date, time);
         return result;
     }
     case SaveStatus::PatientMissing:
@@ -700,7 +701,6 @@ BookingResult book_appointment(AppointmentRepository& repo,
     r.appointment = s.appointment;
     return r;
 }
-
 
 std::vector<std::string> next_free_slots(
     const AppointmentRepository& repo,
@@ -742,8 +742,8 @@ std::string booking_error_to_json(
         error["field"] = r.field;
     }
 
-    if (!r.suggested_slots.empty()) {
-        error["nextSlots"] = r.suggested_slots;
+    if (!r.next_slots.empty()) {
+        error["nextSlots"] = r.next_slots;
     }
 
     nlohmann::json response = {

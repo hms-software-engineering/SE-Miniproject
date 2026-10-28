@@ -84,7 +84,8 @@ struct BookingResult {
     Appointment appointment;
     int http_status = 0;
     std::string code, message, field;
-    std::vector<std::string> suggested_slots;
+    std::vector<std::string> next_slots;       // used by the httplib JSON
+    std::vector<std::string> suggested_slots;  // used by main's code and tests
 };
 
 

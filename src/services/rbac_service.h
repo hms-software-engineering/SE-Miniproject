@@ -18,6 +18,7 @@ enum class Permission {
     RegisterPatient,
     CreateOwnPatientProfile,
     SearchPatients,
+    ViewPatientRecord,
     UpdatePatientData,
     ViewFreeSlots,
     BookAppointment,
