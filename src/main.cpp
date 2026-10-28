@@ -17,12 +17,21 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <cerrno>
+
 using SOCKET = int;
+
 constexpr int INVALID_SOCKET = -1;
 constexpr int SOCKET_ERROR = -1;
+
 #define closesocket close
 #define SD_BOTH SHUT_RDWR
 #define WSAGetLastError() errno
+
+struct WSADATA {};
+#define MAKEWORD(a, b) 0
+
+inline int WSAStartup(int, WSADATA*) { return 0; }
+inline int WSACleanup() { return 0; }
 #endif
 
 #include <openssl/ssl.h>
@@ -259,11 +268,13 @@ std::string current_date_ddmmyyyy()
 
 #ifdef _WIN32
     if (localtime_s(&local_time, &now) != 0) {
-#else
-    if (localtime_r(&now, &local_time) == nullptr) {
-#endif
         throw std::runtime_error("Could not determine the current date.");
     }
+#else
+    if (localtime_r(&now, &local_time) == nullptr) {
+        throw std::runtime_error("Could not determine the current date.");
+    }
+#endif
 
     std::ostringstream date;
     date << (local_time.tm_mday < 10 ? "0" : "") << local_time.tm_mday

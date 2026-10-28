@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+
 namespace hms {
 
 struct Appointment {
@@ -52,7 +53,8 @@ private:
 
 class PostgresAppointmentRepository final : public AppointmentRepository {
 public:
-    explicit PostgresAppointmentRepository(const char* connection_info = nullptr);
+    explicit PostgresAppointmentRepository(
+        const char* connection_info = nullptr);
     ~PostgresAppointmentRepository() override;
 
     PostgresAppointmentRepository(const PostgresAppointmentRepository&) = delete;
@@ -60,11 +62,16 @@ public:
         const PostgresAppointmentRepository&) = delete;
 
     std::string working_hours(long long doctor_id) const override;
+
     std::vector<std::string> booked_times(
         long long doctor_id, const std::string& date) const override;
+
     SaveResult insert(const Appointment& appointment) override;
-    bool patient_belongs_to_user(const std::string& patient_id,
-                                 const std::string& user_id) const;
+
+    bool patient_belongs_to_user(
+        const std::string& patient_id,
+        const std::string& user_id) const;
+
     std::string doctor_id_for_user(const std::string& user_id) const;
 
 private:
@@ -80,6 +87,7 @@ struct BookingResult {
     std::vector<std::string> next_slots;       // used by the httplib JSON
     std::vector<std::string> suggested_slots;  // used by main's code and tests
 };
+
 
 // 0 = Sunday ... 6 = Saturday. Date must be "YYYY-MM-DD".
 int weekday_of(const std::string& date);
@@ -112,5 +120,6 @@ std::string booking_error_to_json(
 );
 std::string slots_to_json(const std::vector<std::string>& slots);
 std::string appointment_to_json(const Appointment& a);
+bool is_valid_calendar_date(const std::string& date);
 
 }  // namespace hms

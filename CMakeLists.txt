@@ -133,7 +133,7 @@ else()
     message(STATUS "Qt6 Widgets and Network not found; skipping hms_client")
 endif()
 
-# ---- HTTP server (httplib) ----
+# ---- TLS API server ----
 add_executable(hms_server src/main.cpp)
 target_link_libraries(hms_server PRIVATE
     hms_api
@@ -144,6 +144,7 @@ target_link_libraries(hms_server PRIVATE
     OpenSSL::SSL
     OpenSSL::Crypto
 )
+
 if(WIN32)
     target_link_libraries(hms_server PRIVATE ws2_32)
 endif()
