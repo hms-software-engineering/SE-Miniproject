@@ -42,6 +42,7 @@ inline int WSACleanup() { return 0; }
 
 #include <algorithm>
 #include <cctype>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
 #include <ctime>
@@ -49,9 +50,14 @@ inline int WSACleanup() { return 0; }
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
+#include <queue>
 #include <sstream>
+#include <stdexcept>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -59,6 +65,8 @@ namespace {
 constexpr unsigned short PORT = 8443;
 constexpr std::size_t MAX_REQUEST_SIZE = 1024 * 1024;
 constexpr std::size_t MAX_HEADER_SIZE = 16 * 1024;
+constexpr std::size_t REQUEST_WORKER_COUNT = 12;
+constexpr std::size_t MAX_PENDING_CLIENTS = 100;
 
 std::string status_text(int status)
 {
@@ -1772,6 +1780,67 @@ void handle_client(TlsConnection& client,
                "The requested resource was not found.", request_id);
 }
 
+class ClientServices {
+public:
+    ClientServices()
+    {
+        const char* data_key = std::getenv("HMS_PATIENT_DATA_KEY");
+        const char* name_index_key =
+            std::getenv("HMS_PATIENT_NAME_INDEX_KEY");
+        const char* phone_index_key =
+            std::getenv("HMS_PATIENT_PHONE_INDEX_KEY");
+        if (data_key == nullptr || name_index_key == nullptr ||
+            phone_index_key == nullptr) {
+            throw std::runtime_error(
+                "Set HMS_PATIENT_DATA_KEY, HMS_PATIENT_NAME_INDEX_KEY, and "
+                "HMS_PATIENT_PHONE_INDEX_KEY before starting the server.");
+        }
+        if (std::string(data_key) == name_index_key ||
+            std::string(data_key) == phone_index_key ||
+            std::string(name_index_key) == phone_index_key) {
+            throw std::runtime_error(
+                "Patient encryption and blind-index keys must be distinct.");
+        }
+
+        auth_repository =
+            std::make_unique<hms::PostgresAuthRepository>();
+        patient_repository =
+            std::make_unique<hms::patients::PostgresPatientRepository>(
+                data_key);
+        patient_service =
+            std::make_unique<hms::patients::PatientService>(
+                *patient_repository, name_index_key, phone_index_key);
+        appointment_repository =
+            std::make_unique<hms::PostgresAppointmentRepository>();
+        clinical_repository =
+            std::make_unique<hms::clinical::PostgresClinicalRepository>(
+                data_key);
+        clinical_service =
+            std::make_unique<hms::clinical::ClinicalService>(
+                *clinical_repository);
+        auth_service =
+            std::make_unique<hms::AuthService>(*auth_repository);
+    }
+
+    void handle(TlsConnection& client)
+    {
+        handle_client(client, *auth_service, *auth_repository,
+                      *patient_service, *appointment_repository,
+                      *clinical_service);
+    }
+
+    std::unique_ptr<hms::PostgresAuthRepository> auth_repository;
+    std::unique_ptr<hms::patients::PostgresPatientRepository>
+        patient_repository;
+    std::unique_ptr<hms::patients::PatientService> patient_service;
+    std::unique_ptr<hms::PostgresAppointmentRepository>
+        appointment_repository;
+    std::unique_ptr<hms::clinical::PostgresClinicalRepository>
+        clinical_repository;
+    std::unique_ptr<hms::clinical::ClinicalService> clinical_service;
+    std::unique_ptr<hms::AuthService> auth_service;
+};
+
 } // namespace
 
 int main()
@@ -1806,48 +1875,14 @@ int main()
     }
     SSL_CTX_set_options(tls_context.get(), SSL_OP_NO_COMPRESSION);
 
-    std::unique_ptr<hms::PostgresAuthRepository> auth_repository;
-    std::unique_ptr<hms::patients::PostgresPatientRepository>
-        patient_repository;
-    std::unique_ptr<hms::patients::PatientService> patient_service;
-    std::unique_ptr<hms::PostgresAppointmentRepository>
-        appointment_repository;
-    std::unique_ptr<hms::clinical::PostgresClinicalRepository>
-        clinical_repository;
-    std::unique_ptr<hms::clinical::ClinicalService> clinical_service;
+    std::vector<std::unique_ptr<ClientServices>> worker_services;
     try {
-        auth_repository = std::make_unique<hms::PostgresAuthRepository>();
-        const char* data_key = std::getenv("HMS_PATIENT_DATA_KEY");
-        const char* name_index_key =
-            std::getenv("HMS_PATIENT_NAME_INDEX_KEY");
-        const char* phone_index_key =
-            std::getenv("HMS_PATIENT_PHONE_INDEX_KEY");
-        if (data_key == nullptr || name_index_key == nullptr ||
-            phone_index_key == nullptr) {
-            throw std::runtime_error(
-                "Set HMS_PATIENT_DATA_KEY, HMS_PATIENT_NAME_INDEX_KEY, and "
-                "HMS_PATIENT_PHONE_INDEX_KEY before starting the server.");
+        worker_services.reserve(REQUEST_WORKER_COUNT);
+        for (std::size_t index = 0;
+             index < REQUEST_WORKER_COUNT; ++index) {
+            worker_services.emplace_back(
+                std::make_unique<ClientServices>());
         }
-        if (std::string(data_key) == name_index_key ||
-            std::string(data_key) == phone_index_key) {
-            throw std::runtime_error(
-                "Patient encryption and blind-index keys must be distinct.");
-        }
-        patient_repository =
-            std::make_unique<hms::patients::PostgresPatientRepository>(
-                data_key);
-        patient_service =
-            std::make_unique<hms::patients::PatientService>(
-                *patient_repository, name_index_key, phone_index_key);
-        appointment_repository =
-            std::make_unique<hms::PostgresAppointmentRepository>();
-        clinical_repository =
-            std::make_unique<hms::clinical::PostgresClinicalRepository>(
-                data_key);
-        clinical_service =
-            std::make_unique<hms::clinical::ClinicalService>(
-                *clinical_repository);
-        hms::AuthService auth_service(*auth_repository);
 
         const char* bootstrap_username =
             std::getenv("HMS_BOOTSTRAP_ADMIN_USERNAME");
@@ -1862,9 +1897,10 @@ int main()
         if (bootstrap_username != nullptr &&
             *bootstrap_username != '\0' &&
             *bootstrap_password != '\0') {
-            const auto result = auth_service.create_user(
-                bootstrap_username, bootstrap_password,
-                hms::Role::Administrator);
+            const auto result =
+                worker_services.front()->auth_service->create_user(
+                    bootstrap_username, bootstrap_password,
+                    hms::Role::Administrator);
             if (result.success) {
                 std::cout << "Bootstrap administrator created with userId="
                           << result.user_id << ".\n";
@@ -1878,11 +1914,10 @@ int main()
             }
         }
     } catch (const std::exception& error) {
-        std::cerr << "Could not initialize authentication: "
+        std::cerr << "Could not initialize request services: "
                   << error.what() << '\n';
         return 1;
     }
-    hms::AuthService auth_service(*auth_repository);
 
 #ifdef _WIN32
     WSADATA wsa_data{};
@@ -1942,8 +1977,98 @@ int main()
               << "Health endpoint: GET /api/v1/health\n"
               << "Stop with Ctrl+C or close this console.\n";
 
-    // Keep this simple server synchronous. Closing the console terminates
-    // the process; no unsafe signal handler is needed.
+    struct PendingClient {
+        SOCKET socket;
+        std::string source_ip;
+    };
+    std::queue<PendingClient> pending_clients;
+    std::mutex pending_mutex;
+    std::condition_variable pending_ready;
+    bool stopping = false;
+    std::vector<std::thread> workers;
+    workers.reserve(REQUEST_WORKER_COUNT);
+    try {
+        for (std::size_t index = 0;
+             index < REQUEST_WORKER_COUNT; ++index) {
+            ClientServices* services = worker_services[index].get();
+            workers.emplace_back([&, services] {
+                for (;;) {
+                    PendingClient pending{};
+                    {
+                        std::unique_lock<std::mutex> lock(pending_mutex);
+                        pending_ready.wait(lock, [&] {
+                            return stopping || !pending_clients.empty();
+                        });
+                        if (pending_clients.empty()) {
+                            return;
+                        }
+                        pending = std::move(pending_clients.front());
+                        pending_clients.pop();
+                    }
+
+                    SSL* ssl = SSL_new(tls_context.get());
+                    if (ssl == nullptr ||
+                        SSL_set_fd(ssl, static_cast<int>(pending.socket)) != 1 ||
+                        SSL_accept(ssl) != 1) {
+                        std::cerr << "TLS handshake failed.\n";
+                        ERR_print_errors_fp(stderr);
+                        if (ssl != nullptr) {
+                            SSL_free(ssl);
+                        }
+                        shutdown(pending.socket, SD_BOTH);
+                        closesocket(pending.socket);
+                        continue;
+                    }
+
+                    TlsConnection connection{ssl, pending.source_ip};
+                    try {
+                        services->handle(connection);
+                    } catch (const std::exception& error) {
+                        std::cerr << "Request handler exception: "
+                                  << error.what() << '\n';
+                        try {
+                            send_error(connection, 500, "INTERNAL_ERROR",
+                                       "Internal server error.",
+                                       make_request_id());
+                        } catch (const std::exception& send_error_exception) {
+                            std::cerr << "Could not send request error "
+                                         "response: "
+                                      << send_error_exception.what() << '\n';
+                        } catch (...) {
+                            std::cerr << "Could not send request error "
+                                         "response.\n";
+                        }
+                    } catch (...) {
+                        std::cerr << "Unknown request handler exception.\n";
+                    }
+
+                    SSL_shutdown(ssl);
+                    SSL_free(ssl);
+                    shutdown(pending.socket, SD_BOTH);
+                    closesocket(pending.socket);
+                    std::cout << "Client connection closed.\n";
+                }
+            });
+        }
+    } catch (const std::exception& error) {
+        std::cerr << "Could not start request workers: "
+                  << error.what() << '\n';
+        {
+            std::lock_guard<std::mutex> lock(pending_mutex);
+            stopping = true;
+        }
+        pending_ready.notify_all();
+        for (std::thread& worker : workers) {
+            worker.join();
+        }
+        closesocket(server);
+        tls_context.reset();
+#ifdef _WIN32
+        WSACleanup();
+#endif
+        return 1;
+    }
+
     for (;;) {
         std::cout << "Waiting for a client...\n";
 
@@ -1979,49 +2104,32 @@ int main()
             closesocket(client);
             continue;
         }
-        SSL* ssl = SSL_new(tls_context.get());
-        if (ssl == nullptr ||
-            SSL_set_fd(ssl, static_cast<int>(client)) != 1 ||
-            SSL_accept(ssl) != 1) {
-            std::cerr << "TLS handshake failed.\n";
-            ERR_print_errors_fp(stderr);
-            if (ssl != nullptr) {
-                SSL_free(ssl);
+        bool queued = false;
+        {
+            std::lock_guard<std::mutex> lock(pending_mutex);
+            if (pending_clients.size() < MAX_PENDING_CLIENTS) {
+                pending_clients.push({client, source_ip});
+                queued = true;
             }
+        }
+        if (!queued) {
+            std::cerr << "Request queue is full; rejecting client.\n";
             shutdown(client, SD_BOTH);
             closesocket(client);
             continue;
         }
-        TlsConnection connection{ssl, source_ip};
-
-        // Ensure the TLS session and socket close after each request.
-        try {
-            handle_client(connection, auth_service, *auth_repository,
-                          *patient_service,
-                          *appointment_repository, *clinical_service);
-        } catch (const std::exception& e) {
-            std::cerr << "Request handler exception: "
-                      << e.what() << '\n';
-
-            try {
-                send_error(connection, 500, "INTERNAL_ERROR",
-                           "Internal server error.", make_request_id());
-            } catch (...) {
-                // Do not allow an error response failure to escape.
-            }
-        } catch (...) {
-            std::cerr << "Unknown request handler exception.\n";
-        }
-
-        SSL_shutdown(ssl);
-        SSL_free(ssl);
-        shutdown(client, SD_BOTH);
-        closesocket(client);
-
-        std::cout << "Client connection closed.\n";
+        pending_ready.notify_one();
     }
 
     closesocket(server);
+    {
+        std::lock_guard<std::mutex> lock(pending_mutex);
+        stopping = true;
+    }
+    pending_ready.notify_all();
+    for (std::thread& worker : workers) {
+        worker.join();
+    }
     tls_context.reset();
 #ifdef _WIN32
         WSACleanup();

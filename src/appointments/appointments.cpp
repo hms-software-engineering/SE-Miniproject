@@ -430,7 +430,9 @@ std::vector<std::string> PostgresAppointmentRepository::booked_times(
     PGresult* raw = execute(
         connection_->value,
         "SELECT to_char(slot_start, 'HH24:MI') FROM appointments "
-        "WHERE doctor_id = $1::bigint AND slot_start::date = $2::date "
+        "WHERE doctor_id = $1::bigint "
+        "AND slot_start >= $2::date "
+        "AND slot_start < $2::date + INTERVAL '1 day' "
         "AND status = 'Confirmed' ORDER BY slot_start",
         values);
     require_pg_status(connection_->value, raw, PGRES_TUPLES_OK,

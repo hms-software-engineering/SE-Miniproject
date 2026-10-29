@@ -4,6 +4,8 @@ project(HMS_Miniproject VERSION 1.0.0 LANGUAGES CXX)
 
 option(HMS_ENABLE_COVERAGE "Instrument service modules for gcov coverage" OFF)
 
+find_package(Threads REQUIRED)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -222,6 +224,7 @@ target_link_libraries(hms_server PRIVATE
     hms_health
     OpenSSL::SSL
     OpenSSL::Crypto
+    Threads::Threads
 )
 
 if(WIN32)
