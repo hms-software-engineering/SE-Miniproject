@@ -54,9 +54,20 @@ target_include_directories(hms_api PUBLIC
 )
 target_link_libraries(hms_api PUBLIC nlohmann_json::nlohmann_json)
 
+# Health endpoints and deterministic availability calculations.
+add_library(hms_health
+    src/health/health_service.cpp
+    src/health/availability.cpp
+)
+target_include_directories(hms_health PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
 add_executable(api_test tests/api_test.cpp)
 target_link_libraries(api_test PRIVATE hms_api)
 add_test(NAME api_test COMMAND api_test)
+
+add_executable(health_test tests/health_test.cpp)
+target_link_libraries(health_test PRIVATE hms_health)
+add_test(NAME health_test COMMAND health_test)
 
 # ---- SEC-001 password security ----
 add_library(hms_password_security src/password_security.cpp)
@@ -98,6 +109,12 @@ add_test(
     NAME change_appointment_test
     COMMAND change_appointment_test
 )
+
+# ---- F-024 Doctor daily schedule ----
+add_executable(doctor_schedule_test tests/doctor_schedule_test.cpp)
+target_link_libraries(doctor_schedule_test PRIVATE hms_appointments)
+add_test(NAME doctor_schedule_test COMMAND doctor_schedule_test)
+
 # ---- Clinical (AES-256-GCM) ----
 add_library(hms_clinical src/clinical/clinical_service.cpp)
 target_include_directories(hms_clinical PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -166,6 +183,7 @@ target_link_libraries(hms_server PRIVATE
     hms_appointments
     hms_reports
     hms_clinical
+    hms_health
     OpenSSL::SSL
     OpenSSL::Crypto
 )

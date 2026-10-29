@@ -550,6 +550,56 @@ SaveStatus PostgresAppointmentRepository::reschedule(
         throw;
     }
 }
+
+std::vector<Appointment>
+PostgresAppointmentRepository::appointments_for_doctor_on(
+    long long doctor_id,
+    const std::string& date) const
+{
+    const std::vector<std::string> values{
+        std::to_string(doctor_id),
+        date
+    };
+
+    PGresult* raw = execute(
+        connection_->value,
+        "SELECT appointment_id::text, patient_id, doctor_id::text, "
+        "to_char(slot_start, 'YYYY-MM-DD HH24:MI'), status "
+        "FROM appointments "
+        "WHERE doctor_id = $1::bigint "
+        "AND slot_start >= $2::date "
+        "AND slot_start < ($2::date + INTERVAL '1 day') "
+        "AND status <> 'Cancelled' "
+        "ORDER BY slot_start ASC",
+        values);
+
+    require_pg_status(
+        connection_->value,
+        raw,
+        PGRES_TUPLES_OK,
+        "Could not read doctor schedule");
+
+    PgResult result(raw);
+    std::vector<Appointment> appointments;
+
+    for (int row = 0; row < pg_tuples(result.get()); ++row) {
+        Appointment appointment;
+        appointment.id =
+            std::stoll(pg_value(result.get(), row, 0));
+        appointment.patient_id =
+            pg_value(result.get(), row, 1);
+        appointment.doctor_id =
+            std::stoll(pg_value(result.get(), row, 2));
+        appointment.slot_start =
+            pg_value(result.get(), row, 3);
+        appointment.status =
+            pg_value(result.get(), row, 4);
+
+        appointments.push_back(std::move(appointment));
+    }
+
+    return appointments;
+}
 bool PostgresAppointmentRepository::patient_belongs_to_user(
     const std::string& patient_id, const std::string& user_id) const
 {
@@ -737,6 +787,65 @@ SaveStatus InMemoryAppointmentRepository::reschedule(
 
     target->slot_start = new_slot;
     return SaveStatus::Ok;
+}
+
+std::vector<Appointment>
+InMemoryAppointmentRepository::appointments_for_doctor_on(
+    long long doctor_id,
+    const std::string& date) const
+{
+    std::vector<Appointment> result;
+
+    for (const auto& appointment : items_) {
+        if (appointment.doctor_id == doctor_id &&
+            appointment.slot_start.size() >= 10 &&
+            appointment.slot_start.substr(0, 10) == date &&
+            appointment.status != "Cancelled") {
+            result.push_back(appointment);
+        }
+    }
+
+    std::sort(
+        result.begin(),
+        result.end(),
+        [](const Appointment& a, const Appointment& b) {
+            return a.slot_start < b.slot_start;
+        });
+
+    return result;
+}
+
+std::string InMemoryAppointmentRepository::doctor_id_for_user(
+    const std::string& user_id) const
+{
+    const auto it = doctor_users_.find(user_id);
+
+    if (it == doctor_users_.end()) {
+        return {};
+    }
+
+    return std::to_string(it->second);
+}
+
+void InMemoryAppointmentRepository::add_doctor(
+    long long doctor_id,
+    const std::string& user_id,
+    const std::string& working_hours)
+{
+    doctors_[doctor_id] = working_hours;
+    doctor_users_[user_id] = doctor_id;
+}
+
+void InMemoryAppointmentRepository::set_status(
+    long long appointment_id,
+    const std::string& status)
+{
+    for (auto& appointment : items_) {
+        if (appointment.id == appointment_id) {
+            appointment.status = status;
+            return;
+        }
+    }
 }
 
 // ---------- logic ----------
@@ -1108,6 +1217,103 @@ std::string appointment_to_json(const Appointment& a) {
     return "{\"appointmentId\":" + std::to_string(a.id) + ",\"patientId\":\"" +
            a.patient_id + "\",\"doctorId\":" + std::to_string(a.doctor_id) +
            ",\"slotStart\":\"" + a.slot_start + "\",\"status\":\"" + a.status + "\"}";
+}
+
+ScheduleResult doctor_schedule(
+    const AppointmentRepository& repo,
+    const std::string& user_id,
+    const std::string& date)
+{
+    ScheduleResult result;
+
+    if (date.empty() || !is_valid_calendar_date(date)) {
+        result.http_status = 400;
+        result.code = "VALIDATION_FAILED";
+        result.message = "date must be a valid date in YYYY-MM-DD format.";
+        result.field = "date";
+        return result;
+    }
+
+    const std::string doctor_text = repo.doctor_id_for_user(user_id);
+
+    if (doctor_text.empty()) {
+        result.http_status = 404;
+        result.code = "NOT_FOUND";
+        result.message = "Doctor profile not found.";
+        return result;
+    }
+
+    long long doctor_id = 0;
+
+    try {
+        std::size_t consumed = 0;
+        doctor_id = std::stoll(doctor_text, &consumed);
+
+        if (consumed != doctor_text.size() || doctor_id <= 0) {
+            result.http_status = 404;
+            result.code = "NOT_FOUND";
+            result.message = "Doctor profile not found.";
+            return result;
+        }
+    } catch (const std::exception&) {
+        result.http_status = 404;
+        result.code = "NOT_FOUND";
+        result.message = "Doctor profile not found.";
+        return result;
+    }
+
+    result.appointments =
+        repo.appointments_for_doctor_on(doctor_id, date);
+
+    std::sort(
+        result.appointments.begin(),
+        result.appointments.end(),
+        [](const Appointment& a, const Appointment& b) {
+            return a.slot_start < b.slot_start;
+        });
+
+    result.ok = true;
+    result.http_status = 200;
+    return result;
+}
+
+std::string schedule_to_json(
+    const std::vector<Appointment>& appointments)
+{
+    nlohmann::json response = nlohmann::json::array();
+
+    for (const auto& appointment : appointments) {
+        response.push_back({
+            {"appointmentId", appointment.id},
+            {"patientId", appointment.patient_id},
+            {"doctorId", appointment.doctor_id},
+            {"slotStart", appointment.slot_start},
+            {"status", appointment.status}
+        });
+    }
+
+    return response.dump();
+}
+
+std::string schedule_error_to_json(
+    const ScheduleResult& result,
+    const std::string& request_id)
+{
+    nlohmann::json error = {
+        {"code", result.code},
+        {"message", result.message}
+    };
+
+    if (!result.field.empty()) {
+        error["field"] = result.field;
+    }
+
+    nlohmann::json response = {
+        {"error", error},
+        {"requestId", request_id}
+    };
+
+    return response.dump();
 }
 
 }  // namespace hms

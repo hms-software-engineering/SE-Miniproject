@@ -40,9 +40,14 @@ public:
     virtual bool find_by_id(long long id, Appointment& out) const = 0;
     // Confirmed -> new status. false if not Confirmed/not found.
     virtual bool update_status(long long id, const std::string& status) = 0;
-    // Atomic move of a Confirmed appointment. Ok / SlotTaken / (false-like) via status.
+    // Atomic move of a Confirmed appointment.
     virtual SaveStatus reschedule(long long id, const std::string& new_slot) = 0;
-    };
+    virtual std::vector<Appointment> appointments_for_doctor_on(
+        long long doctor_id,
+        const std::string& date) const = 0;
+    virtual std::string doctor_id_for_user(
+        const std::string& user_id) const = 0;
+};
 
 class InMemoryAppointmentRepository : public AppointmentRepository {
 public:
@@ -51,7 +56,7 @@ public:
     std::vector<std::string> booked_times(long long doctor_id,
                                           const std::string& date) const override;
     SaveResult insert(const Appointment& a) override;
-        bool find_by_id(long long id, Appointment& out) const override;
+    bool find_by_id(long long id, Appointment& out) const override;
 
     bool update_status(
         long long id,
@@ -61,8 +66,24 @@ public:
         long long id,
         const std::string& new_slot) override;
 
+    std::vector<Appointment> appointments_for_doctor_on(
+        long long doctor_id,
+        const std::string& date) const override;
+
+    std::string doctor_id_for_user(
+        const std::string& user_id) const override;
+
+    // Helpers for unit tests.
+    void add_doctor(long long doctor_id,
+                    const std::string& user_id,
+                    const std::string& working_hours);
+
+    void set_status(long long appointment_id,
+                    const std::string& status);
+
 private:
     std::map<long long, std::string> doctors_;
+    std::map<std::string, long long> doctor_users_;
     std::set<std::string> patients_;
     std::vector<Appointment> items_;
     long long next_id_ = 1;
@@ -85,6 +106,9 @@ public:
         long long doctor_id, const std::string& date) const override;
 
     SaveResult insert(const Appointment& appointment) override;
+    std::vector<Appointment> appointments_for_doctor_on(
+    long long doctor_id,
+    const std::string& date) const override;
 
     bool find_by_id(long long id, Appointment& out) const override;
 
@@ -103,7 +127,7 @@ public:
     std::vector<reports::DailyReportRow> daily_report(
         const std::string& start_date,
         const std::string& end_date) const override;
-    std::string doctor_id_for_user(const std::string& user_id) const;
+    std::string doctor_id_for_user(const std::string& user_id) const override;
 
 
 private:
@@ -120,6 +144,14 @@ struct BookingResult {
     std::vector<std::string> suggested_slots;  // used by main's code and tests
 };
 
+struct ScheduleResult {
+    bool ok = false;
+    int http_status = 0;
+    std::string code;
+    std::string message;
+    std::string field;
+    std::vector<Appointment> appointments;
+};
 
 // 0 = Sunday ... 6 = Saturday. Date must be "YYYY-MM-DD".
 int weekday_of(const std::string& date);
@@ -162,5 +194,16 @@ std::string booking_error_to_json(
 std::string slots_to_json(const std::vector<std::string>& slots);
 std::string appointment_to_json(const Appointment& a);
 bool is_valid_calendar_date(const std::string& date);
+ScheduleResult doctor_schedule(
+    const AppointmentRepository& repo,
+    const std::string& user_id,
+    const std::string& date);
+
+std::string schedule_to_json(
+    const std::vector<Appointment>& appointments);
+
+std::string schedule_error_to_json(
+    const ScheduleResult& result,
+    const std::string& request_id);
 
 }  // namespace hms

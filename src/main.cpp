@@ -1,6 +1,7 @@
 #include "api/api.h"
 #include "appointments/appointments.h"
 #include "clinical/clinical_service.h"
+#include "health/health_service.h"
 #include "services/auth_service.h"
 #include "services/rbac_service.h"
 #include "patients/patient_service.h"
@@ -75,6 +76,7 @@ std::string status_text(int status)
     case 423: return "Locked";
     case 500: return "Internal Server Error";
     case 501: return "Not Implemented";
+    case 503: return "Service Unavailable";
     default:  return "Error";
     }
 }
@@ -617,7 +619,8 @@ std::optional<hms::Permission> permission_for_request(
         return hms::Permission::RescheduleCancelAppointment;
     }
     if (method == "GET" &&
-        path == "/api/v1/doctors/me/appointments") {
+        (path == "/api/v1/doctors/me/appointments" ||
+        path == "/api/v1/doctors/me/schedule")) {
         return hms::Permission::ViewOwnSchedule;
     }
     if (method == "POST" && path == "/api/v1/visits") {
@@ -649,6 +652,7 @@ std::optional<hms::Permission> permission_for_request(
 
 void handle_client(TlsConnection& client,
                    hms::AuthService& auth_service,
+                   hms::PostgresAuthRepository& auth_repository,
                    hms::patients::PatientService& patient_service,
                    hms::PostgresAppointmentRepository& appointment_repository,
                    hms::clinical::ClinicalService& clinical_service)
@@ -857,8 +861,18 @@ void handle_client(TlsConnection& client,
         return;
     }
 
-    if (method == "GET" && path == "/api/v1/health") {
-        send_response(client, 200, "{\"status\":\"ok\"}");
+    if (path == "/api/v1/health" || path == "/api/v1/health/live") {
+        if (method != "GET") {
+            send_error(client, 405, "METHOD_NOT_ALLOWED",
+                       "The HTTP method is not supported for this resource.",
+                       request_id);
+            return;
+        }
+        const auto response = path == "/api/v1/health/live"
+            ? hms::health::liveness_response()
+            : hms::health::readiness_response(
+                  auth_repository.health_check());
+        send_response(client, response.http_status, response.body);
         return;
     }
 
@@ -1246,7 +1260,62 @@ void handle_client(TlsConnection& client,
                 "{\"patient\":" + json_patient(result.patient) + "}");
             return;
         }
+        if (method == "GET" &&
+            path == "/api/v1/doctors/me/schedule") {
 
+            std::string date;
+
+            if (!read_query_parameter(query_string, "date", date)) {
+                const hms::ApiError error{
+                    400,
+                    "VALIDATION_FAILED",
+                    "date is required in YYYY-MM-DD format.",
+                    request_id,
+                    "date"
+                };
+
+                send_response(
+                    client,
+                    400,
+                    hms::make_error_json(error));
+                return;
+            }
+
+            const auto result = hms::doctor_schedule(
+                appointment_repository,
+                principal.user_id,
+                date);
+
+            if (!result.ok) {
+                const hms::ApiError error{
+                    result.http_status,
+                    result.code,
+                    result.message,
+                    request_id,
+                    result.field
+                };
+
+                send_response(
+                    client,
+                    result.http_status,
+                    hms::make_error_json(error));
+                return;
+            }
+
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "VIEW_OWN_SCHEDULE",
+                date,
+                client.source_ip
+            });
+
+            send_response(
+                client,
+                200,
+                hms::schedule_to_json(result.appointments));
+            return;
+        }
         if (method == "GET" &&
             path == "/api/v1/appointments/free-slots") {
             std::string doctor_text;
@@ -1911,7 +1980,8 @@ int main()
 
         // Ensure the TLS session and socket close after each request.
         try {
-            handle_client(connection, auth_service, *patient_service,
+            handle_client(connection, auth_service, *auth_repository,
+                          *patient_service,
                           *appointment_repository, *clinical_service);
         } catch (const std::exception& e) {
             std::cerr << "Request handler exception: "
