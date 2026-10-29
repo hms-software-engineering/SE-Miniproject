@@ -1,8 +1,7 @@
 #include "clinical/clinical_service.h"
 #include "appointments/appointments.h"
+#include "test_date_utils.h"
 
-#include <chrono>
-#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
@@ -22,16 +21,7 @@ namespace {
 
 std::string integration_test_date()
 {
-    using namespace std::chrono;
-    const auto half_hour =
-        duration_cast<minutes>(system_clock::now().time_since_epoch()).count() /
-        30;
-    const sys_days base = year{2000}/January/1;
-    const year_month_day date = base + days{half_hour % 10000};
-    char text[11];
-    std::snprintf(text, sizeof(text), "%04d-%02u-%02u",
-                  int(date.year()), unsigned(date.month()), unsigned(date.day()));
-    return text;
+    return test_support::integration_test_date();
 }
 
 void test_postgres_repository_when_enabled()

@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-latest]
+        os: [ubuntu-22.04, windows-2022]
 
     steps:
       - name: Checkout repository
@@ -21,31 +21,42 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev
+          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev qt6-base-dev libgl1-mesa-dev libxkbcommon-dev
 
-      - name: Install dependencies (Windows)
+      - name: Install Qt for MSVC 2022 (Windows)
         if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
+        uses: jurplel/install-qt-action@v4
         with:
-          msystem: UCRT64
-          update: true
-          install: >-
-            mingw-w64-ucrt-x86_64-gcc
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-make
-            mingw-w64-ucrt-x86_64-openssl
-            mingw-w64-ucrt-x86_64-argon2
-            mingw-w64-ucrt-x86_64-postgresql
+          version: '6.8.3'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          install-deps: true
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: |
+          g++ --version
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
-        shell: msys2 {0}
-        run: cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$MSYSTEM_PREFIX"
-        
+        shell: pwsh
+        run: >-
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVCPKG_TARGET_TRIPLET=x64-windows
+
+      - name: Build the Qt client (Linux)
+        if: runner.os == 'Linux'
+        run: cmake --build build --config Release --target hms_client --parallel 4
+
+      - name: Build the Qt client (Windows)
+        if: runner.os == 'Windows'
+        run: cmake --build build --config Release --target hms_client --parallel 4
+
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: cmake --build build --config Release --parallel 4
@@ -61,8 +72,39 @@ jobs:
 
       - name: Run tests (Windows)
         if: runner.os == 'Windows'
-        shell: msys2 {0}
         run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Smoke test Qt client startup (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          QT_QPA_PLATFORM=offscreen ./build/hms_client > /tmp/hms-client-smoke.log 2>&1 &
+          client_pid=$!
+          sleep 3
+          client_state=$(ps -o stat= -p "$client_pid" 2>/dev/null || true)
+          if ! kill -0 "$client_pid" 2>/dev/null || [[ "$client_state" == Z* ]]; then
+            cat /tmp/hms-client-smoke.log
+            wait "$client_pid"
+            echo "hms_client exited during startup smoke test"
+            exit 1
+          fi
+          kill "$client_pid"
+          wait "$client_pid" || test "$?" -eq 143
+
+      - name: Smoke test Qt client startup (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          $stdout = Join-Path $env:RUNNER_TEMP 'hms-client-smoke.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'hms-client-smoke.stderr.log'
+          $client = Start-Process -FilePath (Join-Path $PWD 'build\Release\hms_client.exe') -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          Start-Sleep -Seconds 3
+          if ($client.HasExited) {
+            Get-Content $stdout, $stderr -ErrorAction SilentlyContinue
+            throw "hms_client exited during startup smoke test with code $($client.ExitCode)"
+          }
+          Stop-Process -Id $client.Id
+          Wait-Process -Id $client.Id -ErrorAction SilentlyContinue
 
   coverage:
     name: Per-service coverage (Ubuntu)
@@ -105,7 +147,7 @@ jobs:
       - name: Install Linux coverage dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev lcov postgresql-client
+          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev lcov postgresql-client qt6-base-dev libgl1-mesa-dev libxkbcommon-dev
 
       - name: Configure GCC coverage build
         run: cmake -S . -B build-coverage -DCMAKE_BUILD_TYPE=Debug -DHMS_ENABLE_COVERAGE=ON
