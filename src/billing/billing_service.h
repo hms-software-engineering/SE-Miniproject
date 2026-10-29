@@ -40,6 +40,30 @@ struct CreateBillResult {
     Bill bill;
 };
 
+struct Payment {
+    long long id = 0;
+    long long bill_id = 0;
+    std::int64_t amount_cents = 0;
+    std::int64_t remaining_cents = 0;
+    std::string mode;
+    std::string receipt_no;
+    std::string bill_status;
+};
+
+enum class RecordPaymentStatus {
+    Recorded,
+    InvalidRequest,
+    BillMissing,
+    Overpayment,
+    BillCancelled,
+    AlreadyPaid
+};
+
+struct RecordPaymentResult {
+    RecordPaymentStatus status = RecordPaymentStatus::InvalidRequest;
+    Payment payment;
+};
+
 class BillRepository {
 public:
     virtual ~BillRepository() = default;
@@ -52,7 +76,17 @@ public:
         std::int64_t total_cents) = 0;
 };
 
-class PostgresBillingRepository final : public BillRepository {
+class PaymentRepository {
+public:
+    virtual ~PaymentRepository() = default;
+    virtual RecordPaymentResult persist_payment(
+        long long bill_id,
+        std::int64_t amount_cents,
+        const std::string& mode) = 0;
+};
+
+class PostgresBillingRepository final : public BillRepository,
+                                        public PaymentRepository {
 public:
     explicit PostgresBillingRepository(const char* connection_info = nullptr);
     ~PostgresBillingRepository() override;
@@ -68,6 +102,10 @@ public:
         std::int64_t tax_rate_basis_points,
         std::int64_t tax_cents,
         std::int64_t total_cents) override;
+    RecordPaymentResult persist_payment(
+        long long bill_id,
+        std::int64_t amount_cents,
+        const std::string& mode) override;
 
 private:
     struct Connection;
@@ -79,8 +117,14 @@ CreateBillResult create_itemized_bill(
     long long visit_id,
     const std::vector<BillItemInput>& items,
     const std::string& tax_rate_percent);
+RecordPaymentResult record_payment(
+    PaymentRepository& repository,
+    long long bill_id,
+    const std::string& amount,
+    const std::string& mode);
 
 std::string format_money(std::int64_t amount_cents);
 std::string bill_to_json(const Bill& bill);
+std::string payment_to_json(const Payment& payment);
 
 }  // namespace hms::billing
