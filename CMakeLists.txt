@@ -245,7 +245,7 @@ if(HMS_ENABLE_COVERAGE)
     endforeach()
     foreach(coverage_executable IN ITEMS
             auth_service_test health_test password_security_test
-            appointments_test clinical_service_test report_service_test
+            appointments_test doctor_schedule_test clinical_service_test report_service_test
             patient_service_test hms_server)
         if(TARGET "${coverage_executable}")
             target_link_options("${coverage_executable}" PRIVATE --coverage)
