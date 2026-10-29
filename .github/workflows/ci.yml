@@ -104,7 +104,7 @@ jobs:
       - name: Install Linux coverage dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev lcov postgresql-client-18
+          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev lcov postgresql-client
 
       - name: Configure GCC coverage build
         run: cmake -S . -B build-coverage -DCMAKE_BUILD_TYPE=Debug -DHMS_ENABLE_COVERAGE=ON
@@ -118,6 +118,21 @@ jobs:
             psql -v ON_ERROR_STOP=1 -f "$migration"
           done
           createdb "$HMS_BACKUP_TEST_RESTORE_DATABASE"
+          client_bin="$RUNNER_TEMP/postgres-15-client-bin"
+          mkdir -p "$client_bin"
+          for tool in pg_dump pg_restore psql; do
+            cat > "$client_bin/$tool" <<EOF
+          #!/usr/bin/env bash
+          exec docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" \
+            -v /tmp:/tmp \
+            -w "$GITHUB_WORKSPACE" \
+            -e PGHOST -e PGPORT -e PGDATABASE -e PGUSER -e PGPASSWORD \
+            postgres:15 $tool "\$@"
+          EOF
+            chmod +x "$client_bin/$tool"
+          done
+          echo "$client_bin" >> "$GITHUB_PATH"
 
       - name: Validate coverage threshold checker
         run: python3 scripts/test_check_service_coverage.py
