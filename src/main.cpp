@@ -1,6 +1,7 @@
 #include "api/api.h"
 #include "appointments/appointments.h"
 #include "clinical/clinical_service.h"
+#include "health/health_service.h"
 #include "services/auth_service.h"
 #include "services/rbac_service.h"
 #include "patients/patient_service.h"
@@ -75,6 +76,7 @@ std::string status_text(int status)
     case 423: return "Locked";
     case 500: return "Internal Server Error";
     case 501: return "Not Implemented";
+    case 503: return "Service Unavailable";
     default:  return "Error";
     }
 }
@@ -650,6 +652,7 @@ std::optional<hms::Permission> permission_for_request(
 
 void handle_client(TlsConnection& client,
                    hms::AuthService& auth_service,
+                   hms::PostgresAuthRepository& auth_repository,
                    hms::patients::PatientService& patient_service,
                    hms::PostgresAppointmentRepository& appointment_repository,
                    hms::clinical::ClinicalService& clinical_service)
@@ -858,8 +861,18 @@ void handle_client(TlsConnection& client,
         return;
     }
 
-    if (method == "GET" && path == "/api/v1/health") {
-        send_response(client, 200, "{\"status\":\"ok\"}");
+    if (path == "/api/v1/health" || path == "/api/v1/health/live") {
+        if (method != "GET") {
+            send_error(client, 405, "METHOD_NOT_ALLOWED",
+                       "The HTTP method is not supported for this resource.",
+                       request_id);
+            return;
+        }
+        const auto response = path == "/api/v1/health/live"
+            ? hms::health::liveness_response()
+            : hms::health::readiness_response(
+                  auth_repository.health_check());
+        send_response(client, response.http_status, response.body);
         return;
     }
 
@@ -1898,7 +1911,8 @@ int main()
 
         // Ensure the TLS session and socket close after each request.
         try {
-            handle_client(connection, auth_service, *patient_service,
+            handle_client(connection, auth_service, *auth_repository,
+                          *patient_service,
                           *appointment_repository, *clinical_service);
         } catch (const std::exception& e) {
             std::cerr << "Request handler exception: "
