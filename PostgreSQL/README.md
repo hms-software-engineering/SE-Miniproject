@@ -175,6 +175,14 @@ two decimal places (for example, `18.00`) before starting the server. The bill
 response includes each item, subtotal, applied tax rate, rounded tax, total,
 and initial `Unpaid` status. Each visit can have at most one bill.
 
+Billing Officers and Administrators can record a payment with
+`POST /api/v1/payments` and string JSON fields `billId`, `amount`, and `mode`.
+Amounts must be positive with at most two decimal places; supported modes are
+`Cash`, `Card`, and `UPI`. Payments may be partial, update the bill to
+`Partially Paid` or `Paid`, and include a unique receipt number. The bill is
+locked during payment recording so concurrent payments cannot overpay it;
+overpayments and payments to cancelled or already-paid bills return HTTP 409.
+
 ## Run the API and desktop client over TLS
 
 The API listens only on `127.0.0.1:8443` and requires HTTPS with TLS 1.2 or

@@ -404,6 +404,116 @@ CreateBillResult PostgresBillingRepository::persist_bill(
     }
 }
 
+RecordPaymentResult PostgresBillingRepository::persist_payment(
+    long long bill_id, std::int64_t amount_cents, const std::string& mode)
+{
+    execute_command(connection_->value, "BEGIN",
+                    "Could not begin payment transaction");
+    try {
+        const std::vector<std::string> bill_values{std::to_string(bill_id)};
+        PGresult* bill_raw = execute(
+            connection_->value,
+            "SELECT total::text, status FROM bills "
+            "WHERE bill_id = $1::bigint FOR UPDATE",
+            bill_values);
+        require_pg_status(connection_->value, bill_raw, PGRES_TUPLES_OK,
+                          "Could not load bill for payment");
+        PgResult bill_result(bill_raw);
+        if (pg_tuples(bill_result.get()) == 0) {
+            execute_command(connection_->value, "ROLLBACK",
+                            "Could not roll back payment transaction");
+            return {RecordPaymentStatus::BillMissing, {}};
+        }
+
+        std::int64_t total_cents = 0;
+        if (!parse_money(pg_value(bill_result.get(), 0, 0), total_cents)) {
+            throw std::runtime_error(
+                "The stored bill total is not a valid monetary amount.");
+        }
+        const std::string bill_status =
+            pg_value(bill_result.get(), 0, 1);
+        if (bill_status == "Cancelled") {
+            execute_command(connection_->value, "ROLLBACK",
+                            "Could not roll back payment transaction");
+            return {RecordPaymentStatus::BillCancelled, {}};
+        }
+        if (bill_status == "Paid") {
+            execute_command(connection_->value, "ROLLBACK",
+                            "Could not roll back payment transaction");
+            return {RecordPaymentStatus::AlreadyPaid, {}};
+        }
+
+        PGresult* paid_raw = execute(
+            connection_->value,
+            "SELECT coalesce(sum(amount), 0)::numeric(12,2)::text "
+            "FROM payments WHERE bill_id = $1::bigint",
+            bill_values);
+        require_pg_status(connection_->value, paid_raw, PGRES_TUPLES_OK,
+                          "Could not calculate paid amount");
+        PgResult paid_result(paid_raw);
+        std::int64_t paid_cents = 0;
+        if (!parse_money(pg_value(paid_result.get(), 0, 0), paid_cents)) {
+            throw std::runtime_error(
+                "The stored payments are not a valid monetary amount.");
+        }
+        if (paid_cents >= total_cents) {
+            execute_command(connection_->value, "ROLLBACK",
+                            "Could not roll back payment transaction");
+            return {RecordPaymentStatus::AlreadyPaid, {}};
+        }
+        const std::int64_t remaining_cents = total_cents - paid_cents;
+        if (amount_cents > remaining_cents) {
+            execute_command(connection_->value, "ROLLBACK",
+                            "Could not roll back payment transaction");
+            return {RecordPaymentStatus::Overpayment, {}};
+        }
+
+        const std::vector<std::string> payment_values{
+            std::to_string(bill_id), format_money(amount_cents), mode};
+        PGresult* payment_raw = execute(
+            connection_->value,
+            "WITH next_payment AS ("
+            "  SELECT nextval(pg_get_serial_sequence("
+            "    'payments', 'payment_id')::regclass) AS payment_id"
+            ")"
+            " INSERT INTO payments "
+            "(payment_id, bill_id, amount, mode, receipt_no)"
+            " SELECT payment_id, $1::bigint, $2::numeric, $3,"
+            "   'HMS-' || lpad(payment_id::text, 12, '0')"
+            " FROM next_payment"
+            " RETURNING payment_id::text, receipt_no",
+            payment_values);
+        require_pg_status(connection_->value, payment_raw, PGRES_TUPLES_OK,
+                          "Could not record payment");
+        PgResult payment_result(payment_raw);
+        const long long payment_id =
+            std::stoll(pg_value(payment_result.get(), 0, 0));
+        const std::string receipt_no =
+            pg_value(payment_result.get(), 0, 1);
+        const std::int64_t new_remaining = remaining_cents - amount_cents;
+        const std::string new_status =
+            new_remaining == 0 ? "Paid" : "Partially Paid";
+        const std::vector<std::string> status_values{
+            std::to_string(bill_id), new_status};
+        PGresult* update_raw = execute(
+            connection_->value,
+            "UPDATE bills SET status = $2 WHERE bill_id = $1::bigint",
+            status_values);
+        require_pg_status(connection_->value, update_raw, PGRES_COMMAND_OK,
+                          "Could not update bill payment status");
+        PgResult update_result(update_raw);
+        execute_command(connection_->value, "COMMIT",
+                        "Could not commit payment transaction");
+        return {RecordPaymentStatus::Recorded,
+                {payment_id, bill_id, amount_cents, new_remaining, mode,
+                 receipt_no, new_status}};
+    } catch (...) {
+        execute_command(connection_->value, "ROLLBACK",
+                        "Could not roll back payment transaction");
+        throw;
+    }
+}
+
 CreateBillResult create_itemized_bill(
     BillRepository& repository,
     long long visit_id,
@@ -439,6 +549,21 @@ CreateBillResult create_itemized_bill(
         visit_id, items, subtotal, tax_basis_points, tax, subtotal + tax);
 }
 
+RecordPaymentResult record_payment(
+    PaymentRepository& repository,
+    long long bill_id,
+    const std::string& amount,
+    const std::string& mode)
+{
+    std::int64_t amount_cents = 0;
+    if (bill_id <= 0 ||
+        (mode != "Cash" && mode != "Card" && mode != "UPI") ||
+        !parse_money(amount, amount_cents) || amount_cents <= 0) {
+        return {RecordPaymentStatus::InvalidRequest, {}};
+    }
+    return repository.persist_payment(bill_id, amount_cents, mode);
+}
+
 std::string format_money(std::int64_t amount_cents)
 {
     const auto dollars = amount_cents / 100;
@@ -466,6 +591,18 @@ std::string bill_to_json(const Bill& bill)
         ",\"total\":" + json_string(format_money(bill.total_cents)) +
         ",\"status\":" + json_string(bill.status) + "}";
     return json;
+}
+
+std::string payment_to_json(const Payment& payment)
+{
+    return "{\"paymentId\":" + std::to_string(payment.id) +
+        ",\"billId\":" + std::to_string(payment.bill_id) +
+        ",\"amount\":" + json_string(format_money(payment.amount_cents)) +
+        ",\"mode\":" + json_string(payment.mode) +
+        ",\"receiptNo\":" + json_string(payment.receipt_no) +
+        ",\"remainingBalance\":" +
+        json_string(format_money(payment.remaining_cents)) +
+        ",\"billStatus\":" + json_string(payment.bill_status) + "}";
 }
 
 }  // namespace hms::billing

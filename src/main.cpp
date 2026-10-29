@@ -1233,6 +1233,79 @@ void handle_client(TlsConnection& client,
             return;
         }
 
+        if (method == "POST" && path == "/api/v1/payments") {
+            if (!is_json_content_type(content_type)) {
+                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                           "Content-Type must be application/json.",
+                           request_id);
+                return;
+            }
+            const std::size_t body_start = header_end + 4;
+            std::map<std::string, std::string> fields;
+            long long bill_id = 0;
+            if (!has_content_length ||
+                raw.size() < body_start + content_length ||
+                !parse_json_body(raw.substr(body_start, content_length), fields) ||
+                fields.size() != 3 ||
+                fields.find("billId") == fields.end() ||
+                fields.find("amount") == fields.end() ||
+                fields.find("mode") == fields.end() ||
+                !parse_positive_id(fields.at("billId"), bill_id)) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide string billId, amount, and mode fields.",
+                           request_id);
+                return;
+            }
+            const auto result = hms::billing::record_payment(
+                billing_repository, bill_id, fields.at("amount"),
+                fields.at("mode"));
+            if (result.status ==
+                hms::billing::RecordPaymentStatus::InvalidRequest) {
+                send_error(client, 400, "INVALID_PAYMENT",
+                           "Provide a positive amount to two decimal places "
+                           "and mode Cash, Card, or UPI.",
+                           request_id);
+                return;
+            }
+            if (result.status ==
+                hms::billing::RecordPaymentStatus::BillMissing) {
+                send_error(client, 404, "BILL_NOT_FOUND",
+                           "Bill was not found.", request_id);
+                return;
+            }
+            if (result.status ==
+                hms::billing::RecordPaymentStatus::Overpayment) {
+                send_error(client, 409, "OVERPAYMENT",
+                           "Payment exceeds the bill's remaining balance.",
+                           request_id);
+                return;
+            }
+            if (result.status ==
+                hms::billing::RecordPaymentStatus::BillCancelled) {
+                send_error(client, 409, "BILL_CANCELLED",
+                           "Payments cannot be recorded for a cancelled bill.",
+                           request_id);
+                return;
+            }
+            if (result.status ==
+                hms::billing::RecordPaymentStatus::AlreadyPaid) {
+                send_error(client, 409, "BILL_ALREADY_PAID",
+                           "The bill has already been paid.", request_id);
+                return;
+            }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "RECORD_PAYMENT", std::to_string(result.payment.id),
+                client.source_ip
+            });
+            send_response(client, 201,
+                          "{\"payment\":" +
+                              hms::billing::payment_to_json(result.payment) +
+                              "}");
+            return;
+        }
+
         if (method == "GET" && path == "/api/v1/reports") {
             std::string start_date;
             std::string end_date;

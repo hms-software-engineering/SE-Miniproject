@@ -160,6 +160,33 @@ public:
     }
 };
 
+class FakePaymentRepository final : public hms::billing::PaymentRepository {
+public:
+    hms::billing::RecordPaymentResult persist_payment(
+        long long bill_id,
+        std::int64_t amount_cents,
+        const std::string& mode) override
+    {
+        constexpr std::int64_t total_cents = 14809;
+        if (bill_id != 1) {
+            return {hms::billing::RecordPaymentStatus::BillMissing, {}};
+        }
+        if (amount_cents > total_cents - paid_cents) {
+            return {hms::billing::RecordPaymentStatus::Overpayment, {}};
+        }
+        paid_cents += amount_cents;
+        const std::int64_t remaining = total_cents - paid_cents;
+        const std::string status = remaining == 0
+            ? "Paid" : "Partially Paid";
+        return {hms::billing::RecordPaymentStatus::Recorded,
+                {next_id++, bill_id, amount_cents, remaining, mode,
+                 "HMS-000000000001", status}};
+    }
+
+    std::int64_t paid_cents = 0;
+    long long next_id = 1;
+};
+
 }  // namespace
 
 int main()
@@ -222,6 +249,32 @@ int main()
           hms::billing::CreateBillStatus::InvalidRequest);
 
     test_postgres_repository_when_enabled();
+
+    FakePaymentRepository payments;
+    const auto first_payment =
+        hms::billing::record_payment(payments, 1, "100.00", "Cash");
+    CHECK(first_payment.status ==
+          hms::billing::RecordPaymentStatus::Recorded);
+    CHECK(first_payment.payment.amount_cents == 10000);
+    CHECK(first_payment.payment.remaining_cents == 4809);
+    CHECK(first_payment.payment.bill_status == "Partially Paid");
+    CHECK(hms::billing::payment_to_json(first_payment.payment).find(
+              "\"receiptNo\":\"HMS-000000000001\"") != std::string::npos);
+    CHECK(hms::billing::record_payment(
+              payments, 1, "48.10", "UPI").status ==
+          hms::billing::RecordPaymentStatus::Overpayment);
+    const auto final_payment =
+        hms::billing::record_payment(payments, 1, "48.09", "Card");
+    CHECK(final_payment.status ==
+          hms::billing::RecordPaymentStatus::Recorded);
+    CHECK(final_payment.payment.remaining_cents == 0);
+    CHECK(final_payment.payment.bill_status == "Paid");
+    CHECK(hms::billing::record_payment(
+              payments, 1, "0.00", "Cash").status ==
+          hms::billing::RecordPaymentStatus::InvalidRequest);
+    CHECK(hms::billing::record_payment(
+              payments, 1, "1.00", "Bank Transfer").status ==
+          hms::billing::RecordPaymentStatus::InvalidRequest);
 
     std::cout << "All billing service tests passed.\n";
     return 0;
