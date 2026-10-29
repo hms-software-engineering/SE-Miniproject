@@ -566,7 +566,7 @@ void test_postgres_authentication_when_enabled()
         second_status = second_service.deactivate_user(
             hms::SessionPrincipal{second_admin_login.user_id,
                                   hms::Role::Administrator},
-            first_admin.user_id, "127.0.0.1");
+            admin.user_id, "127.0.0.1");
     });
     first_request.join();
     second_request.join();
