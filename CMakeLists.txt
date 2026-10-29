@@ -58,6 +58,7 @@ endif()
 # ---- API ----
 add_library(hms_api
     src/api.cpp
+    src/api/audit_log_handler.cpp
     src/api/user_management_handler.cpp
 )
 target_include_directories(hms_api PUBLIC

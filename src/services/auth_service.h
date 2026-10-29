@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace hms {
 
@@ -22,13 +24,101 @@ struct SessionPrincipal {
     Role role = Role::Patient;
 };
 
-struct AuditEvent {
-    std::string user_id;
-    std::string role;
-    std::string action;
-    std::string record_id;
+enum class AuditRole {
+    Unknown,
+    Patient,
+    Receptionist,
+    Doctor,
+    BillingOfficer,
+    Administrator
+};
+
+enum class AuditAction {
+    CreateUser,
+    LoginFailed,
+    Login,
+    Logout,
+    ViewAccount,
+    ViewAuditLog,
+    GenerateDailyReport,
+    ViewPatientHistory,
+    ViewPatient,
+    CreatePatientProfile,
+    ViewOwnSchedule,
+    ViewFreeSlots,
+    CreateAppointment,
+    CancelAppointment,
+    RescheduleAppointment,
+    CreateVisit,
+    CreatePrescription,
+    CreatePatient,
+    UpdatePatient,
+    DeactivateUser
+};
+
+class AuditRecordId {
+public:
+    static std::optional<AuditRecordId> parse(const std::string& value);
+    const std::string& value() const noexcept { return value_; }
+
+private:
+    explicit AuditRecordId(std::string value) : value_(std::move(value)) {}
+    std::string value_;
+};
+
+class AuditEvent {
+public:
+    AuditEvent(const std::string& user_id,
+               const std::string& role,
+               const std::string& action,
+               const std::string& record_id,
+               const std::string& source_ip);
+
+    const std::optional<std::uint64_t>& user_id() const noexcept { return user_id_; }
+    AuditRole role() const noexcept { return role_; }
+    AuditAction action() const noexcept { return action_; }
+    const std::optional<AuditRecordId>& record_id() const noexcept { return record_id_; }
+    const std::string& source_ip() const noexcept { return source_ip_; }
+
+private:
+    std::optional<std::uint64_t> user_id_;
+    AuditRole role_ = AuditRole::Unknown;
+    AuditAction action_ = AuditAction::Login;
+    std::optional<AuditRecordId> record_id_;
+    std::string source_ip_;
+};
+
+struct AuditRecord {
+    std::optional<std::uint64_t> user_id;
+    AuditRole role = AuditRole::Unknown;
+    AuditAction action = AuditAction::Login;
+    std::optional<AuditRecordId> record_id;
+    std::string timestamp;
     std::string source_ip;
 };
+
+enum class AuditReadStatus {
+    Success,
+    AuthenticationRequired,
+    AccessDenied
+};
+
+struct AuditReadResult {
+    AuditReadStatus status = AuditReadStatus::AuthenticationRequired;
+    std::vector<AuditRecord> records;
+};
+
+AuditRole audit_role(Role role) noexcept;
+const char* audit_role_name(AuditRole role) noexcept;
+const char* audit_action_name(AuditAction action) noexcept;
+std::optional<AuditRole> parse_audit_role(const std::string& value);
+std::optional<AuditAction> parse_audit_action(const std::string& value);
+std::optional<std::uint64_t> parse_audit_user_id(const std::string& value);
+AuditEvent make_audit_event(const std::string& user_id,
+                            AuditRole role,
+                            AuditAction action,
+                            const std::string& record_id,
+                            const std::string& source_ip);
 
 enum class CreateUserStatus {
     Created,
@@ -67,6 +157,12 @@ public:
         const std::string& token_hash) const = 0;
     virtual void delete_session(const std::string& token_hash) = 0;
     virtual void record_audit_event(const AuditEvent& event) = 0;
+
+private:
+    friend class AuthService;
+    virtual std::vector<AuditRecord> read_audit_events(
+        std::optional<AuditAction> action,
+        std::optional<AuditRecordId> record_id) const = 0;
 };
 
 struct AuthResult {
@@ -97,6 +193,10 @@ public:
         const std::string& token) const;
     void logout(const std::string& token);
     void record_audit_event(const AuditEvent& event);
+    AuditReadResult read_audit_events(
+        const std::string& token,
+        std::optional<AuditAction> action = std::nullopt,
+        std::optional<AuditRecordId> record_id = std::nullopt) const;
 
 private:
     AuthRepository& repository_;
@@ -133,6 +233,9 @@ public:
     bool health_check() const noexcept;
 
 private:
+    std::vector<AuditRecord> read_audit_events(
+        std::optional<AuditAction> action,
+        std::optional<AuditRecordId> record_id) const override;
     struct Connection;
     Connection* connection_;
 };

@@ -28,7 +28,9 @@ constexpr int PG_DIAG_SQLSTATE = 'C';
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cctype>
+#include <cstddef>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -516,9 +518,14 @@ void rollback_transaction(PGconn* connection) noexcept
 
 void insert_audit_event(PGconn* connection, const AuditEvent& event)
 {
+    const std::string user_id = event.user_id()
+        ? std::to_string(*event.user_id()) : std::string();
+    const std::string record_id = event.record_id()
+        ? event.record_id()->value() : std::string();
     const char* values[] = {
-        event.user_id.c_str(), event.role.c_str(), event.action.c_str(),
-        event.record_id.c_str(), event.source_ip.c_str()
+        user_id.c_str(), audit_role_name(event.role()),
+        audit_action_name(event.action()), record_id.c_str(),
+        event.source_ip().c_str()
     };
     PGresult* raw = pg_exec_params(
         connection,
@@ -532,6 +539,170 @@ void insert_audit_event(PGconn* connection, const AuditEvent& event)
 }
 
 } // namespace
+
+std::optional<AuditRecordId> AuditRecordId::parse(const std::string& value)
+{
+    const auto digits = [](const std::string& text, std::size_t start) {
+        return std::all_of(text.begin() + static_cast<std::ptrdiff_t>(start),
+                           text.end(), [](unsigned char ch) {
+                               return ch >= '0' && ch <= '9';
+                           });
+    };
+    bool numeric = !value.empty() && value.size() <= 20 && digits(value, 0);
+    if (numeric) {
+        std::uint64_t parsed = 0;
+        const auto result = std::from_chars(
+            value.data(), value.data() + value.size(), parsed);
+        numeric = result.ec == std::errc{} &&
+                  result.ptr == value.data() + value.size() && parsed > 0 &&
+                  parsed <= static_cast<std::uint64_t>(
+                      std::numeric_limits<std::int64_t>::max());
+    }
+    const bool patient = value.size() == 12 && value.compare(0, 4, "PID-") == 0 &&
+                         digits(value, 4);
+    if (!numeric && !patient) return std::nullopt;
+    return AuditRecordId(value);
+}
+
+AuditRole audit_role(Role role) noexcept
+{
+    switch (role) {
+    case Role::Patient: return AuditRole::Patient;
+    case Role::Receptionist: return AuditRole::Receptionist;
+    case Role::Doctor: return AuditRole::Doctor;
+    case Role::BillingOfficer: return AuditRole::BillingOfficer;
+    case Role::Administrator: return AuditRole::Administrator;
+    }
+    return AuditRole::Unknown;
+}
+
+const char* audit_role_name(AuditRole role) noexcept
+{
+    switch (role) {
+    case AuditRole::Unknown: return "Unknown";
+    case AuditRole::Patient: return "Patient";
+    case AuditRole::Receptionist: return "Receptionist";
+    case AuditRole::Doctor: return "Doctor";
+    case AuditRole::BillingOfficer: return "Billing Officer";
+    case AuditRole::Administrator: return "Administrator";
+    }
+    return "Unknown";
+}
+
+const char* audit_action_name(AuditAction action) noexcept
+{
+    switch (action) {
+    case AuditAction::CreateUser: return "CREATE_USER";
+    case AuditAction::LoginFailed: return "LOGIN_FAILED";
+    case AuditAction::Login: return "LOGIN";
+    case AuditAction::Logout: return "LOGOUT";
+    case AuditAction::ViewAccount: return "VIEW_ACCOUNT";
+    case AuditAction::ViewAuditLog: return "VIEW_AUDIT_LOG";
+    case AuditAction::GenerateDailyReport: return "GENERATE_DAILY_REPORT";
+    case AuditAction::ViewPatientHistory: return "VIEW_PATIENT_HISTORY";
+    case AuditAction::ViewPatient: return "VIEW_PATIENT";
+    case AuditAction::CreatePatientProfile: return "CREATE_PATIENT_PROFILE";
+    case AuditAction::ViewOwnSchedule: return "VIEW_OWN_SCHEDULE";
+    case AuditAction::ViewFreeSlots: return "VIEW_FREE_SLOTS";
+    case AuditAction::CreateAppointment: return "CREATE_APPOINTMENT";
+    case AuditAction::CancelAppointment: return "CANCEL_APPOINTMENT";
+    case AuditAction::RescheduleAppointment: return "RESCHEDULE_APPOINTMENT";
+    case AuditAction::CreateVisit: return "CREATE_VISIT";
+    case AuditAction::CreatePrescription: return "CREATE_PRESCRIPTION";
+    case AuditAction::CreatePatient: return "CREATE_PATIENT";
+    case AuditAction::UpdatePatient: return "UPDATE_PATIENT";
+    case AuditAction::DeactivateUser: return "DEACTIVATE_USER";
+    }
+    return "";
+}
+
+std::optional<AuditRole> parse_audit_role(const std::string& value)
+{
+    for (AuditRole role : {AuditRole::Unknown, AuditRole::Patient,
+                           AuditRole::Receptionist, AuditRole::Doctor,
+                           AuditRole::BillingOfficer,
+                           AuditRole::Administrator}) {
+        if (value == audit_role_name(role)) return role;
+    }
+    return std::nullopt;
+}
+
+std::optional<AuditAction> parse_audit_action(const std::string& value)
+{
+    for (AuditAction action : {
+             AuditAction::CreateUser, AuditAction::LoginFailed,
+             AuditAction::Login, AuditAction::Logout, AuditAction::ViewAccount,
+             AuditAction::ViewAuditLog,
+             AuditAction::GenerateDailyReport, AuditAction::ViewPatientHistory,
+             AuditAction::ViewPatient, AuditAction::CreatePatientProfile,
+             AuditAction::ViewOwnSchedule, AuditAction::ViewFreeSlots,
+             AuditAction::CreateAppointment, AuditAction::CancelAppointment,
+             AuditAction::RescheduleAppointment, AuditAction::CreateVisit,
+             AuditAction::CreatePrescription, AuditAction::CreatePatient,
+             AuditAction::UpdatePatient, AuditAction::DeactivateUser}) {
+        if (value == audit_action_name(action)) return action;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::uint64_t> parse_audit_user_id(const std::string& value)
+{
+    if (value.empty() || value.size() > 20 ||
+        !std::all_of(value.begin(), value.end(), [](unsigned char ch) {
+            return ch >= '0' && ch <= '9';
+        })) return std::nullopt;
+    std::uint64_t parsed = 0;
+    const auto result = std::from_chars(value.data(), value.data() + value.size(), parsed);
+    if (result.ec != std::errc{} || result.ptr != value.data() + value.size() ||
+        parsed == 0 || parsed > static_cast<std::uint64_t>(
+            std::numeric_limits<std::int64_t>::max()))
+        return std::nullopt;
+    return parsed;
+}
+
+AuditEvent make_audit_event(const std::string& user_id,
+                            AuditRole role,
+                            AuditAction action,
+                            const std::string& record_id,
+                            const std::string& source_ip)
+{
+    return AuditEvent(user_id, audit_role_name(role), audit_action_name(action),
+                      record_id, source_ip);
+}
+
+AuditEvent::AuditEvent(const std::string& raw_user_id,
+                       const std::string& raw_role,
+                       const std::string& raw_action,
+                       const std::string& raw_record_id,
+                       const std::string& raw_source_ip)
+{
+    const auto role_value = parse_audit_role(raw_role);
+    const auto action_value = parse_audit_action(raw_action);
+    if (!role_value || !action_value)
+        throw std::invalid_argument("Unsupported audit metadata.");
+    const auto parsed_user = raw_user_id.empty()
+        ? std::optional<std::uint64_t>{}
+        : parse_audit_user_id(raw_user_id);
+    const auto parsed_record = raw_record_id.empty()
+        ? std::optional<AuditRecordId>{}
+        : AuditRecordId::parse(raw_record_id);
+    if ((!raw_user_id.empty() && !parsed_user) ||
+        (!raw_record_id.empty() && !parsed_record) ||
+        raw_source_ip.empty() || raw_source_ip.size() > 45 ||
+        !std::all_of(raw_source_ip.begin(), raw_source_ip.end(),
+            [](unsigned char ch) {
+                return (ch >= '0' && ch <= '9') ||
+                       (ch >= 'a' && ch <= 'f') ||
+                       (ch >= 'A' && ch <= 'F') || ch == '.' || ch == ':';
+            })) {
+        throw std::invalid_argument("Invalid audit metadata.");
+    }
+    user_id_ = parsed_user;
+    role_ = *role_value;
+    action_ = *action_value;
+    record_id_ = parsed_record;
+    source_ip_ = raw_source_ip;
+}
 
 AuthService::AuthService(AuthRepository& repository)
     : repository_(repository)
@@ -577,13 +748,9 @@ DeactivateUserStatus AuthService::deactivate_user(
     if (!is_permitted(actor.role, Permission::ManageUsers)) {
         return DeactivateUserStatus::ActorNotAuthorized;
     }
-    const AuditEvent audit_event{
-        actor.user_id,
-        std::string(role_name(actor.role)),
-        "DEACTIVATE_USER",
-        user_id,
-        source_ip
-    };
+    const AuditEvent audit_event = make_audit_event(
+        actor.user_id, audit_role(actor.role), AuditAction::DeactivateUser,
+        user_id, source_ip);
     return repository_.deactivate_user(actor.user_id, user_id, audit_event);
 }
 
@@ -649,6 +816,23 @@ void AuthService::logout(const std::string& token)
 void AuthService::record_audit_event(const AuditEvent& event)
 {
     repository_.record_audit_event(event);
+}
+
+AuditReadResult AuthService::read_audit_events(
+    const std::string& token,
+    std::optional<AuditAction> action,
+    std::optional<AuditRecordId> record_id) const
+{
+    const auto principal = authenticate_token(token);
+    if (!principal)
+        return {AuditReadStatus::AuthenticationRequired, {}};
+    std::string authorization_error;
+    if (!authorize(principal->role, Permission::ViewAuditLog,
+                   authorization_error))
+        return {AuditReadStatus::AccessDenied, {}};
+    return {AuditReadStatus::Success,
+            repository_.read_audit_events(std::move(action),
+                                          std::move(record_id))};
 }
 
 struct PostgresAuthRepository::Connection {
@@ -1012,6 +1196,51 @@ void PostgresAuthRepository::delete_session(const std::string& token_hash)
 void PostgresAuthRepository::record_audit_event(const AuditEvent& event)
 {
     insert_audit_event(connection_->value, event);
+}
+
+std::vector<AuditRecord> PostgresAuthRepository::read_audit_events(
+    std::optional<AuditAction> action,
+    std::optional<AuditRecordId> record_id) const
+{
+    const char* action_value = action ? audit_action_name(*action) : nullptr;
+    const char* record_value = record_id ? record_id->value().c_str() : nullptr;
+    const char* values[] = {action_value, record_value};
+    PGresult* raw = pg_exec_params(
+        connection_->value,
+        "SELECT COALESCE(user_id::text,''), role, action, "
+        "COALESCE(record_id,''), "
+        "to_char(\"timestamp\" AT TIME ZONE 'UTC', "
+        "'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), "
+        "COALESCE(host(source_ip),'') FROM audit_log "
+        "WHERE ($1::varchar IS NULL OR action = $1) "
+        "AND ($2::varchar IS NULL OR record_id = $2) "
+        "ORDER BY \"timestamp\" DESC, audit_id DESC",
+        2, nullptr, values, nullptr, nullptr, 0);
+    require_status(connection_->value, raw, PGRES_TUPLES_OK,
+                   "Could not read audit events");
+    Result result(raw);
+    std::vector<AuditRecord> records;
+    records.reserve(static_cast<std::size_t>(pg_tuples(result.get())));
+    for (int row = 0; row < pg_tuples(result.get()); ++row) {
+        const std::string user_text = pg_value(result.get(), row, 0);
+        const auto role = parse_audit_role(pg_value(result.get(), row, 1));
+        const auto parsed_action = parse_audit_action(pg_value(result.get(), row, 2));
+        const std::string record_text = pg_value(result.get(), row, 3);
+        const std::string source_ip = pg_value(result.get(), row, 5);
+        const auto user_id = user_text.empty()
+            ? std::optional<std::uint64_t>{}
+            : parse_audit_user_id(user_text);
+        const auto parsed_record = record_text.empty()
+            ? std::optional<AuditRecordId>{}
+            : AuditRecordId::parse(record_text);
+        if ((!user_text.empty() && !user_id) || !role || !parsed_action ||
+            (!record_text.empty() && !parsed_record)) {
+            throw std::runtime_error("Invalid audit record in database.");
+        }
+        records.push_back({user_id, *role, *parsed_action, parsed_record,
+                           pg_value(result.get(), row, 4), source_ip});
+    }
+    return records;
 }
 
 } // namespace hms
