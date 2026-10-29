@@ -63,4 +63,19 @@ std::string make_error_json(const ApiError& error) {
     return json;
 }
 
+std::optional<std::string> parse_bearer_token(
+    std::string_view authorization)
+{
+    constexpr std::string_view prefix = "Bearer ";
+    if (authorization.size() <= prefix.size() ||
+        authorization.substr(0, prefix.size()) != prefix) {
+        return std::nullopt;
+    }
+    const std::string_view token = authorization.substr(prefix.size());
+    if (token.find_first_of(" \t\r\n") != std::string_view::npos) {
+        return std::nullopt;
+    }
+    return std::string(token);
+}
+
 } // namespace hms

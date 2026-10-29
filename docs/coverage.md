@@ -2,10 +2,11 @@
 
 The Ubuntu coverage job builds with GCC instrumentation, runs the CTest suites
 with the PostgreSQL repository tests enabled, and uses `gcov` through `lcov` to
-measure executable source lines. Each service library in `CMakeLists.txt` is
-listed in the coverage inventory; its C++ sources are taken directly from the
-CMake target. Tests, generated dependencies, the API, desktop client, and
-server entry point are excluded from the service-module report.
+measure executable source lines. Service libraries in `CMakeLists.txt` are
+listed in the coverage inventory; their C++ sources are taken directly from
+the CMake targets. The two clinical libraries are grouped into one clinical
+module. Tests, generated dependencies, the API, desktop client, and server
+entry point are excluded from the service-module report.
 
 For a local Linux build with GCC and LCOV installed:
 

@@ -30,6 +30,17 @@ endif()
 
 enable_testing()
 
+# ---- HMS-NF-006 encrypted PostgreSQL backups ----
+add_library(hms_backup src/backup/backup_service.cpp)
+target_include_directories(hms_backup PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(hms_backup PUBLIC OpenSSL::Crypto)
+add_executable(hms_backup_cli src/backup/main.cpp)
+set_target_properties(hms_backup_cli PROPERTIES OUTPUT_NAME hms_backup)
+target_link_libraries(hms_backup_cli PRIVATE hms_backup)
+add_executable(backup_service_test tests/backup_service_test.cpp)
+target_link_libraries(backup_service_test PRIVATE hms_backup)
+add_test(NAME backup_service_test COMMAND backup_service_test)
+
 # ---- Auth ----
 add_library(hms_auth
     src/services/auth_service.cpp
@@ -44,17 +55,16 @@ else()
     target_link_libraries(hms_auth PRIVATE PostgreSQL::PostgreSQL OpenSSL::Crypto)
 endif()
 
-add_executable(auth_service_test tests/auth_service_test.cpp)
-target_link_libraries(auth_service_test PRIVATE hms_auth)
-add_test(NAME auth_service_test COMMAND auth_service_test)
-
 # ---- API ----
-add_library(hms_api src/api.cpp)
+add_library(hms_api
+    src/api.cpp
+    src/api/user_management_handler.cpp
+)
 target_include_directories(hms_api PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_link_libraries(hms_api PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(hms_api PUBLIC nlohmann_json::nlohmann_json PRIVATE hms_auth)
 
 # Health endpoints and deterministic availability calculations.
 add_library(hms_health
@@ -66,6 +76,10 @@ target_include_directories(hms_health PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 add_executable(api_test tests/api_test.cpp)
 target_link_libraries(api_test PRIVATE hms_api)
 add_test(NAME api_test COMMAND api_test)
+
+add_executable(auth_service_test tests/auth_service_test.cpp)
+target_link_libraries(auth_service_test PRIVATE hms_auth hms_api)
+add_test(NAME auth_service_test COMMAND auth_service_test)
 
 add_executable(health_test tests/health_test.cpp)
 target_link_libraries(health_test PRIVATE hms_health)
@@ -97,6 +111,20 @@ endif()
 add_executable(appointments_test tests/appointments_test.cpp)
 target_link_libraries(appointments_test PRIVATE hms_appointments)
 add_test(NAME appointments_test COMMAND appointments_test)
+add_executable(
+    change_appointment_test
+    tests/change_appointment_test.cpp
+)
+
+target_link_libraries(
+    change_appointment_test
+    PRIVATE hms_appointments
+)
+
+add_test(
+    NAME change_appointment_test
+    COMMAND change_appointment_test
+)
 
 # ---- F-024 Doctor daily schedule ----
 add_executable(doctor_schedule_test tests/doctor_schedule_test.cpp)
@@ -141,6 +169,25 @@ endif()
 add_executable(patient_service_test tests/patient_service_test.cpp)
 target_link_libraries(patient_service_test PRIVATE hms_patients)
 add_test(NAME patient_service_test COMMAND patient_service_test)
+
+# Clinical records
+add_library(hms_clinical_records
+    src/clinical/clinical.cpp
+)
+
+target_include_directories(hms_clinical_records PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(hms_clinical_records PUBLIC hms_auth)
+
+add_executable(clinical_test
+    tests/clinical_test.cpp
+)
+
+target_link_libraries(clinical_test PRIVATE hms_clinical_records)
+
+add_test(NAME clinical_test COMMAND clinical_test)
 
 # ---- Qt desktop client (only if Qt6 is available) ----
 find_package(Qt6 QUIET COMPONENTS Widgets Network)
@@ -191,6 +238,8 @@ set(HMS_SERVICE_MODULE_TARGETS
     clinical:hms_clinical
     reports:hms_reports
     patients:hms_patients
+    clinical:hms_clinical_records
+    backup:hms_backup
 )
 
 if(HMS_ENABLE_COVERAGE)
@@ -245,8 +294,9 @@ if(HMS_ENABLE_COVERAGE)
     endforeach()
     foreach(coverage_executable IN ITEMS
             auth_service_test health_test password_security_test
-            appointments_test doctor_schedule_test clinical_service_test report_service_test
-            patient_service_test hms_server)
+            appointments_test change_appointment_test doctor_schedule_test
+            clinical_service_test clinical_test report_service_test
+            patient_service_test backup_service_test hms_backup_cli hms_server)
         if(TARGET "${coverage_executable}")
             target_link_options("${coverage_executable}" PRIVATE --coverage)
         endif()
