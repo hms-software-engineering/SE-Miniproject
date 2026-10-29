@@ -29,6 +29,21 @@ std::string trim(const std::string& s) {
     return s.substr(b, e - b + 1);
 }
 
+std::string json_escape(const std::string& s) {
+    std::string out;
+    for (char c : s) {
+        switch (c) {
+        case '"': out += "\\\""; break;
+        case '\\': out += "\\\\"; break;
+        case '\n': out += "\\n"; break;
+        case '\r': out += "\\r"; break;
+        case '\t': out += "\\t"; break;
+        default: out += c;
+        }
+    }
+    return out;
+}
+
 ClinicalResult fail(int status, const std::string& code, const std::string& msg,
                     const std::string& field = "") {
     ClinicalResult r;
@@ -92,6 +107,13 @@ PrescriptionItem InMemoryClinicalRepository::insert_prescription(const Prescript
     saved.id = next_item_id_++;
     prescriptions_.push_back(saved);
     return saved;
+}
+
+std::vector<Visit> InMemoryClinicalRepository::visits_for_patient(const std::string& patient_id) const {
+    std::vector<Visit> out;
+    for (const auto& v : visits_)
+        if (v.patient_id == patient_id) out.push_back(v);
+    return out;
 }
 
 std::vector<PrescriptionItem> InMemoryClinicalRepository::prescriptions_for_visit(long long visit_id) const {
@@ -215,6 +237,60 @@ ClinicalResult add_prescription(ClinicalRepository& repo,
     r.http_status = 201;
     r.item = repo.insert_prescription(item);
     return r;
+}
+
+ClinicalResult patient_history(const ClinicalRepository& repo,
+                               const Caller& caller,
+                               const std::string& patient_id) {
+    std::string err;
+    if (caller.role == Role::Patient) {
+        // HMS-F-034: a patient may only read their own records.
+        if (!authorize_record_access(caller.role, Permission::ViewOwnHistoryBills,
+                                     caller.patient_id, patient_id, err))
+            return access_denied();
+    } else if (!authorize(caller.role, Permission::ViewPatientHistory, err)) {
+        return access_denied();
+    }
+
+    auto visits = repo.visits_for_patient(patient_id);
+    // "YYYY-MM-DD HH:MM" sorts correctly as text; ties broken by newer id.
+    std::sort(visits.begin(), visits.end(), [](const Visit& a, const Visit& b) {
+        if (a.visited_at != b.visited_at) return a.visited_at > b.visited_at;
+        return a.id > b.id;
+    });
+
+    ClinicalResult r;
+    r.ok = true;
+    r.http_status = 200;
+    for (const auto& v : visits) r.history.push_back({v, repo.prescriptions_for_visit(v.id)});
+    return r;
+}
+
+std::string history_to_json(const std::vector<VisitRecord>& history) {
+    std::string out = "[";
+    for (size_t i = 0; i < history.size(); ++i) {
+        const Visit& v = history[i].visit;
+        if (i) out += ",";
+        out += "{\"visit\":{\"visitId\":" + std::to_string(v.id) +
+               ",\"appointmentId\":" + std::to_string(v.appointment_id) +
+               ",\"doctorId\":" + std::to_string(v.doctor_id) +
+               ",\"visitedAt\":\"" + json_escape(v.visited_at) +
+               "\",\"symptoms\":\"" + json_escape(v.symptoms) +
+               "\",\"diagnosis\":\"" + json_escape(v.diagnosis) +
+               "\",\"notes\":\"" + json_escape(v.notes) + "\"},\"prescriptions\":[";
+        const auto& items = history[i].prescriptions;
+        for (size_t j = 0; j < items.size(); ++j) {
+            const PrescriptionItem& p = items[j];
+            if (j) out += ",";
+            out += "{\"itemId\":" + std::to_string(p.id) +
+                   ",\"medicine\":\"" + json_escape(p.medicine) +
+                   "\",\"dosage\":\"" + json_escape(p.dosage) +
+                   "\",\"frequency\":\"" + json_escape(p.frequency) +
+                   "\",\"days\":" + std::to_string(p.days) + "}";
+        }
+        out += "]}";
+    }
+    return out + "]";
 }
 
 }  // namespace hms

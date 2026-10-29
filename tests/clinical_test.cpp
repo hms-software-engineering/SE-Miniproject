@@ -21,8 +21,9 @@ int main() {
     repo.add_appointment({6, "PID-00000002", 7, "Cancelled"});
     repo.set_allergies("PID-00000001", {"Penicillin"});
 
-    hms::Caller doctor{hms::Role::Doctor, 7};
-    hms::Caller receptionist{hms::Role::Receptionist, 0};
+    hms::Caller doctor{hms::Role::Doctor, 7, ""};
+    hms::Caller receptionist{hms::Role::Receptionist, 0, ""};
+    hms::Caller asha{hms::Role::Patient, 0, "PID-00000001"};
 
     // TC-CLN-01: visit saved with doctor ID and timestamp, linked to the appointment.
     auto v1 = hms::record_visit(repo, doctor, 1, "fever", "viral infection", "rest",
@@ -70,6 +71,34 @@ int main() {
     CHECK(over.item.override_reason == "No alternative; monitored");
     CHECK(hms::matching_allergies("PENICILLIN V", {"penicillin"}).size() == 1);
     CHECK(hms::matching_allergies("Paracetamol", {"Penicillin"}).empty());
+
+    // TC-CLN-04: three visits on different dates listed newest first.
+    auto v2 = hms::record_visit(repo, doctor, 2, "cough", "bronchitis", "", "2026-10-24 11:00");
+    auto v3 = hms::record_visit(repo, doctor, 3, "headache", "migraine", "", "2026-10-22 15:30");
+    CHECK(v2.ok && v3.ok);
+    auto h = hms::patient_history(repo, doctor, "PID-00000001");
+    CHECK(h.ok);
+    CHECK(h.history.size() == 3);
+    CHECK(h.history[0].visit.diagnosis == "bronchitis");
+    CHECK(h.history[1].visit.diagnosis == "migraine");
+    CHECK(h.history[2].visit.diagnosis == "viral infection");
+    CHECK(h.history[2].prescriptions.size() == 2);
+    hms::Caller billing{hms::Role::BillingOfficer, 0};
+    CHECK(hms::patient_history(repo, billing, "PID-00000001").http_status == 403);
+
+    // TC-CLN-05: patient sees only own history; another patient's returns Access denied.
+    hms::record_visit(repo, doctor, 4, "rash", "dermatitis", "", "2026-10-25 09:00");
+    auto own = hms::patient_history(repo, asha, "PID-00000001");
+    CHECK(own.ok);
+    CHECK(own.history.size() == 3);
+    auto other = hms::patient_history(repo, asha, "PID-00000002");
+    CHECK(other.http_status == 403);
+    CHECK(other.message == "Access denied");
+
+    // JSON output.
+    auto json = hms::history_to_json(h.history);
+    CHECK(json.find("\"diagnosis\":\"bronchitis\"") < json.find("\"diagnosis\":\"migraine\""));
+    CHECK(json.find("\"medicine\":\"Paracetamol 500 mg\"") != std::string::npos);
 
     std::cout << "All clinical tests passed.\n";
     return 0;
