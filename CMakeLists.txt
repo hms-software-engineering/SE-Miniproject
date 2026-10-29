@@ -28,6 +28,17 @@ endif()
 
 enable_testing()
 
+# ---- HMS-NF-006 encrypted PostgreSQL backups ----
+add_library(hms_backup src/backup/backup_service.cpp)
+target_include_directories(hms_backup PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(hms_backup PUBLIC OpenSSL::Crypto)
+add_executable(hms_backup_cli src/backup/main.cpp)
+set_target_properties(hms_backup_cli PROPERTIES OUTPUT_NAME hms_backup)
+target_link_libraries(hms_backup_cli PRIVATE hms_backup)
+add_executable(backup_service_test tests/backup_service_test.cpp)
+target_link_libraries(backup_service_test PRIVATE hms_backup)
+add_test(NAME backup_service_test COMMAND backup_service_test)
+
 # ---- Auth ----
 add_library(hms_auth
     src/services/auth_service.cpp
