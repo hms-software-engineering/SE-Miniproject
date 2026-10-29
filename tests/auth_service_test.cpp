@@ -452,6 +452,7 @@ void test_postgres_authentication_when_enabled()
 
     hms::PostgresAuthRepository repository;
     hms::AuthService service(repository);
+    CHECK(repository.health_check());
 
     const auto stamp =
         std::chrono::high_resolution_clock::now()
