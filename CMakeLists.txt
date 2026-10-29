@@ -85,6 +85,11 @@ add_executable(appointments_test tests/appointments_test.cpp)
 target_link_libraries(appointments_test PRIVATE hms_appointments)
 add_test(NAME appointments_test COMMAND appointments_test)
 
+# ---- F-024 Doctor daily schedule ----
+add_executable(doctor_schedule_test tests/doctor_schedule_test.cpp)
+target_link_libraries(doctor_schedule_test PRIVATE hms_appointments)
+add_test(NAME doctor_schedule_test COMMAND doctor_schedule_test)
+
 # ---- Clinical (AES-256-GCM) ----
 add_library(hms_clinical src/clinical/clinical_service.cpp)
 target_include_directories(hms_clinical PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)

@@ -617,7 +617,8 @@ std::optional<hms::Permission> permission_for_request(
         return hms::Permission::RescheduleCancelAppointment;
     }
     if (method == "GET" &&
-        path == "/api/v1/doctors/me/appointments") {
+        (path == "/api/v1/doctors/me/appointments" ||
+        path == "/api/v1/doctors/me/schedule")) {
         return hms::Permission::ViewOwnSchedule;
     }
     if (method == "POST" && path == "/api/v1/visits") {
@@ -1246,7 +1247,62 @@ void handle_client(TlsConnection& client,
                 "{\"patient\":" + json_patient(result.patient) + "}");
             return;
         }
+        if (method == "GET" &&
+            path == "/api/v1/doctors/me/schedule") {
 
+            std::string date;
+
+            if (!read_query_parameter(query_string, "date", date)) {
+                const hms::ApiError error{
+                    400,
+                    "VALIDATION_FAILED",
+                    "date is required in YYYY-MM-DD format.",
+                    request_id,
+                    "date"
+                };
+
+                send_response(
+                    client,
+                    400,
+                    hms::make_error_json(error));
+                return;
+            }
+
+            const auto result = hms::doctor_schedule(
+                appointment_repository,
+                principal.user_id,
+                date);
+
+            if (!result.ok) {
+                const hms::ApiError error{
+                    result.http_status,
+                    result.code,
+                    result.message,
+                    request_id,
+                    result.field
+                };
+
+                send_response(
+                    client,
+                    result.http_status,
+                    hms::make_error_json(error));
+                return;
+            }
+
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "VIEW_OWN_SCHEDULE",
+                date,
+                client.source_ip
+            });
+
+            send_response(
+                client,
+                200,
+                hms::schedule_to_json(result.appointments));
+            return;
+        }
         if (method == "GET" &&
             path == "/api/v1/appointments/free-slots") {
             std::string doctor_text;

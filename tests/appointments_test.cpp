@@ -82,6 +82,22 @@ public:
         return result;
     }
 
+    std::vector<hms::Appointment> appointments_for_doctor_on(
+    long long doctor_id,
+    const std::string& date) const override
+    {
+        (void)doctor_id;
+        (void)date;
+        return {};
+    }
+
+    std::string doctor_id_for_user(
+        const std::string& user_id) const override
+    {
+        (void)user_id;
+        return {};
+    }
+
 private:
     long long next_id_ = 1;
 };
