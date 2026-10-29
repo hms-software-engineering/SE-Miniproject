@@ -144,6 +144,14 @@ Patient accounts may book only for a patient record linked to their user ID.
 Conflicts return HTTP 409 with up to three alternative slots in
 `suggestedSlots`.
 
+Billing Officers and Administrators can download daily appointment and revenue
+reports with
+`GET /api/v1/reports?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&format=csv`
+or `format=pdf`. The date range is inclusive. Each day includes appointment
+counts by status and payments received on that day. Successful responses are
+downloadable attachments; malformed dates, reversed ranges, and unsupported
+formats return HTTP 400.
+
 ## Run the API and desktop client over TLS
 
 The API listens only on `127.0.0.1:8443` and requires HTTPS with TLS 1.2 or

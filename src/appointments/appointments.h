@@ -1,10 +1,13 @@
 #pragma once
+#include "reports/report_service.h"
+
 #include <map>
 #include <chrono>
 #include <set>
 #include <string>
 #include <vector>
 #include <functional>
+
 
 namespace hms {
 
@@ -65,9 +68,11 @@ private:
     long long next_id_ = 1;
 };
 
-class PostgresAppointmentRepository final : public AppointmentRepository {
+class PostgresAppointmentRepository final : public AppointmentRepository,
+                                           public reports::ReportRepository {
 public:
-    explicit PostgresAppointmentRepository(const char* connection_info = nullptr);
+    explicit PostgresAppointmentRepository(
+        const char* connection_info = nullptr);
     ~PostgresAppointmentRepository() override;
 
     PostgresAppointmentRepository(const PostgresAppointmentRepository&) = delete;
@@ -75,10 +80,13 @@ public:
         const PostgresAppointmentRepository&) = delete;
 
     std::string working_hours(long long doctor_id) const override;
+
     std::vector<std::string> booked_times(
         long long doctor_id, const std::string& date) const override;
+
     SaveResult insert(const Appointment& appointment) override;
-        bool find_by_id(long long id, Appointment& out) const override;
+
+    bool find_by_id(long long id, Appointment& out) const override;
 
     bool update_status(
         long long id,
@@ -87,8 +95,14 @@ public:
     SaveStatus reschedule(
         long long id,
         const std::string& new_slot) override;
-    bool patient_belongs_to_user(const std::string& patient_id,
-                                 const std::string& user_id) const;
+
+    bool patient_belongs_to_user(
+        const std::string& patient_id,
+        const std::string& user_id) const;
+
+    std::vector<reports::DailyReportRow> daily_report(
+        const std::string& start_date,
+        const std::string& end_date) const override;
     std::string doctor_id_for_user(const std::string& user_id) const;
 
 
@@ -105,6 +119,7 @@ struct BookingResult {
     std::vector<std::string> next_slots;       // used by the httplib JSON
     std::vector<std::string> suggested_slots;  // used by main's code and tests
 };
+
 
 // 0 = Sunday ... 6 = Saturday. Date must be "YYYY-MM-DD".
 int weekday_of(const std::string& date);
@@ -146,5 +161,6 @@ std::string booking_error_to_json(
 );
 std::string slots_to_json(const std::vector<std::string>& slots);
 std::string appointment_to_json(const Appointment& a);
+bool is_valid_calendar_date(const std::string& date);
 
 }  // namespace hms

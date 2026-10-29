@@ -17,12 +17,21 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <cerrno>
+
 using SOCKET = int;
+
 constexpr int INVALID_SOCKET = -1;
 constexpr int SOCKET_ERROR = -1;
+
 #define closesocket close
 #define SD_BOTH SHUT_RDWR
 #define WSAGetLastError() errno
+
+struct WSADATA {};
+#define MAKEWORD(a, b) 0
+
+inline int WSAStartup(int, WSADATA*) { return 0; }
+inline int WSACleanup() { return 0; }
 #endif
 
 #include <openssl/ssl.h>
@@ -259,11 +268,13 @@ std::string current_date_ddmmyyyy()
 
 #ifdef _WIN32
     if (localtime_s(&local_time, &now) != 0) {
-#else
-    if (localtime_r(&now, &local_time) == nullptr) {
-#endif
         throw std::runtime_error("Could not determine the current date.");
     }
+#else
+    if (localtime_r(&now, &local_time) == nullptr) {
+        throw std::runtime_error("Could not determine the current date.");
+    }
+#endif
 
     std::ostringstream date;
     date << (local_time.tm_mday < 10 ? "0" : "") << local_time.tm_mday
@@ -341,6 +352,25 @@ void send_response(
 
     if (!send_all(client, response.str())) {
         std::cerr << "Failed to send HTTPS response.\n";
+    }
+}
+
+void send_download_response(TlsConnection& client,
+                            const std::string& content_type,
+                            const std::string& filename,
+                            const std::string& body)
+{
+    std::ostringstream response;
+    response << "HTTP/1.1 200 OK\r\n"
+             << "Content-Type: " << content_type << "\r\n"
+             << "Content-Disposition: attachment; filename=\""
+             << filename << "\"\r\n"
+             << "Cache-Control: no-store\r\n"
+             << "Content-Length: " << body.size() << "\r\n"
+             << "Connection: close\r\n\r\n"
+             << body;
+    if (!send_all(client, response.str())) {
+        std::cerr << "Failed to send report download.\n";
     }
 }
 
@@ -1049,6 +1079,47 @@ void handle_client(TlsConnection& client,
                             authorization_error)) {
             send_error(client, 403, "ACCESS_DENIED", authorization_error,
                        request_id);
+            return;
+        }
+
+        if (method == "GET" && path == "/api/v1/reports") {
+            std::string start_date;
+            std::string end_date;
+            std::string format;
+            if (!read_query_parameter(query_string, "startDate", start_date) ||
+                !read_query_parameter(query_string, "endDate", end_date) ||
+                !read_query_parameter(query_string, "format", format) ||
+                !hms::appointment_date_valid(start_date) ||
+                !hms::appointment_date_valid(end_date) ||
+                start_date > end_date ||
+                (format != "csv" && format != "pdf")) {
+                send_error(client, 400, "INVALID_REPORT_REQUEST",
+                           "Provide startDate and endDate (YYYY-MM-DD) and "
+                           "format (csv or pdf); startDate must not follow "
+                           "endDate.",
+                           request_id);
+                return;
+            }
+            const auto rows =
+                appointment_repository.daily_report(start_date, end_date);
+            const std::string filename =
+                "daily-report-" + start_date + "-to-" + end_date + "." +
+                format;
+            const std::string body = format == "csv"
+                ? hms::reports::to_csv(rows)
+                : hms::reports::to_pdf(rows, start_date, end_date);
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "GENERATE_DAILY_REPORT",
+                start_date + ":" + end_date + ":" + format,
+                client.source_ip
+            });
+            send_download_response(
+                client,
+                format == "csv" ? "text/csv; charset=utf-8"
+                                : "application/pdf",
+                filename, body);
             return;
         }
 

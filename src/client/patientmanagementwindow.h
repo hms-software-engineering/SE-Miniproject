@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDialog>
+#include <QElapsedTimer>
 #include <QJsonObject>
 
 class ApiClient;
@@ -45,4 +46,5 @@ private:
     QPushButton *submitButton;
     QPushButton *newPatientButton;
     QPushButton *historyButton;
+    QElapsedTimer registrationTimer;
 };
