@@ -167,6 +167,14 @@ counts by status and payments received on that day. Successful responses are
 downloadable attachments; malformed dates, reversed ranges, and unsupported
 formats return HTTP 400.
 
+Billing Officers and Administrators can create an itemized bill for a visit
+with `POST /api/v1/bills` and a JSON body containing string `visitId` and
+`items`, an array of objects with string `description` and decimal `amount`.
+Configure `HMS_BILL_TAX_RATE` as a percentage from `0` to `100` with at most
+two decimal places (for example, `18.00`) before starting the server. The bill
+response includes each item, subtotal, applied tax rate, rounded tax, total,
+and initial `Unpaid` status. Each visit can have at most one bill.
+
 ## Run the API and desktop client over TLS
 
 The API listens only on `127.0.0.1:8443` and requires HTTPS with TLS 1.2 or
