@@ -43,6 +43,77 @@ int main() {
     {std::ofstream f(dir/"backup-last-success.txt");f<<"SUCCESS "<<std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()-std::chrono::hours(25))<<" hms-old.hmsbak\n";}
     CHECK(hms::backup::is_backup_due(dir,24));
     bool bad_interval=false;try{(void)hms::backup::is_backup_due(dir,0);}catch(...){bad_interval=true;}CHECK(bad_interval);
+
+    const char* postgres_test = std::getenv("HMS_BACKUP_TEST_POSTGRES");
+    if (postgres_test != nullptr && std::string(postgres_test) == "1") {
+        const char* restore_database =
+            std::getenv("HMS_BACKUP_TEST_RESTORE_DATABASE");
+        CHECK(restore_database != nullptr && *restore_database != '\0');
+
+        const auto backup_dir = dir / "service-run";
+        fs::create_directories(backup_dir);
+        const auto expired = backup_dir / "expired.hmsbak";
+        { std::ofstream f(expired, std::ios::binary); f << "expired"; }
+        fs::last_write_time(
+            expired, fs::file_time_type::clock::now() - std::chrono::hours(24 * 31));
+
+        hms::backup::run_backup(backup_dir, key, 30);
+        CHECK(!fs::exists(expired));
+        CHECK(!hms::backup::is_backup_due(backup_dir, 24));
+        CHECK(hms::backup::status(backup_dir, 24).find("backup_due=false") !=
+              std::string::npos);
+
+        fs::path artifact;
+        for (const auto& entry : fs::directory_iterator(backup_dir)) {
+            if (entry.path().extension() == ".hmsbak") artifact = entry.path();
+        }
+        CHECK(!artifact.empty());
+
+        const auto restore_work = dir / "restore-work";
+        hms::backup::restore_backup(
+            artifact, restore_database, restore_database, restore_work, key);
+        CHECK(hms::backup::status(restore_work, 24).find(
+                  "current=RESTORE_SUCCESS") != std::string::npos);
+
+        bool nonempty_target_rejected = false;
+        try {
+            hms::backup::restore_backup(
+                artifact, restore_database, restore_database, restore_work, key);
+        } catch (const std::runtime_error&) {
+            nonempty_target_rejected = true;
+        }
+        CHECK(nonempty_target_rejected);
+        CHECK(hms::backup::status(restore_work, 24).find(
+                  "current=RESTORE_FAILURE") != std::string::npos);
+
+        const char* previous_database = std::getenv("PGDATABASE");
+        const bool had_previous_database = previous_database != nullptr;
+        const std::string saved_database =
+            had_previous_database ? previous_database : "";
+#ifdef _WIN32
+        CHECK(_putenv_s("PGDATABASE", "hms_database_that_does_not_exist") == 0);
+#else
+        CHECK(setenv("PGDATABASE", "hms_database_that_does_not_exist", 1) == 0);
+#endif
+        bool backup_failure_reported = false;
+        try {
+            hms::backup::run_backup(backup_dir, key, 30);
+        } catch (const std::runtime_error&) {
+            backup_failure_reported = true;
+        }
+#ifdef _WIN32
+        if (had_previous_database) CHECK(_putenv_s("PGDATABASE", saved_database.c_str()) == 0);
+        else CHECK(_putenv_s("PGDATABASE", "") == 0);
+#else
+        if (had_previous_database) CHECK(setenv("PGDATABASE", saved_database.c_str(), 1) == 0);
+        else CHECK(unsetenv("PGDATABASE") == 0);
+#endif
+        CHECK(backup_failure_reported);
+        CHECK(hms::backup::status(backup_dir, 24).find("current=FAILURE") !=
+              std::string::npos);
+        CHECK(!hms::backup::is_backup_due(backup_dir, 24));
+    }
+
     fs::remove_all(dir,ec);
     std::cout<<"Backup encryption tests passed\n";
 }
