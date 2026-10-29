@@ -704,8 +704,45 @@ void test_user_deactivation_endpoint()
 
 } // namespace
 
+void test_validator()
+{
+    using namespace hms::validation;
+
+    CHECK(valid_text("Daksha", 60));
+    CHECK(!valid_text("", 60));
+    CHECK(!valid_text(std::string("bad\ninput"), 60));
+    CHECK(!valid_text(std::string("bad\0input", 9), 60));
+    CHECK(!valid_text(std::string(61, 'a'), 60));
+
+    CHECK(valid_name_address("O'Brien", 60));
+    CHECK(valid_name_address("12 Main St., Apt-2/4", 120));
+    CHECK(!valid_name_address("<script>", 60));
+    CHECK(!valid_name_address("bad\\nname", 60));
+    CHECK(!valid_name_address(std::string(61, 'a'), 60));
+
+    CHECK(valid_identifier("PID-12345678", "PID-", 8));
+    CHECK(!valid_identifier("PID-123", "PID-", 8));
+    CHECK(!valid_identifier("PID-1234567x", "PID-", 8));
+
+    CHECK(valid_username("daksha.sg-24"));
+    CHECK(!valid_username("bad username"));
+    CHECK(!valid_username("bad;name"));
+    CHECK(!valid_username("' OR '1'='1"));
+    CHECK(!valid_username("<script>alert(1)</script>"));
+
+    CHECK(valid_phone("9876543210"));
+    CHECK(!valid_phone("987654321"));
+    CHECK(!valid_phone("98765abc10"));
+
+    CHECK(valid_positive_integer("12"));
+    CHECK(!valid_positive_integer("0"));
+    CHECK(!valid_positive_integer("-1"));
+    CHECK(!valid_positive_integer("12x"));
+}
+
 int main()
 {
+    test_validator();
     test_role_permissions();
     test_injection_payloads_are_rejected();
     test_authentication();

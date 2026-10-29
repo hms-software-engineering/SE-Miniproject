@@ -83,10 +83,6 @@ add_executable(auth_service_test tests/auth_service_test.cpp)
 target_link_libraries(auth_service_test PRIVATE hms_auth hms_api)
 add_test(NAME auth_service_test COMMAND auth_service_test)
 
-add_executable(validator_test tests/validator_test.cpp)
-target_link_libraries(validator_test PRIVATE hms_auth)
-add_test(NAME validator_test COMMAND validator_test)
-
 add_executable(health_test tests/health_test.cpp)
 target_link_libraries(health_test PRIVATE hms_health)
 add_test(NAME health_test COMMAND health_test)
