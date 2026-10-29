@@ -1,10 +1,12 @@
 #include "services/auth_service.h"
+#include "api/user_management_handler.h"
 
 #include <array>
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <set>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -37,6 +39,36 @@ public:
             hms::AuthUser{user_id, username, password_hash, role, true});
 
         return hms::CreateUserStatus::Created;
+    }
+
+    hms::DeactivateUserStatus deactivate_user(
+        const std::string& actor_user_id,
+        const std::string& user_id,
+        const hms::AuditEvent& audit_event) override
+    {
+        hms::AuthUser* actor = nullptr;
+        std::size_t active_admins = 0;
+        for (auto& entry : users_) {
+            if (entry.second.user_id == actor_user_id) actor = &entry.second;
+            if (entry.second.role == hms::Role::Administrator &&
+                entry.second.active) ++active_admins;
+        }
+        if (actor == nullptr || !actor->active ||
+            actor->role != hms::Role::Administrator)
+            return hms::DeactivateUserStatus::ActorNotAuthorized;
+        if (actor_user_id == user_id)
+            return hms::DeactivateUserStatus::SelfDeactivation;
+        for (auto& entry : users_) {
+            if (entry.second.user_id == user_id) {
+                if (entry.second.role == hms::Role::Administrator &&
+                    entry.second.active && active_admins <= 1)
+                    return hms::DeactivateUserStatus::LastAdministrator;
+                entry.second.active = false;
+                audit_events.push_back(audit_event);
+                return hms::DeactivateUserStatus::Deactivated;
+            }
+        }
+        return hms::DeactivateUserStatus::NotFound;
     }
 
     std::optional<hms::AuthUser> find_user(
@@ -273,6 +305,13 @@ void test_role_permissions()
     std::string message;
 
     CHECK(!hms::authorize(
+        Role::Receptionist, Permission::ManageUsers, message));
+    CHECK(message == "Access denied");
+    CHECK(hms::authorize(
+        Role::Administrator, Permission::ManageUsers, message));
+    CHECK(message.empty());
+
+    CHECK(!hms::authorize(
         Role::Patient, Permission::RegisterPatient, message));
     CHECK(message == "Access denied");
 
@@ -444,13 +483,15 @@ void test_authentication()
 
 void test_postgres_authentication_when_enabled()
 {
-    const char* enabled = std::getenv("HMS_AUTH_TEST_POSTGRES");
+    const char* connection_info = std::getenv("HMS_F060_TEST_DATABASE_URL");
 
-    if (enabled == nullptr || std::string(enabled) != "1") {
+    if (connection_info == nullptr || std::string(connection_info).empty()) {
         return;
     }
+    CHECK(std::string(connection_info).find("hms_f060_test") !=
+          std::string::npos);
 
-    hms::PostgresAuthRepository repository;
+    hms::PostgresAuthRepository repository(connection_info);
     hms::AuthService service(repository);
 
     const auto stamp =
@@ -475,8 +516,170 @@ void test_postgres_authentication_when_enabled()
     CHECK(principal.has_value());
     CHECK(principal->user_id == registered.user_id);
 
+    const auto admin = service.create_user(
+        username + "_admin", "GoodPass1!", hms::Role::Administrator);
+    CHECK(admin.success);
+    const hms::SessionPrincipal actor{admin.user_id, hms::Role::Administrator};
+    bool audit_failure_rolled_back = false;
+    try {
+        (void)service.deactivate_user(actor, registered.user_id,
+                                      "not-an-ip-address");
+    } catch (const std::exception&) {
+        audit_failure_rolled_back = true;
+    }
+    CHECK(audit_failure_rolled_back);
+    CHECK(service.authenticate_token(login.token).has_value());
+    CHECK(service.authenticate_user(username, "GoodPass1!").success);
+    CHECK(service.deactivate_user(actor, registered.user_id, "127.0.0.1") ==
+          hms::DeactivateUserStatus::Deactivated);
+    const auto refused_login =
+        service.authenticate_user(username, "GoodPass1!");
+    CHECK(!refused_login.success);
+    CHECK(refused_login.message == "Invalid username or password.");
+    CHECK(!service.authenticate_token(login.token).has_value());
+
     service.logout(login.token);
     CHECK(!service.authenticate_token(login.token).has_value());
+
+    const auto second_admin = service.create_user(
+        username + "_admin2", "GoodPass1!", hms::Role::Administrator);
+    CHECK(second_admin.success);
+    const auto first_admin_login = service.authenticate_user(
+        username + "_admin", "GoodPass1!");
+    const auto second_admin_login = service.authenticate_user(
+        username + "_admin2", "GoodPass1!");
+    CHECK(first_admin_login.success && second_admin_login.success);
+
+    hms::PostgresAuthRepository second_repository(connection_info);
+    hms::AuthService second_service(second_repository);
+    hms::DeactivateUserStatus first_status =
+        hms::DeactivateUserStatus::NotFound;
+    hms::DeactivateUserStatus second_status =
+        hms::DeactivateUserStatus::NotFound;
+    std::thread first_request([&] {
+        first_status = service.deactivate_user(
+            hms::SessionPrincipal{first_admin_login.user_id,
+                                  hms::Role::Administrator},
+            second_admin.user_id, "127.0.0.1");
+    });
+    std::thread second_request([&] {
+        second_status = second_service.deactivate_user(
+            hms::SessionPrincipal{second_admin_login.user_id,
+                                  hms::Role::Administrator},
+            first_admin.user_id, "127.0.0.1");
+    });
+    first_request.join();
+    second_request.join();
+    CHECK((first_status == hms::DeactivateUserStatus::Deactivated) !=
+          (second_status == hms::DeactivateUserStatus::Deactivated));
+    const bool first_remains_active =
+        service.authenticate_token(first_admin_login.token).has_value();
+    const bool second_remains_active =
+        second_service.authenticate_token(second_admin_login.token).has_value();
+    CHECK(first_remains_active != second_remains_active);
+}
+
+void test_account_deactivation()
+{
+    InMemoryAuthRepository repository;
+    hms::AuthService service(repository);
+
+    const auto created = service.create_user(
+        "nurse1", "GoodPass1!", hms::Role::Receptionist);
+    CHECK(created.success);
+    CHECK(created.role == hms::Role::Receptionist);
+
+    const auto login = service.authenticate_user("nurse1", "GoodPass1!");
+    CHECK(login.success);
+    CHECK(service.authenticate_token(login.token).has_value());
+
+    const auto admin = service.create_user(
+        "nurse-admin", "GoodPass1!", hms::Role::Administrator);
+    CHECK(admin.success);
+    const hms::SessionPrincipal actor{admin.user_id, hms::Role::Administrator};
+    CHECK(service.deactivate_user(actor, created.user_id, "127.0.0.1") ==
+          hms::DeactivateUserStatus::Deactivated);
+    const auto stored_user = repository.find_user("nurse1");
+    CHECK(stored_user.has_value());
+    CHECK(!stored_user->active);
+
+    const auto refused_login =
+        service.authenticate_user("nurse1", "GoodPass1!");
+    CHECK(!refused_login.success);
+    CHECK(refused_login.message == "Invalid username or password.");
+    CHECK(!service.authenticate_token(login.token).has_value());
+    CHECK(repository.audit_events.back().action == "DEACTIVATE_USER");
+    CHECK(repository.audit_events.back().user_id == admin.user_id);
+    CHECK(repository.audit_events.back().record_id == created.user_id);
+
+    CHECK(service.deactivate_user(actor, "999999", "127.0.0.1") ==
+          hms::DeactivateUserStatus::NotFound);
+}
+
+void test_user_deactivation_endpoint()
+{
+    InMemoryAuthRepository repository;
+    hms::AuthService service(repository);
+    const auto admin = service.create_user(
+        "endpoint-admin", "GoodPass1!", hms::Role::Administrator);
+    const auto target = service.create_user(
+        "endpoint-target", "GoodPass1!", hms::Role::Patient);
+    const auto receptionist = service.create_user(
+        "endpoint-reception", "GoodPass1!", hms::Role::Receptionist);
+    CHECK(admin.success && target.success && receptionist.success);
+    const auto admin_login = service.authenticate_user(
+        "endpoint-admin", "GoodPass1!");
+    const auto receptionist_login = service.authenticate_user(
+        "endpoint-reception", "GoodPass1!");
+    const auto target_login = service.authenticate_user(
+        "endpoint-target", "GoodPass1!");
+    CHECK(target_login.success);
+    const std::string path = "/api/v1/users/" + target.user_id;
+    const auto request = [&](const std::string& token, const std::string& p,
+                             const std::string& body) {
+        return hms::handle_user_deactivation(
+            "PATCH", p, token.empty() ? "" : "Bearer " + token,
+            "application/json", body, true, "127.0.0.1", "req-1", service);
+    };
+    CHECK(request("", path, R"({"action":"deactivate"})").status == 401);
+    CHECK(request("invalid-token", path,
+                  R"({"action":"deactivate"})").status == 401);
+    const auto non_admin_response = request(
+        receptionist_login.token, path, R"({"action":"deactivate"})");
+    CHECK(non_admin_response.status == 403);
+    CHECK(non_admin_response.body.find("\"code\":\"ACCESS_DENIED\"") !=
+          std::string::npos);
+    CHECK(request(admin_login.token, "/api/v1/users/0",
+                  R"({"action":"deactivate"})").status == 400);
+    CHECK(request(admin_login.token, "/api/v1/users/1x",
+                  R"({"action":"deactivate"})").status == 400);
+    CHECK(request(admin_login.token, path, "{").status == 400);
+    CHECK(request(admin_login.token, path,
+                  R"({"action":"delete"})").status == 400);
+    CHECK(request(admin_login.token, path,
+                  R"({"action":"deactivate","extra":true})").status == 400);
+    CHECK(hms::handle_user_deactivation(
+              "PATCH", path, "Bearer " + admin_login.token,
+              "text/plain", R"({"action":"deactivate"})", true,
+              "127.0.0.1", "req-1", service).status == 415);
+    CHECK(hms::handle_user_deactivation(
+              "PATCH", path, "Bearer " + admin_login.token,
+              "application/json", R"({"action":"deactivate"})", false,
+              "127.0.0.1", "req-1", service).status == 400);
+    const auto success_response = request(
+        admin_login.token, path, R"({"action":"deactivate"})");
+    CHECK(success_response.status == 200);
+    CHECK(success_response.body.find("\"active\":false") !=
+          std::string::npos);
+    CHECK(success_response.body.find(target.user_id) != std::string::npos);
+    CHECK(!service.authenticate_token(target_login.token).has_value());
+    CHECK(!service.authenticate_user("endpoint-target", "GoodPass1!").success);
+    CHECK(request(admin_login.token, "/api/v1/users/" + admin.user_id,
+                  R"({"action":"deactivate"})").status == 409);
+    CHECK(repository.audit_events.back().user_id == admin.user_id);
+    CHECK(repository.audit_events.back().action == "DEACTIVATE_USER");
+    CHECK(repository.audit_events.back().record_id == target.user_id);
+    CHECK(repository.audit_events.back().source_ip == "127.0.0.1");
 }
 
 } // namespace
@@ -485,6 +688,8 @@ int main()
 {
     test_role_permissions();
     test_authentication();
+    test_account_deactivation();
+    test_user_deactivation_endpoint();
     test_postgres_authentication_when_enabled();
 
     std::cout << "All authentication and RBAC tests passed.\n";

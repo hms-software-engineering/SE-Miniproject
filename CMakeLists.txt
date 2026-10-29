@@ -42,21 +42,25 @@ else()
     target_link_libraries(hms_auth PRIVATE PostgreSQL::PostgreSQL OpenSSL::Crypto)
 endif()
 
-add_executable(auth_service_test tests/auth_service_test.cpp)
-target_link_libraries(auth_service_test PRIVATE hms_auth)
-add_test(NAME auth_service_test COMMAND auth_service_test)
-
 # ---- API ----
-add_library(hms_api src/api.cpp)
+add_library(hms_api
+    src/api.cpp
+    src/api/user_management_handler.cpp
+)
 target_include_directories(hms_api PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_link_libraries(hms_api PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(hms_api PUBLIC nlohmann_json::nlohmann_json PRIVATE hms_auth)
 
 add_executable(api_test tests/api_test.cpp)
 target_link_libraries(api_test PRIVATE hms_api)
 add_test(NAME api_test COMMAND api_test)
+
+add_executable(auth_service_test tests/auth_service_test.cpp)
+target_link_libraries(auth_service_test PRIVATE hms_auth hms_api)
+add_test(NAME auth_service_test COMMAND auth_service_test)
+
 
 # ---- SEC-001 password security ----
 add_library(hms_password_security src/password_security.cpp)

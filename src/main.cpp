@@ -1,4 +1,5 @@
 #include "api/api.h"
+#include "api/user_management_handler.h"
 #include "appointments/appointments.h"
 #include "clinical/clinical_service.h"
 #include "services/auth_service.h"
@@ -523,18 +524,6 @@ std::string validation_error(
     return errors.front().field + ": " + errors.front().message;
 }
 
-bool parse_bearer_token(const std::string& authorization,
-                        std::string& token)
-{
-    constexpr char prefix[] = "Bearer ";
-    if (authorization.compare(0, sizeof(prefix) - 1, prefix) != 0) {
-        return false;
-    }
-    token = authorization.substr(sizeof(prefix) - 1);
-    return !token.empty() &&
-           token.find_first_of(" \t\r\n") == std::string::npos;
-}
-
 bool is_json_content_type(const std::string& content_type)
 {
     constexpr char media_type[] = "application/json";
@@ -552,11 +541,13 @@ bool require_principal(
     hms::SessionPrincipal& principal,
     std::string& token)
 {
-    if (!parse_bearer_token(authorization, token)) {
+    const auto bearer_token = hms::parse_bearer_token(authorization);
+    if (!bearer_token.has_value()) {
         send_error(client, 401, "AUTHENTICATION_REQUIRED",
                    "Authentication required.", request_id);
         return false;
     }
+    token = *bearer_token;
     const auto authenticated = auth_service.authenticate_token(token);
     if (!authenticated.has_value()) {
         send_error(client, 401, "AUTHENTICATION_REQUIRED",
@@ -1063,6 +1054,19 @@ void handle_client(TlsConnection& client,
             response += ",\"doctorId\":" + json_string(doctor_id);
         }
         send_response(client, 201, response + "}");
+        return;
+    }
+
+    constexpr char user_path[] = "/api/v1/users/";
+    if (method == "PATCH" && path.rfind(user_path, 0) == 0) {
+        const std::size_t body_start = header_end + 4;
+        const std::string body = has_content_length && raw.size() >= body_start
+            ? raw.substr(body_start, content_length)
+            : std::string();
+        const auto response = hms::handle_user_deactivation(
+            method, path, authorization, content_type, body,
+            has_content_length, client.source_ip, request_id, auth_service);
+        send_response(client, response.status, response.body);
         return;
     }
 

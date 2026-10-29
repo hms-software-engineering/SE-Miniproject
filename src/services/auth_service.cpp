@@ -496,6 +496,41 @@ void require_status(PGconn* connection, PGresult* result,
     }
 }
 
+void execute_command(PGconn* connection, const char* sql,
+                     const char* operation)
+{
+    PGresult* raw = pg_exec_params(
+        connection, sql, 0, nullptr, nullptr, nullptr, nullptr, 0);
+    require_status(connection, raw, PGRES_COMMAND_OK, operation);
+    Result result(raw);
+}
+
+void rollback_transaction(PGconn* connection) noexcept
+{
+    PGresult* result = pg_exec_params(
+        connection, "ROLLBACK", 0, nullptr, nullptr, nullptr, nullptr, 0);
+    if (result != nullptr) {
+        pg_clear(result);
+    }
+}
+
+void insert_audit_event(PGconn* connection, const AuditEvent& event)
+{
+    const char* values[] = {
+        event.user_id.c_str(), event.role.c_str(), event.action.c_str(),
+        event.record_id.c_str(), event.source_ip.c_str()
+    };
+    PGresult* raw = pg_exec_params(
+        connection,
+        "INSERT INTO audit_log(user_id,role,action,record_id,source_ip) "
+        "VALUES(NULLIF($1,'')::bigint,$2,$3,NULLIF($4,''),"
+        "NULLIF($5,'')::inet)",
+        5, nullptr, values, nullptr, nullptr, 0);
+    require_status(connection, raw, PGRES_COMMAND_OK,
+                   "Could not write audit event");
+    Result result(raw);
+}
+
 } // namespace
 
 AuthService::AuthService(AuthRepository& repository)
@@ -532,6 +567,24 @@ AuthResult AuthService::create_user(const std::string& username,
         return {false, "", "", "Username already exists."};
     }
     return {true, user_id, "", "User created.", role};
+}
+
+DeactivateUserStatus AuthService::deactivate_user(
+    const SessionPrincipal& actor,
+    const std::string& user_id,
+    const std::string& source_ip)
+{
+    if (!is_permitted(actor.role, Permission::ManageUsers)) {
+        return DeactivateUserStatus::ActorNotAuthorized;
+    }
+    const AuditEvent audit_event{
+        actor.user_id,
+        std::string(role_name(actor.role)),
+        "DEACTIVATE_USER",
+        user_id,
+        source_ip
+    };
+    return repository_.deactivate_user(actor.user_id, user_id, audit_event);
 }
 
 AuthResult AuthService::authenticate_user(const std::string& username,
@@ -666,6 +719,96 @@ CreateUserStatus PostgresAuthRepository::create_user(
     Result result(raw);
     user_id = pg_value(result.get(), 0, 0);
     return CreateUserStatus::Created;
+}
+
+DeactivateUserStatus PostgresAuthRepository::deactivate_user(
+    const std::string& actor_user_id,
+    const std::string& user_id,
+    const AuditEvent& audit_event)
+{
+    PGconn* connection = connection_->value;
+    execute_command(connection, "BEGIN", "Could not begin deactivation");
+    try {
+        // Serialize account writes while checking the last active
+        // Administrator, including simultaneous deactivation requests.
+        execute_command(connection,
+                        "LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE",
+                        "Could not lock user accounts");
+
+        const char* actor_values[] = {actor_user_id.c_str()};
+        PGresult* actor_raw = pg_exec_params(
+            connection,
+            "SELECT role, active FROM users WHERE user_id = $1::bigint",
+            1, nullptr, actor_values, nullptr, nullptr, 0);
+        require_status(connection, actor_raw, PGRES_TUPLES_OK,
+                       "Could not verify administrator account");
+        Result actor_result(actor_raw);
+        if (pg_tuples(actor_result.get()) != 1 ||
+            std::string(pg_value(actor_result.get(), 0, 0)) !=
+                "Administrator" ||
+            std::string(pg_value(actor_result.get(), 0, 1)) != "t") {
+            rollback_transaction(connection);
+            return DeactivateUserStatus::ActorNotAuthorized;
+        }
+
+        if (actor_user_id == user_id) {
+            rollback_transaction(connection);
+            return DeactivateUserStatus::SelfDeactivation;
+        }
+
+        const char* target_values[] = {user_id.c_str()};
+        PGresult* target_raw = pg_exec_params(
+            connection,
+            "SELECT role, active FROM users WHERE user_id = $1::bigint",
+            1, nullptr, target_values, nullptr, nullptr, 0);
+        require_status(connection, target_raw, PGRES_TUPLES_OK,
+                       "Could not find user to deactivate");
+        Result target_result(target_raw);
+        if (pg_tuples(target_result.get()) != 1) {
+            rollback_transaction(connection);
+            return DeactivateUserStatus::NotFound;
+        }
+
+        const bool target_is_active_admin =
+            std::string(pg_value(target_result.get(), 0, 0)) ==
+                "Administrator" &&
+            std::string(pg_value(target_result.get(), 0, 1)) == "t";
+        if (target_is_active_admin) {
+            PGresult* count_raw = pg_exec_params(
+                connection,
+                "SELECT COUNT(*) FROM users "
+                "WHERE role = 'Administrator' AND active = TRUE",
+                0, nullptr, nullptr, nullptr, nullptr, 0);
+            require_status(connection, count_raw, PGRES_TUPLES_OK,
+                           "Could not count active administrators");
+            Result count_result(count_raw);
+            if (std::stoll(pg_value(count_result.get(), 0, 0)) <= 1) {
+                rollback_transaction(connection);
+                return DeactivateUserStatus::LastAdministrator;
+            }
+        }
+
+        PGresult* update_raw = pg_exec_params(
+            connection,
+            "UPDATE users SET active = FALSE, "
+            "updated_at = CURRENT_TIMESTAMP WHERE user_id = $1::bigint "
+            "RETURNING user_id",
+            1, nullptr, target_values, nullptr, nullptr, 0);
+        require_status(connection, update_raw, PGRES_TUPLES_OK,
+                       "Could not deactivate user");
+        Result update_result(update_raw);
+        if (pg_tuples(update_result.get()) != 1) {
+            rollback_transaction(connection);
+            return DeactivateUserStatus::NotFound;
+        }
+
+        insert_audit_event(connection, audit_event);
+        execute_command(connection, "COMMIT", "Could not commit deactivation");
+        return DeactivateUserStatus::Deactivated;
+    } catch (...) {
+        rollback_transaction(connection);
+        throw;
+    }
 }
 
 std::optional<AuthUser> PostgresAuthRepository::find_user(
@@ -817,19 +960,7 @@ void PostgresAuthRepository::delete_session(const std::string& token_hash)
 
 void PostgresAuthRepository::record_audit_event(const AuditEvent& event)
 {
-    const char* values[] = {
-        event.user_id.c_str(), event.role.c_str(), event.action.c_str(),
-        event.record_id.c_str(), event.source_ip.c_str()
-    };
-    PGresult* raw = pg_exec_params(
-        connection_->value,
-        "INSERT INTO audit_log(user_id,role,action,record_id,source_ip) "
-        "VALUES(NULLIF($1,'')::bigint,$2,$3,NULLIF($4,''),"
-        "NULLIF($5,'')::inet)",
-        5, nullptr, values, nullptr, nullptr, 0);
-    require_status(connection_->value, raw, PGRES_COMMAND_OK,
-                   "Could not write audit event");
-    pg_clear(raw);
+    insert_audit_event(connection_->value, event);
 }
 
 } // namespace hms

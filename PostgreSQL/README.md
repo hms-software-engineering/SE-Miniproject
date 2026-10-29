@@ -103,6 +103,21 @@ credentials are never given defaults. An authenticated administrator can
 provision role accounts through `POST /api/v1/users`. Public self-registration
 always creates a Patient account.
 
+Administrators can deactivate an account with
+`PATCH /api/v1/users/{userId}` and the JSON body
+`{"action":"deactivate"}`. A successful request returns HTTP 200 with
+`{"userId":"…","active":false,"message":"User deactivated."}`.
+The endpoint requires a bearer session with `ManageUsers` permission. It
+returns 400 for malformed IDs or bodies, 401 when authentication is missing
+or invalid, 403 for insufficient permission, 404 for an unknown user, 409
+when the request would deactivate the acting administrator or the last active
+Administrator, 415 when the body is not JSON, and 500 when the operation
+cannot be completed. Errors use the normal API envelope:
+`{"error":{"code":"…","message":"…","requestId":"…"}}`.
+Account status and its `DEACTIVATE_USER` audit event are committed in one
+database transaction. Existing sessions for an inactive account stop
+authenticating immediately.
+
 The API writes successful logins, failed login attempts, logout, account and
 patient views, patient/appointment/visit/prescription creation, and patient
 updates to the insert-only `audit_log` table. Each event stores the user ID
