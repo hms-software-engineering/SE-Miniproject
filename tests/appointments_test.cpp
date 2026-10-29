@@ -2,6 +2,8 @@
 #include "../src/appointments/appointments.h"
 
 #include <cstdlib>
+#include <chrono>
+#include <cstdio>
 #include <ctime>
 #include <iomanip>
 #include <iostream>
@@ -37,6 +39,49 @@ static std::string date_offset(int days) {
 
 static int weekday(const std::string& date) {
     return hms::weekday_of(date);
+}
+
+static std::string integration_test_date() {
+    using namespace std::chrono;
+    const auto half_hour =
+        duration_cast<minutes>(system_clock::now().time_since_epoch()).count() /
+        30;
+    const sys_days base = year{2000}/January/1;
+    const year_month_day date = base + days{half_hour % 10000};
+    char text[11];
+    std::snprintf(text, sizeof(text), "%04d-%02u-%02u",
+                  int(date.year()), unsigned(date.month()), unsigned(date.day()));
+    return text;
+}
+
+static void test_postgres_repository_when_enabled() {
+    const char* enabled = std::getenv("HMS_APPOINTMENT_TEST_POSTGRES");
+    if (enabled == nullptr || std::string(enabled) != "1") return;
+
+    hms::PostgresAppointmentRepository repository;
+    const std::string date = integration_test_date();
+    CHECK(!repository.working_hours(1).empty());
+    CHECK(repository.working_hours(999999).empty());
+
+    hms::Appointment appointment{0, "PID-00000001", 1, date + " 09:00", {}};
+    const auto saved = repository.insert(appointment);
+    CHECK(saved.status == hms::SaveStatus::Ok);
+    CHECK(saved.appointment.id > 0);
+    CHECK(saved.appointment.status == "Confirmed");
+
+    const auto duplicate = repository.insert(appointment);
+    CHECK(duplicate.status == hms::SaveStatus::SlotTaken);
+    CHECK(repository.booked_times(1, date).size() == 1);
+    const auto scheduled = repository.appointments_for_doctor_on(1, date);
+    CHECK(scheduled.size() == 1);
+    CHECK(scheduled.front().id == saved.appointment.id);
+    CHECK(repository.patient_belongs_to_user("PID-00000001", "3"));
+    CHECK(!repository.patient_belongs_to_user("PID-00000001", "4"));
+    CHECK(repository.doctor_id_for_user("2") == "1");
+    CHECK(repository.doctor_id_for_user("999999").empty());
+    const auto report = repository.daily_report(date, date);
+    CHECK(report.size() == 1);
+    CHECK(report.front().appointment_count == 1);
 }
 
 namespace {
@@ -277,6 +322,8 @@ int main() {
           == "{\"slots\":[\"09:00\",\"09:30\"]}");
     CHECK(hms::appointment_to_json(r.appointment).find(
           "\"status\":\"Confirmed\"") != std::string::npos);
+
+    test_postgres_repository_when_enabled();
 
     std::cout << "All appointment tests passed.\n";
     return 0;

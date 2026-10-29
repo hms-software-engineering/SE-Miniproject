@@ -483,17 +483,35 @@ void test_authentication()
 
 void test_postgres_authentication_when_enabled()
 {
-    const char* connection_info = std::getenv("HMS_F060_TEST_DATABASE_URL");
-
-    if (connection_info == nullptr || std::string(connection_info).empty()) {
+    const char* f060_connection_info =
+        std::getenv("HMS_F060_TEST_DATABASE_URL");
+    const bool f060_integration_enabled =
+        f060_connection_info != nullptr &&
+        !std::string(f060_connection_info).empty();
+    const char* coverage_enabled = std::getenv("HMS_AUTH_TEST_POSTGRES");
+    if (!f060_integration_enabled &&
+        (coverage_enabled == nullptr || std::string(coverage_enabled) != "1")) {
         return;
     }
-    CHECK(std::string(connection_info).find("hms_f060_test") !=
-          std::string::npos);
+    if (f060_integration_enabled) {
+        CHECK(std::string(f060_connection_info).find("hms_f060_test") !=
+              std::string::npos);
+    }
+    const char* connection_info =
+        f060_integration_enabled ? f060_connection_info : nullptr;
 
     hms::PostgresAuthRepository repository(connection_info);
     hms::AuthService service(repository);
     CHECK(repository.health_check());
+
+    std::string doctor_id;
+    const auto doctor_created = repository.create_user(
+        "coverage_doctor_" + std::to_string(
+            std::chrono::high_resolution_clock::now()
+                .time_since_epoch().count()),
+        "test-hash", hms::Role::Doctor, doctor_id);
+    CHECK(doctor_created == hms::CreateUserStatus::Created);
+    CHECK(!doctor_id.empty());
 
     const auto stamp =
         std::chrono::high_resolution_clock::now()
@@ -512,8 +530,17 @@ void test_postgres_authentication_when_enabled()
     CHECK(login.success);
     CHECK(login.role == hms::Role::Patient);
 
-    const auto principal =
-        service.authenticate_token(login.token);
+    service.record_audit_event(
+        {registered.user_id, "Patient", "COVERAGE_TEST", registered.user_id,
+         "127.0.0.1"});
+    const auto failed_login =
+        service.authenticate_user(username, "WrongPass1!");
+    CHECK(!failed_login.success);
+    const auto login_again =
+        service.authenticate_user(username, "GoodPass1!");
+    CHECK(login_again.success);
+
+    const auto principal = service.authenticate_token(login_again.token);
     CHECK(principal.has_value());
     CHECK(principal->user_id == registered.user_id);
 
@@ -529,7 +556,7 @@ void test_postgres_authentication_when_enabled()
         audit_failure_rolled_back = true;
     }
     CHECK(audit_failure_rolled_back);
-    CHECK(service.authenticate_token(login.token).has_value());
+    CHECK(service.authenticate_token(login_again.token).has_value());
     CHECK(service.authenticate_user(username, "GoodPass1!").success);
     CHECK(service.deactivate_user(actor, registered.user_id, "127.0.0.1") ==
           hms::DeactivateUserStatus::Deactivated);
@@ -537,10 +564,10 @@ void test_postgres_authentication_when_enabled()
         service.authenticate_user(username, "GoodPass1!");
     CHECK(!refused_login.success);
     CHECK(refused_login.message == "Invalid username or password.");
-    CHECK(!service.authenticate_token(login.token).has_value());
+    CHECK(!service.authenticate_token(login_again.token).has_value());
 
-    service.logout(login.token);
-    CHECK(!service.authenticate_token(login.token).has_value());
+    service.logout(login_again.token);
+    CHECK(!service.authenticate_token(login_again.token).has_value());
 
     const auto second_admin = service.create_user(
         username + "_admin2", "GoodPass1!", hms::Role::Administrator);
