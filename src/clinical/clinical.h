@@ -27,6 +27,7 @@ struct PrescriptionItem {
     std::string dosage;
     std::string frequency;
     int days = 0;
+    std::string override_reason;  // set only when an allergy was overridden
 };
 
 // What a doctor needs to know about an appointment before recording a visit.
@@ -43,6 +44,8 @@ public:
     virtual ~ClinicalRepository() = default;
     // false if the appointment does not exist.
     virtual bool find_appointment(long long appointment_id, AppointmentInfo& out) const = 0;
+    // Recorded allergies for the patient, one entry per allergen.
+    virtual std::vector<std::string> allergies(const std::string& patient_id) const = 0;
     virtual bool has_visit_for_appointment(long long appointment_id) const = 0;
     virtual bool find_visit(long long visit_id, Visit& out) const = 0;
     virtual Visit insert_visit(const Visit& v) = 0;
@@ -54,8 +57,10 @@ class InMemoryClinicalRepository : public ClinicalRepository {
 public:
     InMemoryClinicalRepository() = default;
     void add_appointment(const AppointmentInfo& a);
+    void set_allergies(const std::string& patient_id, std::vector<std::string> list);
 
     bool find_appointment(long long appointment_id, AppointmentInfo& out) const override;
+    std::vector<std::string> allergies(const std::string& patient_id) const override;
     bool has_visit_for_appointment(long long appointment_id) const override;
     bool find_visit(long long visit_id, Visit& out) const override;
     Visit insert_visit(const Visit& v) override;
@@ -64,6 +69,7 @@ public:
 
 private:
     std::map<long long, AppointmentInfo> appointments_;
+    std::map<std::string, std::vector<std::string>> allergies_;
     std::vector<Visit> visits_;
     std::vector<PrescriptionItem> prescriptions_;
     long long next_visit_id_ = 1;
@@ -93,13 +99,19 @@ ClinicalResult record_visit(ClinicalRepository& repo,
                             const std::string& notes,
                             const std::string& now);
 
-// HMS-F-031
+// HMS-F-031 / HMS-F-032: returns 409 ALLERGY_WARNING when the medicine matches
+// a recorded allergy and override_reason is empty.
 ClinicalResult add_prescription(ClinicalRepository& repo,
                                 const Caller& caller,
                                 long long visit_id,
                                 const std::string& medicine,
                                 const std::string& dosage,
                                 const std::string& frequency,
-                                int days);
+                                int days,
+                                const std::string& override_reason);
+
+// Allergens from the list that match the medicine (case-insensitive).
+std::vector<std::string> matching_allergies(const std::string& medicine,
+                                            const std::vector<std::string>& allergies);
 
 }  // namespace hms
