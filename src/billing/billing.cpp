@@ -33,6 +33,11 @@ BillingResult fail(int status, const std::string& code, const std::string& msg,
 
 BillingResult access_denied() { return fail(403, "ACCESS_DENIED", "Access denied"); }
 
+std::string status_for(Paise paid, Paise total) {
+    if (paid <= 0) return "Unpaid";
+    return paid >= total ? "Paid" : "Partially Paid";
+}
+
 }  // namespace
 
 void InMemoryBillingRepository::add_visit(long long visit_id, const std::string& patient_id) {
@@ -62,6 +67,26 @@ Bill InMemoryBillingRepository::insert_bill(const Bill& b) {
     saved.id = next_bill_id_++;
     bills_[saved.id] = saved;
     return saved;
+}
+
+Payment InMemoryBillingRepository::insert_payment(const Payment& p, const std::string& new_status) {
+    Payment saved = p;
+    saved.id = next_payment_id_++;
+    char buf[32];
+    std::snprintf(buf, sizeof buf, "RCPT-%08lld", saved.id);
+    saved.receipt_no = buf;
+    payments_.push_back(saved);
+    Bill& b = bills_[p.bill_id];
+    b.paid += p.amount;
+    b.status = new_status;
+    return saved;
+}
+
+std::vector<Payment> InMemoryBillingRepository::payments_for_bill(long long bill_id) const {
+    std::vector<Payment> out;
+    for (const auto& p : payments_)
+        if (p.bill_id == bill_id) out.push_back(p);
+    return out;
 }
 
 Paise tax_for(Paise subtotal, int tax_rate_bp) {
@@ -103,8 +128,9 @@ BillingResult generate_bill(BillingRepository& repo,
     b.subtotal = subtotal;
     b.tax = tax_for(subtotal, tax_rate_bp);
     b.total = b.subtotal + b.tax;
+    b.status = status_for(0, b.total);
     // A zero-total bill is settled on creation.
-    b.status = b.total == 0 ? "Paid" : "Unpaid";
+    if (b.total == 0) b.status = "Paid";
     b.created_at = now;
 
     BillingResult r;
@@ -112,6 +138,44 @@ BillingResult generate_bill(BillingRepository& repo,
     r.http_status = 201;
     r.bill = repo.insert_bill(b);
     r.balance = r.bill.total;
+    return r;
+}
+
+BillingResult record_payment(BillingRepository& repo,
+                             Role caller,
+                             long long bill_id,
+                             Paise amount,
+                             const std::string& mode,
+                             const std::string& now) {
+    std::string err;
+    if (!authorize(caller, Permission::BillingPaymentsReceipts, err)) return access_denied();
+
+    if (mode != "Cash" && mode != "Card" && mode != "UPI")
+        return fail(400, "VALIDATION_ERROR", "Mode must be Cash, Card or UPI", "mode");
+    if (amount <= 0)
+        return fail(400, "VALIDATION_ERROR", "Amount must be greater than zero", "amount");
+
+    Bill b;
+    if (!repo.find_bill(bill_id, b)) return fail(404, "NOT_FOUND", "Bill not found", "billId");
+
+    const Paise outstanding = b.total - b.paid;
+    if (amount > outstanding)
+        return fail(400, "OVERPAYMENT",
+                    "Payment exceeds the outstanding balance of " + format_amount(outstanding),
+                    "amount");
+
+    Payment p;
+    p.bill_id = bill_id;
+    p.amount = amount;
+    p.mode = mode;
+    p.paid_at = now;
+
+    BillingResult r;
+    r.ok = true;
+    r.http_status = 201;
+    r.payment = repo.insert_payment(p, status_for(b.paid + amount, b.total));
+    repo.find_bill(bill_id, r.bill);
+    r.balance = r.bill.total - r.bill.paid;
     return r;
 }
 
@@ -134,6 +198,7 @@ std::string bill_to_json(const Bill& b) {
     out += "],\"subtotal\":" + format_amount(b.subtotal) +
            ",\"tax\":" + format_amount(b.tax) +
            ",\"total\":" + format_amount(b.total) +
+           ",\"balance\":" + format_amount(b.total - b.paid) +
            ",\"status\":\"" + b.status + "\"}";
     return out;
 }
