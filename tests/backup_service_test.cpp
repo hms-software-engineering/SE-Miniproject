@@ -70,10 +70,14 @@ int main() {
         CHECK(!artifact.empty());
 
         const auto restore_work = dir / "restore-work";
+        const auto restore_status = [&restore_work] {
+            std::ifstream status_file(restore_work / "restore-status.txt");
+            return std::string(std::istreambuf_iterator<char>(status_file),
+                               std::istreambuf_iterator<char>());
+        };
         hms::backup::restore_backup(
             artifact, restore_database, restore_database, restore_work, key);
-        CHECK(hms::backup::status(restore_work, 24).find(
-                  "current=RESTORE_SUCCESS") != std::string::npos);
+        CHECK(restore_status().find("RESTORE_SUCCESS") != std::string::npos);
 
         bool nonempty_target_rejected = false;
         try {
@@ -83,8 +87,7 @@ int main() {
             nonempty_target_rejected = true;
         }
         CHECK(nonempty_target_rejected);
-        CHECK(hms::backup::status(restore_work, 24).find(
-                  "current=RESTORE_FAILURE") != std::string::npos);
+        CHECK(restore_status().find("RESTORE_FAILURE") != std::string::npos);
 
         const char* previous_database = std::getenv("PGDATABASE");
         const bool had_previous_database = previous_database != nullptr;
