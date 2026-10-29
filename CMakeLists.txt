@@ -255,6 +255,7 @@ set(HMS_SERVICE_MODULE_TARGETS
     appointments:hms_appointments
     clinical:hms_clinical
     reports:hms_reports
+    billing:hms_billing
     patients:hms_patients
     clinical:hms_clinical_records
     backup:hms_backup
@@ -314,7 +315,8 @@ if(HMS_ENABLE_COVERAGE)
             auth_service_test health_test password_security_test
             appointments_test change_appointment_test doctor_schedule_test
             clinical_service_test clinical_test report_service_test
-            patient_service_test backup_service_test hms_backup_cli hms_server)
+            patient_service_test backup_service_test billing_service_test
+            billing_tax_boundary_test hms_backup_cli hms_server)
         if(TARGET "${coverage_executable}")
             target_link_options("${coverage_executable}" PRIVATE --coverage)
         endif()
