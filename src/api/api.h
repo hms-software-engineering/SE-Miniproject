@@ -1,6 +1,8 @@
 #pragma once
 
+#include <optional>
 #include <string>
+#include <string_view>
 
 namespace hms {
 
@@ -19,5 +21,7 @@ void log_request(const std::string& method,
                  const std::string& request_id);
 
 std::string make_error_json(const ApiError& error);
+std::optional<std::string> parse_bearer_token(
+    std::string_view authorization);
 
 } // namespace hms

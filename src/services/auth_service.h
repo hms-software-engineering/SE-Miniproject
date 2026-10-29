@@ -35,6 +35,14 @@ enum class CreateUserStatus {
     AlreadyExists
 };
 
+enum class DeactivateUserStatus {
+    Deactivated,
+    NotFound,
+    ActorNotAuthorized,
+    SelfDeactivation,
+    LastAdministrator
+};
+
 class AuthRepository {
 public:
     virtual ~AuthRepository() = default;
@@ -43,6 +51,10 @@ public:
                                          const std::string& password_hash,
                                          Role role,
                                          std::string& user_id) = 0;
+    virtual DeactivateUserStatus deactivate_user(
+        const std::string& actor_user_id,
+        const std::string& user_id,
+        const AuditEvent& audit_event) = 0;
     virtual std::optional<AuthUser> find_user(
         const std::string& username) const = 0;
     virtual bool record_failed_login(const std::string& username) = 0;
@@ -75,6 +87,10 @@ public:
     AuthResult create_user(const std::string& username,
                            const std::string& password,
                            Role role);
+    DeactivateUserStatus deactivate_user(
+        const SessionPrincipal& actor,
+        const std::string& user_id,
+        const std::string& source_ip);
     AuthResult authenticate_user(const std::string& username,
                                  const std::string& password);
     std::optional<SessionPrincipal> authenticate_token(
@@ -98,6 +114,10 @@ public:
                                  const std::string& password_hash,
                                  Role role,
                                  std::string& user_id) override;
+    DeactivateUserStatus deactivate_user(
+        const std::string& actor_user_id,
+        const std::string& user_id,
+        const AuditEvent& audit_event) override;
     std::optional<AuthUser> find_user(
         const std::string& username) const override;
     bool record_failed_login(const std::string& username) override;
