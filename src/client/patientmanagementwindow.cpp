@@ -3,6 +3,7 @@
 #include "apiclient.h"
 
 #include <QComboBox>
+#include <QDate>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -11,11 +12,16 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QKeySequence>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
+#include <QShortcut>
 #include <QStringList>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QTimer>
 #include <QVBoxLayout>
 
 PatientManagementWindow::PatientManagementWindow(
@@ -76,13 +82,17 @@ PatientManagementWindow::PatientManagementWindow(
     auto *formBox = new QGroupBox("Patient details", this);
     auto *form = new QFormLayout(formBox);
     genderInput->addItems({"Female", "Male", "Other"});
-    dateOfBirthInput->setPlaceholderText("DD-MM-YYYY");
+    dateOfBirthInput->setInputMask("00-00-0000;_");
+    dateOfBirthInput->setToolTip("Enter the date as DD-MM-YYYY.");
     nameInput->setAccessibleName("Patient name");
     dateOfBirthInput->setAccessibleName("Date of birth");
     genderInput->setAccessibleName("Gender");
     phoneInput->setAccessibleName("Phone");
     addressInput->setAccessibleName("Address");
+    nameInput->setMaxLength(60);
     phoneInput->setMaxLength(10);
+    phoneInput->setValidator(new QRegularExpressionValidator(
+        QRegularExpression("[0-9]{10}"), phoneInput));
     addressInput->setMaxLength(120);
     form->addRow("Patient ID", patientIdLabel);
     form->addRow("Name *", nameInput);
@@ -90,6 +100,12 @@ PatientManagementWindow::PatientManagementWindow(
     form->addRow("Gender *", genderInput);
     form->addRow("Phone *", phoneInput);
     form->addRow("Address *", addressInput);
+    QWidget::setTabOrder(nameInput, dateOfBirthInput);
+    QWidget::setTabOrder(dateOfBirthInput, genderInput);
+    QWidget::setTabOrder(genderInput, phoneInput);
+    QWidget::setTabOrder(phoneInput, addressInput);
+    QWidget::setTabOrder(addressInput, submitButton);
+    submitButton->setDefault(true);
     if (!canManagePatients) {
         formBox->hide();
     }
@@ -109,6 +125,14 @@ PatientManagementWindow::PatientManagementWindow(
         } else {
             newPatientButton->hide();
             submitButton->hide();
+        }
+        if (canManagePatients) {
+            registrationTimer.start();
+            auto *registerShortcut =
+                new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return), this);
+            connect(registerShortcut, &QShortcut::activated,
+                    this, &PatientManagementWindow::submitPatient);
+            QTimer::singleShot(0, this, [this]() { nameInput->setFocus(); });
         }
         historyButton->setEnabled(false);
         patientActions->addWidget(historyButton);
@@ -183,12 +207,34 @@ QJsonObject PatientManagementWindow::patientForm() const
 
 void PatientManagementWindow::submitPatient()
 {
-    if (nameInput->text().trimmed().isEmpty() ||
-        dateOfBirthInput->text().trimmed().isEmpty() ||
-        phoneInput->text().trimmed().isEmpty() ||
-        addressInput->text().trimmed().isEmpty()) {
+    const auto reject = [this](QLineEdit *field, const QString &message) {
         statusLabel->setStyleSheet("color: #a61b1b;");
-        statusLabel->setText("Complete all patient fields before saving.");
+        statusLabel->setText(message);
+        field->setFocus();
+        field->selectAll();
+    };
+    const QString name = nameInput->text().trimmed();
+    const QString dateOfBirth = dateOfBirthInput->text().trimmed();
+    const QString phone = phoneInput->text().trimmed();
+    const QString address = addressInput->text().trimmed();
+    const QDate parsedDate =
+        QDate::fromString(dateOfBirth, "dd-MM-yyyy");
+    if (name.isEmpty() || name.size() > 60) {
+        reject(nameInput, "Enter a patient name (up to 60 characters).");
+        return;
+    }
+    if (!dateOfBirthInput->hasAcceptableInput() ||
+        !parsedDate.isValid() || parsedDate > QDate::currentDate()) {
+        reject(dateOfBirthInput,
+               "Enter a valid date of birth as DD-MM-YYYY, not in the future.");
+        return;
+    }
+    if (phone.size() != 10 || !phoneInput->hasAcceptableInput()) {
+        reject(phoneInput, "Enter a 10-digit phone number.");
+        return;
+    }
+    if (address.isEmpty() || address.size() > 120) {
+        reject(addressInput, "Enter an address (up to 120 characters).");
         return;
     }
     submitButton->setEnabled(false);
@@ -286,9 +332,22 @@ void PatientManagementWindow::handlePatientSuccess(
 
     const QJsonObject patient = response.value("patient").toObject();
     patientIdLabel->setText(patient.value("patientId").toString());
-    statusLabel->setText(operation == "register"
-        ? "Patient registered successfully."
-        : "Patient updated successfully.");
+    if (operation == "register") {
+        const qint64 elapsed = registrationTimer.elapsed();
+        const qint64 minutes = elapsed / 60000;
+        const qint64 seconds = (elapsed / 1000) % 60;
+        const QString duration =
+            QString("%1:%2").arg(minutes, 2, 10, QChar('0'))
+                            .arg(seconds, 2, 10, QChar('0'));
+        const QString targetResult = elapsed <= 180000
+            ? "within the 3-minute target."
+            : "over the 3-minute target.";
+        statusLabel->setText(
+            QString("Patient registered in %1 (%2)")
+                .arg(duration, targetResult));
+    } else {
+        statusLabel->setText("Patient updated successfully.");
+    }
     statusLabel->setStyleSheet("color: #14532d;");
     submitButton->setEnabled(true);
     submitButton->setText("Save patient changes");
@@ -324,6 +383,7 @@ void PatientManagementWindow::confirmDuplicateRegistration(
 
 void PatientManagementWindow::clearForm()
 {
+    registrationTimer.restart();
     patientIdLabel->setText("New patient");
     historyButton->setEnabled(false);
     nameInput->clear();
@@ -332,4 +392,6 @@ void PatientManagementWindow::clearForm()
     phoneInput->clear();
     addressInput->clear();
     submitButton->setText("Register patient");
+    statusLabel->clear();
+    nameInput->setFocus();
 }
