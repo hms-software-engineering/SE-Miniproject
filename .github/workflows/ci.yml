@@ -21,7 +21,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev
+          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev qt6-base-dev libgl1-mesa-dev libxkbcommon-dev
 
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
@@ -36,6 +36,7 @@ jobs:
             mingw-w64-ucrt-x86_64-openssl
             mingw-w64-ucrt-x86_64-argon2
             mingw-w64-ucrt-x86_64-postgresql
+            mingw-w64-ucrt-x86_64-qt6-base
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
@@ -63,3 +64,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: ctest --test-dir build -C Release --output-on-failure
+
+      # HMS-NF-007: the Qt client must build on Ubuntu 22.04 (GCC 11) and Windows.
+      - name: Check Qt client was built
+        shell: bash
+        run: |
+          test -f build/hms_client || test -f build/hms_client.exe || { echo "hms_client was not built"; exit 1; }
+          grep -E 'CMAKE_CXX_COMPILER_(ID|VERSION):' build/CMakeCache.txt || true
