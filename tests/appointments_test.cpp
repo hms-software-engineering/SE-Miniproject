@@ -81,6 +81,15 @@ public:
         result.appointment.status = "Confirmed";
         return result;
     }
+    bool find_by_id(long long, hms::Appointment&) const override {
+        return false;
+    }
+    bool update_status(long long, const std::string&) override {
+        return false;
+    }
+    hms::SaveStatus reschedule(long long, const std::string&) override {
+        return hms::SaveStatus::PatientMissing;
+    }
 
 private:
     long long next_id_ = 1;
