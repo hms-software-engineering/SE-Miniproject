@@ -1,10 +1,13 @@
 #include "services/auth_service.h"
+#include "api/audit_log_handler.h"
 #include "api/user_management_handler.h"
 
 #include <array>
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include <nlohmann/json.hpp>
+#include <stdexcept>
 #include <set>
 #include <thread>
 #include <unordered_map>
@@ -116,11 +119,19 @@ public:
                         const std::string& user_id) override
     {
         sessions_[token_hash] = user_id;
+        if (expire_next_session_) {
+            expired_sessions_.insert(token_hash);
+            expire_next_session_ = false;
+        }
     }
 
     std::optional<hms::SessionPrincipal> find_session(
         const std::string& token_hash) const override
     {
+        if (auth_lookup_fails) throw std::runtime_error("auth database detail");
+        if (expired_sessions_.find(token_hash) != expired_sessions_.end()) {
+            return std::nullopt;
+        }
         const auto found = sessions_.find(token_hash);
 
         if (found == sessions_.end()) {
@@ -146,14 +157,39 @@ public:
     void record_audit_event(const hms::AuditEvent& event) override
     {
         audit_events.push_back(event);
+        audit_records.push_back({event.user_id(), event.role(), event.action(),
+                                 event.record_id(),
+                                 "2026-10-29T00:00:00.000000Z",
+                                 event.source_ip()});
+    }
+
+    std::vector<hms::AuditRecord> read_audit_events(
+        std::optional<hms::AuditAction> action,
+        std::optional<hms::AuditRecordId> record_id) const override
+    {
+        if (audit_read_fails) throw std::runtime_error("database detail");
+        std::vector<hms::AuditRecord> result;
+        for (const auto& record : audit_records) {
+            if (action && record.action != *action) continue;
+            if (record_id && (!record.record_id ||
+                              record.record_id->value() != record_id->value()))
+                continue;
+            result.push_back(record);
+        }
+        return result;
     }
 
     std::vector<hms::AuditEvent> audit_events;
+    std::vector<hms::AuditRecord> audit_records;
+    bool audit_read_fails = false;
+    bool auth_lookup_fails = false;
 
     std::size_t session_count() const
     {
         return sessions_.size();
     }
+
+    void expire_next_session() { expire_next_session_ = true; }
 
     std::string stored_password_hash(const std::string& username) const
     {
@@ -170,6 +206,8 @@ private:
     std::size_t next_id_ = 1;
     std::unordered_map<std::string, hms::AuthUser> users_;
     std::unordered_map<std::string, std::string> sessions_;
+    std::set<std::string> expired_sessions_;
+    bool expire_next_session_ = false;
     std::unordered_map<std::string, std::size_t> failed_attempts_;
     std::set<std::string> locked_users_;
 };
@@ -464,11 +502,12 @@ void test_authentication()
     };
     service.record_audit_event(audit_event);
     CHECK(repository.audit_events.size() == 1);
-    CHECK(repository.audit_events.front().user_id == login.user_id);
-    CHECK(repository.audit_events.front().role == "Patient");
-    CHECK(repository.audit_events.front().action == "LOGIN");
-    CHECK(repository.audit_events.front().record_id == login.user_id);
-    CHECK(repository.audit_events.front().source_ip == "127.0.0.1");
+    CHECK(repository.audit_events.front().user_id() ==
+          hms::parse_audit_user_id(login.user_id));
+    CHECK(repository.audit_events.front().role() == hms::AuditRole::Patient);
+    CHECK(repository.audit_events.front().action() == hms::AuditAction::Login);
+    CHECK(repository.audit_events.front().record_id()->value() == login.user_id);
+    CHECK(repository.audit_events.front().source_ip() == "127.0.0.1");
 
     auto principal = service.authenticate_token(login.token);
     CHECK(principal.has_value());
@@ -531,7 +570,7 @@ void test_postgres_authentication_when_enabled()
     CHECK(login.role == hms::Role::Patient);
 
     service.record_audit_event(
-        {registered.user_id, "Patient", "COVERAGE_TEST", registered.user_id,
+        {registered.user_id, "Patient", "LOGIN", registered.user_id,
          "127.0.0.1"});
     const auto failed_login =
         service.authenticate_user(username, "WrongPass1!");
@@ -577,6 +616,56 @@ void test_postgres_authentication_when_enabled()
     const auto second_admin_login = service.authenticate_user(
         username + "_admin2", "GoodPass1!");
     CHECK(first_admin_login.success && second_admin_login.success);
+
+    const auto persisted_audit_read = hms::handle_audit_log(
+        "GET", "/api/v1/audit-log",
+        "action=LOGIN&recordId=" + registered.user_id,
+        "Bearer " + first_admin_login.token, "127.0.0.1",
+        "req-postgres-audit", service);
+    CHECK(persisted_audit_read.status == 200);
+    CHECK(persisted_audit_read.body.find(registered.user_id) !=
+          std::string::npos);
+    CHECK(persisted_audit_read.body.find("LOGIN") != std::string::npos);
+    CHECK(persisted_audit_read.body.find("127.0.0.1") !=
+          std::string::npos);
+    const auto persisted_json = nlohmann::json::parse(
+        persisted_audit_read.body);
+    CHECK(persisted_json.at("entries").size() == 1);
+    const auto& persisted_entry = persisted_json.at("entries").front();
+    CHECK(persisted_entry.size() == 6);
+    CHECK(persisted_entry.at("userId") == std::stoull(registered.user_id));
+    CHECK(persisted_entry.at("role") == "Patient");
+    CHECK(persisted_entry.at("action") == "LOGIN");
+    CHECK(persisted_entry.at("recordId") == registered.user_id);
+    CHECK(persisted_entry.at("sourceIp") == "127.0.0.1");
+    CHECK(persisted_entry.at("timestamp").get<std::string>().find('Z') !=
+          std::string::npos);
+
+    const auto stored_before_rejection = hms::handle_audit_log(
+        "GET", "/api/v1/audit-log",
+        "action=LOGIN&recordId=" + registered.user_id,
+        "Bearer " + first_admin_login.token, "127.0.0.1",
+        "req-postgres-audit-before", service);
+    CHECK(stored_before_rejection.status == 200);
+    for (const std::string& synthetic_sensitive_value : {
+             "GoodPass1!", "$argon2id$v=19$m=65536$synthetic-hash",
+             "synthetic-session-token", "clinical note: synthetic symptom"}) {
+        bool rejected = false;
+        try {
+            (void)hms::AuditEvent{registered.user_id, "Patient", "LOGIN",
+                                  synthetic_sensitive_value, "127.0.0.1"};
+        } catch (const std::invalid_argument&) {
+            rejected = true;
+        }
+        CHECK(rejected);
+    }
+    const auto stored_after_rejection = hms::handle_audit_log(
+        "GET", "/api/v1/audit-log",
+        "action=LOGIN&recordId=" + registered.user_id,
+        "Bearer " + first_admin_login.token, "127.0.0.1",
+        "req-postgres-audit-after", service);
+    CHECK(stored_after_rejection.status == 200);
+    CHECK(stored_after_rejection.body == stored_before_rejection.body);
 
     hms::PostgresAuthRepository second_repository(connection_info);
     hms::AuthService second_service(second_repository);
@@ -636,9 +725,10 @@ void test_account_deactivation()
     CHECK(!refused_login.success);
     CHECK(refused_login.message == "Invalid username or password.");
     CHECK(!service.authenticate_token(login.token).has_value());
-    CHECK(repository.audit_events.back().action == "DEACTIVATE_USER");
-    CHECK(repository.audit_events.back().user_id == admin.user_id);
-    CHECK(repository.audit_events.back().record_id == created.user_id);
+    CHECK(repository.audit_events.back().action() == hms::AuditAction::DeactivateUser);
+    CHECK(repository.audit_events.back().user_id() ==
+          hms::parse_audit_user_id(admin.user_id));
+    CHECK(repository.audit_events.back().record_id()->value() == created.user_id);
 
     CHECK(service.deactivate_user(actor, "999999", "127.0.0.1") ==
           hms::DeactivateUserStatus::NotFound);
@@ -704,10 +794,167 @@ void test_user_deactivation_endpoint()
     CHECK(!service.authenticate_user("endpoint-target", "GoodPass1!").success);
     CHECK(request(admin_login.token, "/api/v1/users/" + admin.user_id,
                   R"({"action":"deactivate"})").status == 409);
-    CHECK(repository.audit_events.back().user_id == admin.user_id);
-    CHECK(repository.audit_events.back().action == "DEACTIVATE_USER");
-    CHECK(repository.audit_events.back().record_id == target.user_id);
-    CHECK(repository.audit_events.back().source_ip == "127.0.0.1");
+    CHECK(repository.audit_events.back().user_id() ==
+          hms::parse_audit_user_id(admin.user_id));
+    CHECK(repository.audit_events.back().action() == hms::AuditAction::DeactivateUser);
+    CHECK(repository.audit_events.back().record_id()->value() == target.user_id);
+    CHECK(repository.audit_events.back().source_ip() == "127.0.0.1");
+}
+
+void test_audit_log_endpoint_security()
+{
+    InMemoryAuthRepository repository;
+    hms::AuthService service(repository);
+    const auto create_and_login = [&](const std::string& username,
+                                      hms::Role role) {
+        const auto created = service.create_user(username, "GoodPass1!", role);
+        CHECK(created.success);
+        const auto login = service.authenticate_user(username, "GoodPass1!");
+        CHECK(login.success);
+        return login;
+    };
+    const auto patient = create_and_login("audit_patient", hms::Role::Patient);
+    const auto receptionist = create_and_login(
+        "audit_reception", hms::Role::Receptionist);
+    const auto doctor = create_and_login("audit_doctor", hms::Role::Doctor);
+    const auto billing = create_and_login(
+        "audit_billing", hms::Role::BillingOfficer);
+    const auto admin = create_and_login(
+        "audit_admin", hms::Role::Administrator);
+    const auto expired_user = service.create_user(
+        "audit_expired", "GoodPass1!", hms::Role::Administrator);
+    CHECK(expired_user.success);
+    repository.expire_next_session();
+    const auto expired = service.authenticate_user(
+        "audit_expired", "GoodPass1!");
+    CHECK(expired.success);
+
+    repository.record_audit_event(hms::AuditEvent{
+        admin.user_id, "Administrator", "CREATE_USER", "42", "127.0.0.1"});
+    repository.record_audit_event(hms::AuditEvent{
+        doctor.user_id, "Doctor", "VIEW_PATIENT_HISTORY", "PID-00000001",
+        "192.0.2.20"});
+
+    const auto request = [&](const std::string& token,
+                             const std::string& query = std::string()) {
+        return hms::handle_audit_log(
+            "GET", "/api/v1/audit-log", query,
+            token.empty() ? "" : "Bearer " + token, "127.0.0.1",
+            "req-audit", service);
+    };
+    CHECK(request("").status == 401);
+    CHECK(request("not-a-token").status == 401);
+    CHECK(request(std::string(64, 'a')).status == 401);
+    CHECK(request(expired.token).status == 401);
+    for (const auto* token : {&patient.token, &receptionist.token,
+                              &doctor.token, &billing.token}) {
+        CHECK(request(*token).status == 403);
+        CHECK(request(*token, "role=Administrator").status == 403);
+        CHECK(request(*token, "action=VIEW_PATIENT_HISTORY").status == 403);
+        const auto direct_read = service.read_audit_events(*token);
+        CHECK(direct_read.status == hms::AuditReadStatus::AccessDenied);
+        CHECK(direct_read.records.empty());
+    }
+    CHECK(service.read_audit_events(std::string(64, 'b')).status ==
+          hms::AuditReadStatus::AuthenticationRequired);
+
+    const auto all_records = request(admin.token);
+    CHECK(all_records.status == 200);
+    CHECK(all_records.body.find("\"userId\"") != std::string::npos);
+    CHECK(all_records.body.find("\"role\"") != std::string::npos);
+    CHECK(all_records.body.find("\"action\"") != std::string::npos);
+    CHECK(all_records.body.find("\"recordId\"") != std::string::npos);
+    CHECK(all_records.body.find("\"timestamp\"") != std::string::npos);
+    CHECK(all_records.body.find("\"sourceIp\"") != std::string::npos);
+    CHECK(all_records.body.find("2026-10-29T00:00:00.000000Z") !=
+          std::string::npos);
+    CHECK(all_records.body.find("192.0.2.20") != std::string::npos);
+    CHECK(all_records.body.find("password") == std::string::npos);
+    CHECK(all_records.body.find("symptoms") == std::string::npos);
+    CHECK(all_records.body.find("diagnosis") == std::string::npos);
+    CHECK(all_records.body.find("notes") == std::string::npos);
+    const auto serialized = nlohmann::json::parse(all_records.body);
+    CHECK(serialized.size() == 1);
+    CHECK(serialized.at("entries").size() == 2);
+    const std::set<std::string> allowed_fields = {
+        "userId", "role", "action", "recordId", "timestamp", "sourceIp"};
+    for (const auto& entry : serialized.at("entries")) {
+        CHECK(entry.size() == allowed_fields.size());
+        for (const auto& field : entry.items())
+            CHECK(allowed_fields.find(field.key()) != allowed_fields.end());
+    }
+
+    const auto filtered = request(admin.token,
+        "action=VIEW_PATIENT_HISTORY&recordId=PID-00000001");
+    CHECK(filtered.status == 200);
+    CHECK(filtered.body.find("PID-00000001") != std::string::npos);
+    CHECK(filtered.body.find("VIEW_PATIENT_HISTORY") != std::string::npos);
+    CHECK(filtered.body.find("CREATE_USER") == std::string::npos);
+    CHECK(request(admin.token, "action=LOGIN_FAILED").status == 200);
+    CHECK(request(admin.token, "action=not-supported").status == 400);
+    CHECK(request(admin.token, "action=LOGIN&").status == 400);
+    CHECK(request(admin.token, "recordId=1%27%3Bdrop%20table").status == 400);
+    CHECK(request(admin.token, "action=LOGIN&action=LOGOUT").status == 400);
+    CHECK(request(admin.token, "role=Administrator").status == 400);
+    CHECK(hms::handle_audit_log("POST", "/api/v1/audit-log", "", "",
+                                "127.0.0.1", "req-audit", service).status == 405);
+    CHECK(hms::handle_audit_log("GET", "/api/v1/audit-log/42", "",
+                                "Bearer " + admin.token, "127.0.0.1",
+                                "req-audit", service).status == 404);
+    repository.audit_read_fails = true;
+    const auto database_error = request(admin.token);
+    CHECK(database_error.status == 500);
+    CHECK(database_error.body.find("database detail") == std::string::npos);
+    repository.audit_read_fails = false;
+    repository.auth_lookup_fails = true;
+    const auto authentication_database_error = request(admin.token);
+    CHECK(authentication_database_error.status == 500);
+    CHECK(authentication_database_error.body.find("auth database detail") ==
+          std::string::npos);
+    repository.auth_lookup_fails = false;
+
+    InMemoryAuthRepository empty_repository;
+    hms::AuthService empty_service(empty_repository);
+    const auto empty_admin = empty_service.create_user(
+        "empty_audit_admin", "GoodPass1!", hms::Role::Administrator);
+    CHECK(empty_admin.success);
+    const auto empty_login = empty_service.authenticate_user(
+        "empty_audit_admin", "GoodPass1!");
+    CHECK(empty_login.success);
+    const auto empty_response = hms::handle_audit_log(
+        "GET", "/api/v1/audit-log", "", "Bearer " + empty_login.token,
+        "127.0.0.1", "req-empty-audit", empty_service);
+    CHECK(empty_response.status == 200);
+    CHECK(empty_response.body == "{\"entries\":[]}");
+
+    CHECK(hms::AuditRecordId::parse("42").has_value());
+    CHECK(hms::AuditRecordId::parse("PID-00000001").has_value());
+    CHECK(!hms::AuditRecordId::parse("0").has_value());
+    CHECK(!hms::AuditRecordId::parse("9223372036854775808").has_value());
+    for (const std::string& unsafe : {
+             "password hash", "session-token", "diagnosis: flu",
+             "symptoms: pain", "prescription", "medical history", "x';--"}) {
+        CHECK(!hms::AuditRecordId::parse(unsafe).has_value());
+    }
+    for (const std::string& unsafe_action : {
+             "password=hunter2", "TOKEN_ISSUED", "DIAGNOSIS", "REQUEST_BODY"}) {
+        bool rejected = false;
+        try {
+            (void)hms::AuditEvent{"1", "Doctor", unsafe_action, "42",
+                                  "127.0.0.1"};
+        } catch (const std::invalid_argument&) {
+            rejected = true;
+        }
+        CHECK(rejected);
+    }
+    bool secret_user_id_rejected = false;
+    try {
+        (void)hms::AuditEvent{"GoodPass1!", "Doctor", "LOGIN", "42",
+                              "127.0.0.1"};
+    } catch (const std::invalid_argument&) {
+        secret_user_id_rejected = true;
+    }
+    CHECK(secret_user_id_rejected);
 }
 
 } // namespace
@@ -718,6 +965,7 @@ int main()
     test_authentication();
     test_account_deactivation();
     test_user_deactivation_endpoint();
+    test_audit_log_endpoint_security();
     test_postgres_authentication_when_enabled();
 
     std::cout << "All authentication and RBAC tests passed.\n";

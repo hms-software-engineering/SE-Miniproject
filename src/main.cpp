@@ -1,4 +1,5 @@
 #include "api/api.h"
+#include "api/audit_log_handler.h"
 #include "api/user_management_handler.h"
 #include "appointments/appointments.h"
 #include "clinical/clinical_service.h"
@@ -941,16 +942,13 @@ void handle_client(TlsConnection& client,
             return;
         }
         if (!result.success) {
-            const std::string attempted_user =
-                fields.at("username").size() <= 100
-                    ? fields.at("username") : "";
             auth_service.record_audit_event({
                 result.user_id,
                 result.user_id.empty()
                     ? "Unknown"
                     : std::string(hms::role_name(result.role)),
                 "LOGIN_FAILED",
-                result.user_id.empty() ? attempted_user : result.user_id,
+                result.user_id,
                 client.source_ip
             });
             if (result.account_locked) {
@@ -1084,6 +1082,14 @@ void handle_client(TlsConnection& client,
         return;
     }
 
+    if (path == "/api/v1/audit-log") {
+        const auto response = hms::handle_audit_log(
+            method, path, query_string, authorization, client.source_ip,
+            request_id, auth_service);
+        send_response(client, response.status, response.body);
+        return;
+    }
+
     const auto required_permission = permission_for_request(method, path);
     if (required_permission.has_value()) {
         hms::SessionPrincipal principal;
@@ -1130,7 +1136,7 @@ void handle_client(TlsConnection& client,
                 principal.user_id,
                 std::string(hms::role_name(principal.role)),
                 "GENERATE_DAILY_REPORT",
-                start_date + ":" + end_date + ":" + format,
+                "",
                 client.source_ip
             });
             send_download_response(
@@ -1310,7 +1316,7 @@ void handle_client(TlsConnection& client,
                 principal.user_id,
                 std::string(hms::role_name(principal.role)),
                 "VIEW_OWN_SCHEDULE",
-                date,
+                "",
                 client.source_ip
             });
 
@@ -1693,6 +1699,12 @@ void handle_client(TlsConnection& client,
                            record_access_error, request_id);
                 return;
             }
+
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "VIEW_PATIENT", patient.patient_id, client.source_ip
+            });
 
             send_response(client, 200,
                           "{\"patient\":" + json_patient(patient) + "}");
