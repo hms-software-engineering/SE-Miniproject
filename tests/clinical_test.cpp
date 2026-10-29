@@ -19,6 +19,7 @@ int main() {
     repo.add_appointment({4, "PID-00000002", 7, "Confirmed"});
     repo.add_appointment({5, "PID-00000002", 8, "Confirmed"});
     repo.add_appointment({6, "PID-00000002", 7, "Cancelled"});
+    repo.set_allergies("PID-00000001", {"Penicillin"});
 
     hms::Caller doctor{hms::Role::Doctor, 7};
     hms::Caller receptionist{hms::Role::Receptionist, 0};
@@ -43,6 +44,32 @@ int main() {
     auto denied = hms::record_visit(repo, receptionist, 2, "x", "y", "", "t");
     CHECK(denied.http_status == 403);
     CHECK(denied.message == "Access denied");
+
+    // TC-CLN-02: prescription item saved on the visit.
+    auto p1 = hms::add_prescription(repo, doctor, v1.visit.id, "Paracetamol 500 mg",
+                                    "500 mg", "3 times a day", 5, "");
+    CHECK(p1.ok);
+    CHECK(p1.http_status == 201);
+    CHECK(p1.item.days == 5);
+    CHECK(repo.prescriptions_for_visit(v1.visit.id).size() == 1);
+    CHECK(hms::add_prescription(repo, doctor, v1.visit.id, "X", "1", "daily", 0, "").field == "days");
+    CHECK(hms::add_prescription(repo, doctor, v1.visit.id, "", "1", "daily", 3, "").field == "medicine");
+    CHECK(hms::add_prescription(repo, doctor, 99, "X", "1", "daily", 3, "").http_status == 404);
+    CHECK(hms::add_prescription(repo, receptionist, v1.visit.id, "X", "1", "daily", 3, "").http_status == 403);
+
+    // TC-CLN-03: Penicillin allergy, Amoxicillin prescribed -> warning until reason given.
+    auto warn = hms::add_prescription(repo, doctor, v1.visit.id, "Amoxicillin 250 mg",
+                                      "250 mg", "twice a day", 7, "");
+    CHECK(!warn.ok);
+    CHECK(warn.http_status == 409);
+    CHECK(warn.code == "ALLERGY_WARNING");
+    CHECK(repo.prescriptions_for_visit(v1.visit.id).size() == 1);
+    auto over = hms::add_prescription(repo, doctor, v1.visit.id, "Amoxicillin 250 mg",
+                                      "250 mg", "twice a day", 7, "No alternative; monitored");
+    CHECK(over.ok);
+    CHECK(over.item.override_reason == "No alternative; monitored");
+    CHECK(hms::matching_allergies("PENICILLIN V", {"penicillin"}).size() == 1);
+    CHECK(hms::matching_allergies("Paracetamol", {"Penicillin"}).empty());
 
     std::cout << "All clinical tests passed.\n";
     return 0;
