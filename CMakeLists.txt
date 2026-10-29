@@ -4,9 +4,16 @@ project(HMS_Miniproject VERSION 1.0.0 LANGUAGES CXX)
 
 option(HMS_ENABLE_COVERAGE "Instrument service modules for gcov coverage" OFF)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+        AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 11)
+    message(FATAL_ERROR "HMS-NF-007 requires GCC 11 or newer")
+elseif(MSVC AND MSVC_VERSION LESS 1920)
+    message(FATAL_ERROR "HMS-NF-007 requires MSVC 2019 or newer")
+endif()
 
 include(FetchContent)
 
@@ -190,25 +197,21 @@ target_link_libraries(clinical_test PRIVATE hms_clinical_records)
 
 add_test(NAME clinical_test COMMAND clinical_test)
 
-# ---- Qt desktop client (only if Qt6 is available) ----
-find_package(Qt6 QUIET COMPONENTS Widgets Network)
-if(Qt6_FOUND)
-    qt_standard_project_setup()
-    qt_add_executable(hms_client
-        src/client/main.cpp
-        src/client/loginwindow.h
-        src/client/loginwindow.cpp
-        src/client/apiclient.h
-        src/client/apiclient.cpp
-        src/client/patientmanagementwindow.h
-        src/client/patientmanagementwindow.cpp
-        src/client/workflowwindow.h
-        src/client/workflowwindow.cpp
-    )
-    target_link_libraries(hms_client PRIVATE Qt6::Widgets Qt6::Network)
-else()
-    message(STATUS "Qt6 Widgets and Network not found; skipping hms_client")
-endif()
+# ---- Qt desktop client ----
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network)
+qt_add_executable(hms_client
+    src/client/main.cpp
+    src/client/loginwindow.h
+    src/client/loginwindow.cpp
+    src/client/apiclient.h
+    src/client/apiclient.cpp
+    src/client/patientmanagementwindow.h
+    src/client/patientmanagementwindow.cpp
+    src/client/workflowwindow.h
+    src/client/workflowwindow.cpp
+)
+set_target_properties(hms_client PROPERTIES AUTOMOC ON)
+target_link_libraries(hms_client PRIVATE Qt6::Widgets Qt6::Network)
 
 # ---- TLS API server ----
 add_executable(hms_server src/main.cpp)
