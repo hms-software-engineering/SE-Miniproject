@@ -170,6 +170,9 @@ add_executable(patient_service_test tests/patient_service_test.cpp)
 target_link_libraries(patient_service_test PRIVATE hms_patients)
 add_test(NAME patient_service_test COMMAND patient_service_test)
 
+add_executable(nf001_seed_patients tests/performance/seed_patients.cpp)
+target_link_libraries(nf001_seed_patients PRIVATE hms_patients)
+
 # Clinical records
 add_library(hms_clinical_records
     src/clinical/clinical.cpp
