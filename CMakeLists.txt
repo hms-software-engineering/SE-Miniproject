@@ -28,13 +28,6 @@ endif()
 
 enable_testing()
 
-add_library(hms_validation src/validation/validator.cpp)
-target_include_directories(hms_validation PUBLIC src/validation)
-
-add_executable(validator_test tests/validator_test.cpp)
-target_link_libraries(validator_test PRIVATE hms_validation)
-add_test(NAME validator_test COMMAND validator_test)
-
 
 # ---- HMS-NF-006 encrypted PostgreSQL backups ----
 add_library(hms_backup src/backup/backup_service.cpp)
@@ -51,8 +44,11 @@ add_test(NAME backup_service_test COMMAND backup_service_test)
 add_library(hms_auth
     src/services/auth_service.cpp
     src/services/rbac_service.cpp
+    src/validation/validator.cpp
 )
-target_include_directories(hms_auth PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(hms_auth PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/validation)
 target_include_directories(hms_auth PRIVATE ${ARGON2_INCLUDE_DIR})
 target_link_libraries(hms_auth PRIVATE ${ARGON2_LIBRARY})
 if(WIN32)
@@ -86,6 +82,10 @@ add_test(NAME api_test COMMAND api_test)
 add_executable(auth_service_test tests/auth_service_test.cpp)
 target_link_libraries(auth_service_test PRIVATE hms_auth hms_api)
 add_test(NAME auth_service_test COMMAND auth_service_test)
+
+add_executable(validator_test tests/validator_test.cpp)
+target_link_libraries(validator_test PRIVATE hms_auth)
+add_test(NAME validator_test COMMAND validator_test)
 
 add_executable(health_test tests/health_test.cpp)
 target_link_libraries(health_test PRIVATE hms_health)
@@ -206,7 +206,6 @@ target_link_libraries(hms_server PRIVATE
     hms_reports
     hms_clinical
     hms_health
-    hms_validation
     OpenSSL::SSL
     OpenSSL::Crypto
 )
