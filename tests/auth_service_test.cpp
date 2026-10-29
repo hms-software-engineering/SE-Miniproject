@@ -454,6 +454,15 @@ void test_postgres_authentication_when_enabled()
     hms::AuthService service(repository);
     CHECK(repository.health_check());
 
+    std::string doctor_id;
+    const auto doctor_created = repository.create_user(
+        "coverage_doctor_" + std::to_string(
+            std::chrono::high_resolution_clock::now()
+                .time_since_epoch().count()),
+        "test-hash", hms::Role::Doctor, doctor_id);
+    CHECK(doctor_created == hms::CreateUserStatus::Created);
+    CHECK(!doctor_id.empty());
+
     const auto stamp =
         std::chrono::high_resolution_clock::now()
             .time_since_epoch()
@@ -471,13 +480,22 @@ void test_postgres_authentication_when_enabled()
     CHECK(login.success);
     CHECK(login.role == hms::Role::Patient);
 
-    const auto principal =
-        service.authenticate_token(login.token);
+    service.record_audit_event(
+        {registered.user_id, "Patient", "COVERAGE_TEST", registered.user_id,
+         "127.0.0.1"});
+    const auto failed_login =
+        service.authenticate_user(username, "WrongPass1!");
+    CHECK(!failed_login.success);
+    const auto login_again =
+        service.authenticate_user(username, "GoodPass1!");
+    CHECK(login_again.success);
+
+    const auto principal = service.authenticate_token(login_again.token);
     CHECK(principal.has_value());
     CHECK(principal->user_id == registered.user_id);
 
-    service.logout(login.token);
-    CHECK(!service.authenticate_token(login.token).has_value());
+    service.logout(login_again.token);
+    CHECK(!service.authenticate_token(login_again.token).has_value());
 }
 
 } // namespace

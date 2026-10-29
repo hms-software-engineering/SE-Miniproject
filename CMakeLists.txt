@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.20)
 
 project(HMS_Miniproject VERSION 1.0.0 LANGUAGES CXX)
 
+option(HMS_ENABLE_COVERAGE "Instrument service modules for gcov coverage" OFF)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -110,7 +112,7 @@ if(NOT WIN32)
 endif()
 
 add_executable(clinical_service_test tests/clinical_service_test.cpp)
-target_link_libraries(clinical_service_test PRIVATE hms_clinical)
+target_link_libraries(clinical_service_test PRIVATE hms_clinical hms_appointments)
 add_test(NAME clinical_service_test COMMAND clinical_service_test)
 
 # ---- Reports ----
@@ -176,4 +178,78 @@ target_link_libraries(hms_server PRIVATE
 
 if(WIN32)
     target_link_libraries(hms_server PRIVATE ws2_32)
+endif()
+
+# The service inventory is explicit so every module is independently checked.
+# Source files are taken from each library target to keep the coverage manifest
+# in sync with the code CMake actually builds.
+set(HMS_SERVICE_MODULE_TARGETS
+    auth:hms_auth
+    health:hms_health
+    password_security:hms_password_security
+    appointments:hms_appointments
+    clinical:hms_clinical
+    reports:hms_reports
+    patients:hms_patients
+)
+
+if(HMS_ENABLE_COVERAGE)
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        message(FATAL_ERROR "HMS_ENABLE_COVERAGE requires GCC/gcov")
+    endif()
+
+    get_property(all_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(candidate IN LISTS all_targets)
+        get_target_property(candidate_type "${candidate}" TYPE)
+        if(candidate MATCHES "^hms_"
+                AND candidate_type MATCHES "^(STATIC|SHARED|MODULE)_LIBRARY$"
+                AND NOT candidate STREQUAL "hms_api")
+            set(candidate_registered FALSE)
+            foreach(module_target IN LISTS HMS_SERVICE_MODULE_TARGETS)
+                if(module_target MATCHES ":${candidate}$")
+                    set(candidate_registered TRUE)
+                    break()
+                endif()
+            endforeach()
+            if(NOT candidate_registered)
+                message(FATAL_ERROR
+                    "Service library ${candidate} is missing from the coverage inventory")
+            endif()
+        endif()
+    endforeach()
+
+    set(HMS_COVERAGE_MANIFEST "${CMAKE_BINARY_DIR}/service-module-sources.txt")
+    file(WRITE "${HMS_COVERAGE_MANIFEST}" "")
+    foreach(module_target IN LISTS HMS_SERVICE_MODULE_TARGETS)
+        string(REPLACE ":" ";" module_parts "${module_target}")
+        list(GET module_parts 0 module_name)
+        list(GET module_parts 1 target_name)
+        if(NOT TARGET "${target_name}")
+            message(FATAL_ERROR "Coverage inventory references missing target ${target_name}")
+        endif()
+        get_target_property(module_sources "${target_name}" SOURCES)
+        set(module_source_count 0)
+        foreach(source IN LISTS module_sources)
+            if(source MATCHES "\\.cpp$")
+                math(EXPR module_source_count "${module_source_count} + 1")
+                get_filename_component(source_absolute "${source}" ABSOLUTE
+                    BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+                file(APPEND "${HMS_COVERAGE_MANIFEST}"
+                    "${module_name}|${source_absolute}\n")
+            endif()
+        endforeach()
+        if(module_source_count EQUAL 0)
+            message(FATAL_ERROR "Coverage module ${module_name} has no C++ source files")
+        endif()
+        target_compile_options("${target_name}" PRIVATE --coverage -O0 -g)
+    endforeach()
+    foreach(coverage_executable IN ITEMS
+            auth_service_test health_test password_security_test
+            appointments_test clinical_service_test report_service_test
+            patient_service_test hms_server)
+        if(TARGET "${coverage_executable}")
+            target_link_options("${coverage_executable}" PRIVATE --coverage)
+        endif()
+    endforeach()
+    message(STATUS "GCC coverage enabled for ${HMS_SERVICE_MODULE_TARGETS}")
 endif()

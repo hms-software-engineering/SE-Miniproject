@@ -63,3 +63,83 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: ctest --test-dir build -C Release --output-on-failure
+
+  coverage:
+    name: Per-service coverage (Ubuntu)
+    runs-on: ubuntu-22.04
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: hms
+          POSTGRES_USER: hms_app
+          POSTGRES_PASSWORD: hms_coverage_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hms_app -d hms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: hms
+      PGUSER: hms_app
+      PGPASSWORD: hms_coverage_test
+      HMS_AUTH_TEST_POSTGRES: 1
+      HMS_PATIENT_TEST_POSTGRES: 1
+      HMS_APPOINTMENT_TEST_POSTGRES: 1
+      HMS_CLINICAL_TEST_POSTGRES: 1
+      HMS_PATIENT_DATA_KEY: 0123456789abcdef0123456789abcdef
+      HMS_PATIENT_NAME_INDEX_KEY: abcdef0123456789abcdef0123456789
+      HMS_PATIENT_PHONE_INDEX_KEY: fedcba9876543210fedcba9876543210
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux coverage dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev lcov postgresql-client
+
+      - name: Configure GCC coverage build
+        run: cmake -S . -B build-coverage -DCMAKE_BUILD_TYPE=Debug -DHMS_ENABLE_COVERAGE=ON
+
+      - name: Build instrumented service modules and unit tests
+        run: cmake --build build-coverage --parallel 4
+
+      - name: Apply PostgreSQL migrations for adapter tests
+        run: |
+          for migration in PostgreSQL/database/migrations/00*.sql; do
+            psql -v ON_ERROR_STOP=1 -f "$migration"
+          done
+
+      - name: Validate coverage threshold checker
+        run: python3 scripts/test_check_service_coverage.py
+
+      - name: Run instrumented unit and repository tests
+        run: ctest --test-dir build-coverage --output-on-failure
+
+      - name: Capture and enforce per-service line coverage
+        run: |
+          mkdir -p build-coverage/coverage
+          lcov --capture --directory build-coverage --base-directory . \
+            --output-file build-coverage/coverage/raw.info --rc branch_coverage=0
+          lcov --remove build-coverage/coverage/raw.info \
+            '*/tests/*' '*/_deps/*' '*/src/main.cpp' '*/src/client/*' '*/src/api.cpp' \
+            --output-file build-coverage/coverage/service-modules.info \
+            --rc branch_coverage=0
+          python3 scripts/check_service_coverage.py \
+            --manifest build-coverage/service-module-sources.txt \
+            --lcov build-coverage/coverage/service-modules.info \
+            --threshold 70
+
+      - name: Upload LCOV report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-module-lcov-report
+          path: build-coverage/coverage/service-modules.info
+          if-no-files-found: ignore
