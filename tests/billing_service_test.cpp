@@ -121,9 +121,14 @@ void test_postgres_repository_when_enabled()
         CHECK(item_rejected);
     }
 
+    const std::string remove_items =
+        "DELETE FROM bill_items WHERE bill_id IN "
+        "(SELECT bill_id FROM bills WHERE visit_id IN (" + visits + "))";
+    PGresult* result = run_query(connection, remove_items.c_str());
+    PQclear(result);
     const std::string remove_bills =
         "DELETE FROM bills WHERE visit_id IN (" + visits + ")";
-    PGresult* result = run_query(connection, remove_bills.c_str());
+    result = run_query(connection, remove_bills.c_str());
     PQclear(result);
     const std::string remove_visits =
         "DELETE FROM visits WHERE visit_id IN (" + visits + ")";
