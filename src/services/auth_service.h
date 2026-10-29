@@ -130,6 +130,7 @@ public:
         const std::string& token_hash) const override;
     void delete_session(const std::string& token_hash) override;
     void record_audit_event(const AuditEvent& event) override;
+    bool health_check() const noexcept;
 
 private:
     struct Connection;

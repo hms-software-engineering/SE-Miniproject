@@ -653,13 +653,16 @@ void AuthService::record_audit_event(const AuditEvent& event)
 
 struct PostgresAuthRepository::Connection {
     PGconn* value = nullptr;
+    std::string connection_info;
 };
 
 PostgresAuthRepository::PostgresAuthRepository(const char* connection_info)
     : connection_(new Connection)
 {
+    connection_->connection_info =
+        connection_info == nullptr ? "" : connection_info;
     connection_->value = pg_connectdb(
-        connection_info == nullptr ? "" : connection_info);
+        connection_->connection_info.c_str());
     if (connection_->value == nullptr ||
         pg_status(connection_->value) != CONNECTION_OK) {
         const std::string details = connection_->value == nullptr
@@ -679,6 +682,54 @@ PostgresAuthRepository::~PostgresAuthRepository()
     if (connection_ != nullptr) {
         pg_finish(connection_->value);
         delete connection_;
+    }
+}
+
+bool PostgresAuthRepository::health_check() const noexcept
+{
+    if (connection_ == nullptr) {
+        return false;
+    }
+
+    // A separate, short-lived connection allows a later probe to recover
+    // after PostgreSQL returns without disturbing authentication queries.
+    PGconn* connection = nullptr;
+    try {
+        std::string probe_conninfo = connection_->connection_info;
+        const bool is_uri = probe_conninfo.rfind("postgresql://", 0) == 0 ||
+                            probe_conninfo.rfind("postgres://", 0) == 0;
+        if (is_uri) {
+            const std::string separator =
+                probe_conninfo.find('?') == std::string::npos ? "?" : "&";
+            probe_conninfo += separator +
+                "connect_timeout=2&options=-c%20statement_timeout%3D1000ms";
+        } else {
+            probe_conninfo +=
+                " connect_timeout=2 options='-c statement_timeout=1000ms'";
+        }
+
+        connection = pg_connectdb(probe_conninfo.c_str());
+        if (connection == nullptr || pg_status(connection) != CONNECTION_OK) {
+            if (connection != nullptr) {
+                pg_finish(connection);
+            }
+            return false;
+        }
+
+        PGresult* raw = pg_exec_params(
+            connection, "SELECT 1", 0, nullptr, nullptr, nullptr, nullptr, 0);
+        require_status(connection, raw, PGRES_TUPLES_OK,
+                       "PostgreSQL health check failed");
+        Result result(raw);
+        const bool healthy = pg_tuples(result.get()) == 1 &&
+                             std::string(pg_value(result.get(), 0, 0)) == "1";
+        pg_finish(connection);
+        return healthy;
+    } catch (...) {
+        if (connection != nullptr) {
+            pg_finish(connection);
+        }
+        return false;
     }
 }
 

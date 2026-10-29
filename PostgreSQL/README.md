@@ -190,6 +190,44 @@ issued by a CA trusted by the client machine. Do not disable certificate
 validation or commit development certificates/private keys. The Qt deployment
 must also include a working Qt TLS backend.
 
+## Health checks and availability target (HMS-NF-004)
+
+The TLS API exposes two unauthenticated GET probes:
+
+- `GET /api/v1/health/live` returns HTTP 200 while the process can serve the
+  request. It checks liveness only and does not depend on PostgreSQL.
+- `GET /api/v1/health` checks readiness with a lightweight `SELECT 1` using a
+  short-lived PostgreSQL connection. It returns HTTP 200 when ready and HTTP
+  503 when PostgreSQL is unavailable. The query uses a one-second PostgreSQL
+  `statement_timeout`, and connection attempts use a two-second
+  `connect_timeout`. A fresh connection per probe lets readiness recover after
+  a database outage without disturbing the authentication connection.
+  Responses report component states and do not include credentials or
+  connection data.
+
+These endpoints do not by themselves guarantee or measure 99.5% availability.
+An independent monitor must poll readiness and retain each probe's UTC
+timestamp and result. Missing measurements count as downtime. Use one-minute
+probe intervals or shorter; scheduled maintenance is included as downtime.
+
+For each report, choose a fixed measurement period (the recommended report is
+the most recent 30 complete service days) and pass an explicit UTC offset in
+minutes to `hms::health::calculate_availability`. The calculator applies the
+local service window `[06:00, 22:00)`, counts unmeasured intervals as downtime,
+and reports eligible time, available time, downtime, percentage, and whether
+the 99.5% target was met. It never reads the machine's local timezone. For a
+timezone that changes offset seasonally, split reports at each offset change
+and calculate each segment with its applicable offset before combining
+durations. For a full 16-hour service day, 99.5% permits at most 4.8 minutes of
+downtime; over 30 complete days the eligible period is 480 hours and the
+corresponding allowance is 144 minutes.
+
+The calculator does not store monitoring records. Operators must retain probe
+data and alert on missing probes and failed readiness checks. Loss of monitor
+records makes the affected period unverified and it must not be reported as
+available. Deployment monitoring and durable retention are still required to
+demonstrate compliance.
+
 The client clears its local bearer token on Logout and after 10 minutes without
 keyboard or pointer activity, then requests server-side token revocation. If
 the server cannot be reached during logout, the client warns that remote
