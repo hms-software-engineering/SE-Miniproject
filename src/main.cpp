@@ -6,6 +6,7 @@
 #include "services/auth_service.h"
 #include "services/rbac_service.h"
 #include "patients/patient_service.h"
+#include "validation/validator.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -181,7 +182,13 @@ private:
         while (position_ < input_.size()) {
             const unsigned char ch =
                 static_cast<unsigned char>(input_[position_++]);
-            if (ch == '"') return true;
+            if (ch == '"') {
+                if (output.size() > 2000) return false;
+                for (const unsigned char value : output) {
+                    if (value == 0 || value < 0x20) return false;
+                }
+                return true;
+            }
             if (ch < 0x20) return false;
             if (ch != '\\') {
                 output.push_back(static_cast<char>(ch));
@@ -439,6 +446,12 @@ bool decode_query_value(const std::string& input, std::string& output)
             output.push_back(input[index]);
         }
     }
+    if (output.size() > 2000) return false;
+
+    for (const unsigned char ch : output) {
+        if (ch == 0 || ch < 0x20 || ch == 0x7f) return false;
+    }
+
     return true;
 }
 
@@ -482,6 +495,11 @@ bool parse_patient_registration(
         fields.find("gender") == fields.end() ||
         fields.find("phone") == fields.end() ||
         fields.find("address") == fields.end()) {
+        return false;
+    }
+    if (!hms::validation::valid_name_address(fields.at("name"), 60) ||
+        !hms::validation::valid_name_address(fields.at("address"), 120) ||
+        !hms::validation::valid_phone(fields.at("phone"))) {
         return false;
     }
     registration = {

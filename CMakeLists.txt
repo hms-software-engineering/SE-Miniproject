@@ -28,6 +28,14 @@ endif()
 
 enable_testing()
 
+add_library(hms_validation src/validation/validator.cpp)
+target_include_directories(hms_validation PUBLIC src/validation)
+
+add_executable(validator_test tests/validator_test.cpp)
+target_link_libraries(validator_test PRIVATE hms_validation)
+add_test(NAME validator_test COMMAND validator_test)
+
+
 # ---- HMS-NF-006 encrypted PostgreSQL backups ----
 add_library(hms_backup src/backup/backup_service.cpp)
 target_include_directories(hms_backup PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -198,6 +206,7 @@ target_link_libraries(hms_server PRIVATE
     hms_reports
     hms_clinical
     hms_health
+    hms_validation
     OpenSSL::SSL
     OpenSSL::Crypto
 )

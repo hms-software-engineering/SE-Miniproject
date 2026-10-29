@@ -445,10 +445,13 @@ bool valid_username(const std::string& username)
     if (username.empty() || username.size() > 100) {
         return false;
     }
-    return std::none_of(username.begin(), username.end(),
-                        [](unsigned char ch) {
-                            return std::iscntrl(ch) != 0;
-                        });
+    return std::all_of(username.begin(), username.end(),
+                       [](unsigned char ch) {
+                           return (ch >= 'A' && ch <= 'Z') ||
+                                  (ch >= 'a' && ch <= 'z') ||
+                                  (ch >= '0' && ch <= '9') ||
+                                  ch == '_' || ch == '.' || ch == '-';
+                       });
 }
 
 bool valid_password(const std::string& password)
@@ -590,7 +593,7 @@ DeactivateUserStatus AuthService::deactivate_user(
 AuthResult AuthService::authenticate_user(const std::string& username,
                                           const std::string& password)
 {
-    if (username.size() > 100 || password.size() > 1024) {
+    if (!valid_username(username) || password.size() > 1024) {
         return {false, "", "", "Invalid username or password."};
     }
     const std::optional<AuthUser> user = repository_.find_user(username);

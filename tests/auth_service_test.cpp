@@ -387,6 +387,25 @@ void test_role_permissions()
         static_cast<Role>(999), Permission::LoginLogout));
 }
 
+void test_injection_payloads_are_rejected()
+{
+    InMemoryAuthRepository repository;
+    hms::AuthService service(repository);
+
+    const auto sql_payload =
+        service.register_patient("' OR '1'='1", "GoodPass1!");
+    CHECK(!sql_payload.success);
+
+    const auto script_payload =
+        service.register_patient("<script>alert(1)</script>", "GoodPass1!");
+    CHECK(!script_payload.success);
+
+    const auto login_payload =
+        service.authenticate_user("' OR '1'='1", "GoodPass1!");
+    CHECK(!login_payload.success);
+    CHECK(repository.session_count() == 0);
+}
+
 void test_authentication()
 {
     InMemoryAuthRepository repository;
@@ -688,6 +707,7 @@ void test_user_deactivation_endpoint()
 int main()
 {
     test_role_permissions();
+    test_injection_payloads_are_rejected();
     test_authentication();
     test_account_deactivation();
     test_user_deactivation_endpoint();
