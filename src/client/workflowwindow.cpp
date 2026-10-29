@@ -56,10 +56,26 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
     QWidget *appointmentDateRow = nullptr;
     statusLabel->setWordWrap(true);
     primaryButton->setDefault(true);
+    auto *helpRow = new QHBoxLayout;
+    auto *helpButton = new QPushButton("Workflow help", this);
+    helpButton->setAccessibleName("Workflow instructions");
+    helpButton->setToolTip(
+        "Show the steps and required information for this workflow.");
+    helpRow->addStretch();
+    helpRow->addWidget(helpButton);
+    root->addLayout(helpRow);
+    QString helpText;
 
     switch (workflow) {
     case Workflow::AppointmentBooking: {
         setWindowTitle("Book an appointment");
+        helpText =
+            "1. Enter the patient's ID (PID- followed by 8 digits).\n"
+            "2. Enter the doctor's ID and choose a date.\n"
+            "3. Select Find available slots, then choose a listed time.\n"
+            "4. Select Book appointment and wait for the confirmation.\n\n"
+            "Patient accounts may book only for their own linked patient "
+            "record. A patient profile must be created first.";
         resize(600, 360);
         patientIdInput->setPlaceholderText("e.g. PID-00000001");
         doctorIdInput->setText("1");
@@ -100,6 +116,14 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
     }
     case Workflow::Consultation: {
         setWindowTitle("Record consultation");
+        helpText =
+            "1. Enter the ID of a confirmed appointment assigned to you.\n"
+            "2. Enter symptoms and diagnosis. Notes are optional.\n"
+            "3. Select Save consultation and wait for the visit ID.\n"
+            "4. Enter the medicine, dosage, frequency, and duration, then "
+            "save the prescription.\n\n"
+            "Only the doctor assigned to the appointment can record its "
+            "consultation.";
         resize(620, 560);
         appointmentIdInput->setPlaceholderText("Confirmed appointment ID");
         symptomsInput->setPlaceholderText("Symptoms");
@@ -145,6 +169,14 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
     }
     case Workflow::UserManagement: {
         setWindowTitle("Create user account");
+        helpText =
+            "1. Enter a username.\n"
+            "2. Enter a password with at least 8 characters, including an "
+            "uppercase letter, lowercase letter, digit, and special "
+            "character.\n"
+            "3. Choose the account role and select Create account.\n\n"
+            "For a Doctor account, note the doctor ID shown in the "
+            "confirmation.";
         resize(520, 360);
         usernameInput->setPlaceholderText("Username");
         passwordInput->setPlaceholderText("Password");
@@ -170,6 +202,13 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
     }
     case Workflow::PatientProfile: {
         setWindowTitle("Create my patient profile");
+        helpText =
+            "1. Enter your name, date of birth (DD-MM-YYYY), gender, "
+            "10-digit phone number, and address.\n"
+            "2. Select Save my profile and wait for the confirmation.\n"
+            "3. Use the patient ID in the confirmation when booking an "
+            "appointment.\n\n"
+            "This creates the patient record linked to your login.";
         resize(520, 430);
         profileDateOfBirthInput->setPlaceholderText("DD-MM-YYYY");
         profileGenderInput->addItems({"Female", "Male", "Other"});
@@ -208,6 +247,10 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
         break;
     }
     }
+
+    connect(helpButton, &QPushButton::clicked, this, [this, helpText]() {
+        QMessageBox::information(this, "Workflow help", helpText);
+    });
 
     root->removeWidget(primaryButton);
     auto *backButton = new QPushButton("Back to dashboard", this);
