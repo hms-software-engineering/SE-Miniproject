@@ -430,10 +430,6 @@ CreateBillResult create_itemized_bill(
         subtotal += amount;
         items.push_back({input.description, amount});
     }
-    if (tax_basis_points != 0 &&
-        subtotal > (MAX_AMOUNT_CENTS - 5000) / tax_basis_points) {
-        return {CreateBillStatus::InvalidRequest, {}};
-    }
     const std::int64_t tax =
         (subtotal * tax_basis_points + 5000) / 10000;
     if (tax > MAX_AMOUNT_CENTS - subtotal) {

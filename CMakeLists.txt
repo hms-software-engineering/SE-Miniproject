@@ -166,6 +166,9 @@ endif()
 add_executable(billing_service_test tests/billing_service_test.cpp)
 target_link_libraries(billing_service_test PRIVATE hms_billing)
 add_test(NAME billing_service_test COMMAND billing_service_test)
+add_executable(billing_tax_boundary_test tests/billing_tax_boundary_test.cpp)
+target_link_libraries(billing_tax_boundary_test PRIVATE hms_billing)
+add_test(NAME billing_tax_boundary_test COMMAND billing_tax_boundary_test)
 
 # ---- Patients ----
 add_library(hms_patients
