@@ -157,6 +157,16 @@ add_executable(report_service_test tests/report_service_test.cpp)
 target_link_libraries(report_service_test PRIVATE hms_reports)
 add_test(NAME report_service_test COMMAND report_service_test)
 
+# ---- F-040 Itemized billing ----
+add_library(hms_billing src/billing/billing_service.cpp)
+target_include_directories(hms_billing PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+if(NOT WIN32)
+    target_link_libraries(hms_billing PRIVATE PostgreSQL::PostgreSQL)
+endif()
+add_executable(billing_service_test tests/billing_service_test.cpp)
+target_link_libraries(billing_service_test PRIVATE hms_billing)
+add_test(NAME billing_service_test COMMAND billing_service_test)
+
 # ---- Patients ----
 add_library(hms_patients
     src/patients/patient_service.cpp
@@ -220,6 +230,7 @@ target_link_libraries(hms_server PRIVATE
     hms_patients
     hms_appointments
     hms_reports
+    hms_billing
     hms_clinical
     hms_health
     OpenSSL::SSL

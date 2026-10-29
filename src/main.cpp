@@ -2,6 +2,7 @@
 #include "api/audit_log_handler.h"
 #include "api/user_management_handler.h"
 #include "appointments/appointments.h"
+#include "billing/billing_service.h"
 #include "clinical/clinical_service.h"
 #include "health/health_service.h"
 #include "services/auth_service.h"
@@ -39,6 +40,7 @@ inline int WSACleanup() { return 0; }
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -85,8 +87,8 @@ std::string status_text(int status)
     case 431: return "Request Header Fields Too Large";
     case 423: return "Locked";
     case 500: return "Internal Server Error";
-    case 501: return "Not Implemented";
     case 503: return "Service Unavailable";
+    case 501: return "Not Implemented";
     default:  return "Error";
     }
 }
@@ -655,6 +657,7 @@ void handle_client(TlsConnection& client,
                    hms::PostgresAuthRepository& auth_repository,
                    hms::patients::PatientService& patient_service,
                    hms::PostgresAppointmentRepository& appointment_repository,
+                   hms::billing::PostgresBillingRepository& billing_repository,
                    hms::clinical::ClinicalService& clinical_service)
 {
     const std::string request_id = make_request_id();
@@ -1111,6 +1114,122 @@ void handle_client(TlsConnection& client,
                             authorization_error)) {
             send_error(client, 403, "ACCESS_DENIED", authorization_error,
                        request_id);
+            return;
+        }
+
+        if (method == "POST" && path == "/api/v1/bills") {
+            if (!is_json_content_type(content_type)) {
+                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                           "Content-Type must be application/json.",
+                           request_id);
+                return;
+            }
+            const std::size_t body_start = header_end + 4;
+            if (!has_content_length ||
+                raw.size() < body_start + content_length) {
+                send_error(client, 411, "LENGTH_REQUIRED",
+                           "A Content-Length and request body are required.",
+                           request_id);
+                return;
+            }
+
+            nlohmann::json request;
+            try {
+                request = nlohmann::json::parse(
+                    raw.substr(body_start, content_length));
+            } catch (const nlohmann::json::parse_error&) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide visitId and an array of bill items.",
+                           request_id);
+                return;
+            }
+            if (!request.is_object() || request.size() != 2 ||
+                !request.contains("visitId") ||
+                !request.at("visitId").is_string() ||
+                !request.contains("items") ||
+                !request.at("items").is_array()) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide string visitId and an items array.",
+                           request_id);
+                return;
+            }
+            long long visit_id = 0;
+            if (!parse_positive_id(request.at("visitId").get<std::string>(),
+                                   visit_id)) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "visitId must be a positive integer string.",
+                           request_id);
+                return;
+            }
+            std::vector<hms::billing::BillItemInput> items;
+            const auto& item_array = request.at("items");
+            if (item_array.empty() || item_array.size() > 100) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide between 1 and 100 bill items.",
+                           request_id);
+                return;
+            }
+            for (const auto& item : item_array) {
+                if (!item.is_object() || item.size() != 2 ||
+                    !item.contains("description") ||
+                    !item.at("description").is_string() ||
+                    !item.contains("amount") ||
+                    !item.at("amount").is_string()) {
+                    send_error(client, 400, "INVALID_REQUEST",
+                               "Each item needs string description and amount.",
+                               request_id);
+                    return;
+                }
+                items.push_back({
+                    item.at("description").get<std::string>(),
+                    item.at("amount").get<std::string>()
+                });
+            }
+            const char* configured_tax_rate =
+                std::getenv("HMS_BILL_TAX_RATE");
+            const auto result = hms::billing::create_itemized_bill(
+                billing_repository, visit_id, items,
+                configured_tax_rate == nullptr ? "" : configured_tax_rate);
+            if (result.status ==
+                hms::billing::CreateBillStatus::TaxConfigurationInvalid) {
+                std::cerr << "HMS_BILL_TAX_RATE is missing or invalid; "
+                             "configure it as a percentage from 0 to 100 "
+                             "with at most two decimal places.\n";
+                send_error(client, 503, "BILLING_CONFIGURATION_ERROR",
+                           "Bill generation is unavailable until a valid "
+                           "HMS_BILL_TAX_RATE is configured.",
+                           request_id);
+                return;
+            }
+            if (result.status ==
+                hms::billing::CreateBillStatus::InvalidRequest) {
+                send_error(client, 400, "INVALID_BILL",
+                           "Provide a positive visitId and between 1 and "
+                           "100 valid items with amounts to two decimal places.",
+                           request_id);
+                return;
+            }
+            if (result.status == hms::billing::CreateBillStatus::VisitMissing) {
+                send_error(client, 404, "VISIT_NOT_FOUND",
+                           "Visit was not found.", request_id);
+                return;
+            }
+            if (result.status ==
+                hms::billing::CreateBillStatus::AlreadyExists) {
+                send_error(client, 409, "BILL_ALREADY_EXISTS",
+                           "A bill has already been created for this visit.",
+                           request_id);
+                return;
+            }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "CREATE_BILL", std::to_string(result.bill.id),
+                client.source_ip
+            });
+            send_response(client, 201,
+                          "{\"bill\":" +
+                              hms::billing::bill_to_json(result.bill) + "}");
             return;
         }
 
@@ -1812,6 +1931,8 @@ public:
                 *patient_repository, name_index_key, phone_index_key);
         appointment_repository =
             std::make_unique<hms::PostgresAppointmentRepository>();
+        billing_repository =
+            std::make_unique<hms::billing::PostgresBillingRepository>();
         clinical_repository =
             std::make_unique<hms::clinical::PostgresClinicalRepository>(
                 data_key);
@@ -1826,6 +1947,7 @@ public:
     {
         handle_client(client, *auth_service, *auth_repository,
                       *patient_service, *appointment_repository,
+                      *billing_repository,
                       *clinical_service);
     }
 
@@ -1835,6 +1957,8 @@ public:
     std::unique_ptr<hms::patients::PatientService> patient_service;
     std::unique_ptr<hms::PostgresAppointmentRepository>
         appointment_repository;
+    std::unique_ptr<hms::billing::PostgresBillingRepository>
+        billing_repository;
     std::unique_ptr<hms::clinical::PostgresClinicalRepository>
         clinical_repository;
     std::unique_ptr<hms::clinical::ClinicalService> clinical_service;
@@ -1883,7 +2007,6 @@ int main()
             worker_services.emplace_back(
                 std::make_unique<ClientServices>());
         }
-
         const char* bootstrap_username =
             std::getenv("HMS_BOOTSTRAP_ADMIN_USERNAME");
         const char* bootstrap_password =
