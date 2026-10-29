@@ -469,8 +469,89 @@ SaveResult PostgresAppointmentRepository::insert(
     saved.status = "Confirmed";
     return {SaveStatus::Ok, std::move(saved)};
 }
-std::vector<Appointment>
+bool PostgresAppointmentRepository::find_by_id(
+    long long id, Appointment& out) const {
+    PGresult* raw = execute(
+        connection_->value,
+        "SELECT appointment_id::text, patient_id, doctor_id::text, "
+        "to_char(slot_start, 'YYYY-MM-DD HH24:MI'), status "
+        "FROM appointments WHERE appointment_id = $1::bigint",
+        {std::to_string(id)});
 
+    require_pg_status(
+        connection_->value, raw, PGRES_TUPLES_OK,
+        "Could not read appointment");
+
+    PgResult result(raw);
+
+    if (pg_tuples(result.get()) == 0) {
+        return false;
+    }
+
+    out.id = std::stoll(pg_value(result.get(), 0, 0));
+    out.patient_id = pg_value(result.get(), 0, 1);
+    out.doctor_id = std::stoll(pg_value(result.get(), 0, 2));
+    out.slot_start = pg_value(result.get(), 0, 3);
+    out.status = pg_value(result.get(), 0, 4);
+
+    return true;
+}
+
+bool PostgresAppointmentRepository::update_status(
+    long long id, const std::string& status) {
+    PGresult* raw = execute(
+        connection_->value,
+        "UPDATE appointments SET status = $2 "
+        "WHERE appointment_id = $1::bigint "
+        "AND status = 'Confirmed' RETURNING 1",
+        {std::to_string(id), status});
+
+    require_pg_status(
+        connection_->value, raw, PGRES_TUPLES_OK,
+        "Could not update appointment");
+
+    PgResult result(raw);
+    return pg_tuples(result.get()) != 0;
+}
+
+SaveStatus PostgresAppointmentRepository::reschedule(
+    long long id, const std::string& new_slot) {
+    try {
+        PGresult* raw = execute(
+            connection_->value,
+            "UPDATE appointments AS a "
+            "SET slot_start = $2::timestamp "
+            "WHERE a.appointment_id = $1::bigint "
+            "AND a.status = 'Confirmed' "
+            "AND NOT EXISTS ("
+            "SELECT 1 FROM appointments AS b "
+            "WHERE b.doctor_id = a.doctor_id "
+            "AND b.slot_start = $2::timestamp "
+            "AND b.status = 'Confirmed' "
+            "AND b.appointment_id <> a.appointment_id"
+            ") RETURNING 1",
+            {std::to_string(id), new_slot});
+
+        require_pg_status(
+            connection_->value, raw, PGRES_TUPLES_OK,
+            "Could not reschedule appointment");
+
+        PgResult result(raw);
+        return pg_tuples(result.get()) != 0
+            ? SaveStatus::Ok
+            : SaveStatus::SlotTaken;
+
+    } catch (const std::runtime_error& error) {
+        // The unique index remains the final guard against concurrent moves.
+        if (std::string(error.what()).find("uq_appointments") !=
+            std::string::npos) {
+            return SaveStatus::SlotTaken;
+        }
+        throw;
+    }
+}
+
+std::vector<Appointment>
 PostgresAppointmentRepository::appointments_for_doctor_on(
     long long doctor_id,
     const std::string& date) const
@@ -656,6 +737,58 @@ SaveResult InMemoryAppointmentRepository::insert(const Appointment& a) {
     r.appointment = saved;
     return r;
 }
+bool InMemoryAppointmentRepository::find_by_id(
+    long long id, Appointment& out) const {
+    for (const auto& appointment : items_) {
+        if (appointment.id == id) {
+            out = appointment;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool InMemoryAppointmentRepository::update_status(
+    long long id, const std::string& status) {
+    for (auto& appointment : items_) {
+        if (appointment.id == id &&
+            appointment.status == "Confirmed") {
+            appointment.status = status;
+            return true;
+        }
+    }
+    return false;
+}
+
+SaveStatus InMemoryAppointmentRepository::reschedule(
+    long long id, const std::string& new_slot) {
+    Appointment* target = nullptr;
+
+    for (auto& appointment : items_) {
+        if (appointment.id == id &&
+            appointment.status == "Confirmed") {
+            target = &appointment;
+            break;
+        }
+    }
+
+    if (target == nullptr) {
+        return SaveStatus::PatientMissing;
+    }
+
+    for (const auto& appointment : items_) {
+        if (appointment.id != id &&
+            appointment.doctor_id == target->doctor_id &&
+            appointment.status == "Confirmed" &&
+            appointment.slot_start == new_slot) {
+            return SaveStatus::SlotTaken;
+        }
+    }
+
+    target->slot_start = new_slot;
+    return SaveStatus::Ok;
+}
+
 std::vector<Appointment>
 InMemoryAppointmentRepository::appointments_for_doctor_on(
     long long doctor_id,
@@ -866,7 +999,160 @@ BookingResult book_appointment(AppointmentRepository& repo,
     r.appointment = s.appointment;
     return r;
 }
+namespace {
 
+std::chrono::system_clock::time_point appointment_slot_time(
+    const std::string& slot) {
+    std::tm value{};
+
+    value.tm_year = std::stoi(slot.substr(0, 4)) - 1900;
+    value.tm_mon = std::stoi(slot.substr(5, 2)) - 1;
+    value.tm_mday = std::stoi(slot.substr(8, 2));
+    value.tm_hour = std::stoi(slot.substr(11, 2));
+    value.tm_min = std::stoi(slot.substr(14, 2));
+    value.tm_isdst = -1;
+
+    return std::chrono::system_clock::from_time_t(std::mktime(&value));
+}
+
+}  // namespace
+
+BookingResult change_appointment(
+    AppointmentRepository& repo,
+    long long id,
+    const std::string& action,
+    const std::string& new_date,
+    const std::string& new_time,
+    const std::function<bool(const std::string&)>& may_access,
+    std::chrono::system_clock::time_point now) {
+
+    if (action != "cancel" && action != "reschedule") {
+        return fail(
+            400, "VALIDATION_FAILED",
+            "action must be cancel or reschedule", "action");
+    }
+
+    if (action == "reschedule") {
+        int minutes = 0;
+
+        if (!valid_date(new_date) ||
+            !parse_hhmm(new_time, minutes)) {
+            return fail(
+                400, "INVALID_DATE",
+                "newSlot must contain a valid date and time "
+                "in YYYY-MM-DD HH:MM format.",
+                "newSlot");
+        }
+    }
+
+    Appointment appointment;
+
+    if (id <= 0 || !repo.find_by_id(id, appointment)) {
+        return fail(404, "NOT_FOUND", "Appointment not found");
+    }
+
+    if (!may_access(appointment.patient_id)) {
+        return fail(403, "ACCESS_DENIED", "Access denied");
+    }
+
+    if (appointment.status != "Confirmed") {
+        return fail(
+            409, "NOT_CHANGEABLE",
+            "Only confirmed appointments can be changed");
+    }
+
+    // Exactly two hours before is allowed. Anything less is too late.
+    if (appointment_slot_time(appointment.slot_start) - now <
+        std::chrono::hours(2)) {
+        return fail(
+            409, "TOO_LATE_TO_CHANGE",
+            "Cannot change within 2 hours");
+    }
+
+    if (action == "cancel") {
+        if (!repo.update_status(id, "Cancelled")) {
+            return fail(
+                409, "NOT_CHANGEABLE",
+                "Only confirmed appointments can be changed");
+        }
+
+        appointment.status = "Cancelled";
+
+        BookingResult result;
+        result.ok = true;
+        result.http_status = 200;
+        result.appointment = appointment;
+        return result;
+    }
+
+    // Reuse F-022's date-window rule: today through day 60 inclusive.
+    const std::tm current = local_time(now);
+    const std::string today = format_date(current);
+
+    int year = 0, month = 0, day = 0;
+    int today_year = 0, today_month = 0, today_day = 0;
+
+    parse_date(new_date, year, month, day);
+    parse_date(today, today_year, today_month, today_day);
+
+    const long long days_ahead =
+        days_from_civil(
+            year, static_cast<unsigned>(month),
+            static_cast<unsigned>(day)) -
+        days_from_civil(
+            today_year, static_cast<unsigned>(today_month),
+            static_cast<unsigned>(today_day));
+
+    if (days_ahead < 0 ||
+        (days_ahead == 0 && new_time <= format_time(current))) {
+        return fail(
+            400, "BOOKING_IN_PAST",
+            "Choose a date and time that have not passed.",
+            "newSlot");
+    }
+
+    if (days_ahead > 60) {
+        return fail(
+            400, "BOOKING_TOO_FAR",
+            "Appointments can be booked no more than 60 days ahead.",
+            "newSlot");
+    }
+
+    const auto valid_slots = slots_for_date(
+        repo.working_hours(appointment.doctor_id), new_date);
+
+    if (std::find(valid_slots.begin(), valid_slots.end(), new_time) ==
+        valid_slots.end()) {
+        return fail(
+            400, "VALIDATION_FAILED",
+            "time is not a working slot for this doctor",
+            "newSlot");
+    }
+
+    const std::string new_slot = new_date + " " + new_time;
+
+    if (repo.reschedule(id, new_slot) != SaveStatus::Ok) {
+        BookingResult result = fail(
+            409, "SLOT_TAKEN",
+            "This slot is already booked.");
+
+        result.next_slots = next_free_slots(
+            repo, appointment.doctor_id, new_date, new_time);
+
+        result.suggested_slots = upcoming_slots(
+            repo, appointment.doctor_id, new_date, new_time, now);
+
+        return result;
+    }
+
+    appointment.slot_start = new_slot;
+
+    BookingResult result;
+    result.ok = true;
+    result.http_status = 200;
+    result.appointment = appointment;
+    return result;
+}
 std::vector<std::string> next_free_slots(
     const AppointmentRepository& repo,
     long long doctor_id,

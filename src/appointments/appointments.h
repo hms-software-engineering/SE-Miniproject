@@ -6,6 +6,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <functional>
 
 
 namespace hms {
@@ -36,11 +37,16 @@ public:
     // Must be atomic. The database version relies on the unique index
     // uq_appointments_confirmed_doctor_slot.
     virtual SaveResult insert(const Appointment& a) = 0;
+    virtual bool find_by_id(long long id, Appointment& out) const = 0;
+    // Confirmed -> new status. false if not Confirmed/not found.
+    virtual bool update_status(long long id, const std::string& status) = 0;
+    // Atomic move of a Confirmed appointment.
+    virtual SaveStatus reschedule(long long id, const std::string& new_slot) = 0;
     virtual std::vector<Appointment> appointments_for_doctor_on(
-    long long doctor_id,
-    const std::string& date) const = 0;
+        long long doctor_id,
+        const std::string& date) const = 0;
     virtual std::string doctor_id_for_user(
-    const std::string& user_id) const = 0;
+        const std::string& user_id) const = 0;
 };
 
 class InMemoryAppointmentRepository : public AppointmentRepository {
@@ -50,9 +56,19 @@ public:
     std::vector<std::string> booked_times(long long doctor_id,
                                           const std::string& date) const override;
     SaveResult insert(const Appointment& a) override;
+    bool find_by_id(long long id, Appointment& out) const override;
+
+    bool update_status(
+        long long id,
+        const std::string& status) override;
+
+    SaveStatus reschedule(
+        long long id,
+        const std::string& new_slot) override;
+
     std::vector<Appointment> appointments_for_doctor_on(
-    long long doctor_id,
-    const std::string& date) const override;
+        long long doctor_id,
+        const std::string& date) const override;
 
     std::string doctor_id_for_user(
         const std::string& user_id) const override;
@@ -94,6 +110,16 @@ public:
     long long doctor_id,
     const std::string& date) const override;
 
+    bool find_by_id(long long id, Appointment& out) const override;
+
+    bool update_status(
+        long long id,
+        const std::string& status) override;
+
+    SaveStatus reschedule(
+        long long id,
+        const std::string& new_slot) override;
+
     bool patient_belongs_to_user(
         const std::string& patient_id,
         const std::string& user_id) const;
@@ -102,6 +128,7 @@ public:
         const std::string& start_date,
         const std::string& end_date) const override;
     std::string doctor_id_for_user(const std::string& user_id) const override;
+
 
 private:
     struct Connection;
@@ -142,6 +169,15 @@ BookingResult book_appointment(AppointmentRepository& repo,
                                const std::string& time,
                                std::chrono::system_clock::time_point now =
                                    std::chrono::system_clock::now());
+BookingResult change_appointment(
+    AppointmentRepository& repo,
+    long long id,
+    const std::string& action,
+    const std::string& new_date,
+    const std::string& new_time,
+    const std::function<bool(const std::string& patient_id)>& may_access,
+    std::chrono::system_clock::time_point now =
+        std::chrono::system_clock::now());
 
 std::vector<std::string> next_free_slots(
     const AppointmentRepository& repo,

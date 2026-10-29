@@ -109,6 +109,20 @@ endif()
 add_executable(appointments_test tests/appointments_test.cpp)
 target_link_libraries(appointments_test PRIVATE hms_appointments)
 add_test(NAME appointments_test COMMAND appointments_test)
+add_executable(
+    change_appointment_test
+    tests/change_appointment_test.cpp
+)
+
+target_link_libraries(
+    change_appointment_test
+    PRIVATE hms_appointments
+)
+
+add_test(
+    NAME change_appointment_test
+    COMMAND change_appointment_test
+)
 
 # ---- F-024 Doctor daily schedule ----
 add_executable(doctor_schedule_test tests/doctor_schedule_test.cpp)
