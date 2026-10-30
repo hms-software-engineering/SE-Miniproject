@@ -170,7 +170,7 @@ add_executable(patient_service_test tests/patient_service_test.cpp)
 target_link_libraries(patient_service_test PRIVATE hms_patients)
 add_test(NAME patient_service_test COMMAND patient_service_test)
 
-add_executable(nf001_seed_patients tests/performance/seed_patients.cpp)
+add_executable(nf001_seed_patients EXCLUDE_FROM_ALL tests/performance/seed_patients.cpp)
 target_link_libraries(nf001_seed_patients PRIVATE hms_patients)
 
 # Clinical records
@@ -299,7 +299,8 @@ if(HMS_ENABLE_COVERAGE)
             auth_service_test health_test password_security_test
             appointments_test change_appointment_test doctor_schedule_test
             clinical_service_test clinical_test report_service_test
-            patient_service_test backup_service_test hms_backup_cli hms_server)
+            patient_service_test backup_service_test hms_backup_cli hms_server
+            nf001_seed_patients)
         if(TARGET "${coverage_executable}")
             target_link_options("${coverage_executable}" PRIVATE --coverage)
         endif()
