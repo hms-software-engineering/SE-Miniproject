@@ -1,5 +1,6 @@
 #include "services/auth_service.h"
 #include "api/user_management_handler.h"
+#include "validator.h"   
 
 #include <array>
 #include <chrono>
