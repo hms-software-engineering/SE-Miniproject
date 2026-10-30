@@ -22,7 +22,9 @@ using PGresult = pg_result;
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstring>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -267,7 +269,126 @@ std::string encrypt_hex(const std::string& plaintext,
     return encoded;
 }
 
+bool decrypt_hex(const std::string& encoded,
+                 const std::string& key,
+                 const std::string& associated_data,
+                 std::string& plaintext)
+{
+    const auto hex_value = [](char value) -> int {
+        if (value >= '0' && value <= '9') return value - '0';
+        if (value >= 'a' && value <= 'f') return value - 'a' + 10;
+        return -1;
+    };
+    if (encoded.size() % 2 != 0 ||
+        encoded.size() < (NONCE_SIZE + TAG_SIZE) * 2) {
+        return false;
+    }
+    std::vector<unsigned char> bytes;
+    bytes.reserve(encoded.size() / 2);
+    for (std::size_t i = 0; i < encoded.size(); i += 2) {
+        const int high = hex_value(encoded[i]);
+        const int low = hex_value(encoded[i + 1]);
+        if (high < 0 || low < 0) return false;
+        bytes.push_back(static_cast<unsigned char>(high * 16 + low));
+    }
+    const std::size_t ciphertext_size = bytes.size() - NONCE_SIZE - TAG_SIZE;
+    unsigned char* ciphertext = bytes.data() + NONCE_SIZE;
+    unsigned char* tag = ciphertext + ciphertext_size;
+    std::vector<unsigned char> output(ciphertext_size + 1);
+    int written = 0;
+    int final_written = 0;
+    int aad_written = 0;
+    std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)> context(
+        EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free);
+    if (!context ||
+        EVP_DecryptInit_ex(context.get(), EVP_aes_256_gcm(), nullptr,
+                           nullptr, nullptr) != 1 ||
+        EVP_CIPHER_CTX_ctrl(context.get(), EVP_CTRL_GCM_SET_IVLEN,
+                            static_cast<int>(NONCE_SIZE), nullptr) != 1 ||
+        EVP_DecryptInit_ex(
+            context.get(), nullptr, nullptr,
+            reinterpret_cast<const unsigned char*>(key.data()),
+            bytes.data()) != 1 ||
+        EVP_DecryptUpdate(
+            context.get(), nullptr, &aad_written,
+            reinterpret_cast<const unsigned char*>(associated_data.data()),
+            static_cast<int>(associated_data.size())) != 1 ||
+        EVP_DecryptUpdate(context.get(), output.data(), &written, ciphertext,
+                          static_cast<int>(ciphertext_size)) != 1 ||
+        EVP_CIPHER_CTX_ctrl(context.get(), EVP_CTRL_GCM_SET_TAG,
+                            static_cast<int>(TAG_SIZE), tag) != 1 ||
+        EVP_DecryptFinal_ex(context.get(), output.data() + written,
+                            &final_written) != 1) {
+        return false;
+    }
+    plaintext.assign(reinterpret_cast<const char*>(output.data()),
+                     static_cast<std::size_t>(written + final_written));
+    return true;
+}
+
+std::string lower_ascii(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](unsigned char ch) {
+                       return static_cast<char>(std::tolower(ch));
+                   });
+    return value;
+}
+
+std::string trim_ascii(const std::string& value)
+{
+    constexpr char whitespace[] = " \t\r\n";
+    const auto first = value.find_first_not_of(whitespace);
+    if (first == std::string::npos) return {};
+    const auto last = value.find_last_not_of(whitespace);
+    return value.substr(first, last - first + 1);
+}
+
+// An allergy to the key also covers each listed medicine.
+const std::map<std::string, std::vector<std::string>>& allergy_families()
+{
+    static const std::map<std::string, std::vector<std::string>> families{
+        {"penicillin", {"amoxicillin", "ampicillin", "cloxacillin",
+                        "piperacillin", "co-amoxiclav"}},
+        {"sulfa", {"sulfamethoxazole", "sulfasalazine", "co-trimoxazole"}},
+        {"nsaid", {"ibuprofen", "diclofenac", "naproxen", "aspirin",
+                   "ketorolac"}},
+        {"aspirin", {"acetylsalicylic"}},
+        {"cephalosporin", {"cefalexin", "cephalexin", "ceftriaxone",
+                           "cefuroxime", "cefixime"}}
+    };
+    return families;
+}
+
 } // namespace
+
+std::vector<std::string> find_allergy_conflicts(
+    const std::string& allergies, const std::string& medicine)
+{
+    const std::string lowered_medicine = lower_ascii(medicine);
+    std::vector<std::string> conflicts;
+    std::size_t start = 0;
+    while (start <= allergies.size()) {
+        const auto end = allergies.find_first_of(",;", start);
+        const std::string allergy = trim_ascii(allergies.substr(
+            start, end == std::string::npos ? end : end - start));
+        const std::string key = lower_ascii(allergy);
+        bool matched = !key.empty() &&
+            lowered_medicine.find(key) != std::string::npos;
+        const auto family = allergy_families().find(key);
+        if (!matched && family != allergy_families().end()) {
+            matched = std::any_of(
+                family->second.begin(), family->second.end(),
+                [&lowered_medicine](const std::string& member) {
+                    return lowered_medicine.find(member) != std::string::npos;
+                });
+        }
+        if (matched) conflicts.push_back(allergy);
+        if (end == std::string::npos) break;
+        start = end + 1;
+    }
+    return conflicts;
+}
 
 ClinicalService::ClinicalService(ClinicalRepository& repository)
     : repository_(repository)
@@ -286,17 +407,41 @@ VisitRecordResult ClinicalService::record_visit(
     return repository_.record_visit(input, doctor_user_id);
 }
 
-bool ClinicalService::add_prescription(
+PrescriptionResult ClinicalService::add_prescription(
     const PrescriptionInput& input, const std::string& doctor_user_id)
 {
     if (input.visit_id <= 0 || doctor_user_id.empty() ||
         input.item.empty() || input.item.size() > 200 ||
         input.dosage.empty() || input.dosage.size() > 120 ||
         input.frequency.empty() || input.frequency.size() > 120 ||
-        input.days <= 0 || input.days > 3650) {
-        return false;
+        input.days <= 0 || input.days > 3650 ||
+        input.override_reason.size() > 1000) {
+        return {};
     }
-    return repository_.add_prescription(input, doctor_user_id);
+    const VisitAllergies recorded =
+        repository_.visit_allergies(input.visit_id, doctor_user_id);
+    if (!recorded.visit_found) return {};
+
+    const std::vector<std::string> conflicts = recorded.readable
+        ? find_allergy_conflicts(recorded.allergies, input.item)
+        : std::vector<std::string>{"Allergy record could not be read"};
+    PrescriptionInput stored = input;
+    stored.override_reason = trim_ascii(input.override_reason);
+    if (conflicts.empty()) {
+        stored.override_reason.clear();
+    } else if (stored.override_reason.empty()) {
+        return {PrescriptionStatus::AllergyWarning, conflicts, false};
+    }
+    if (!repository_.add_prescription(stored, doctor_user_id)) return {};
+    return {PrescriptionStatus::Created, conflicts, !conflicts.empty()};
+}
+
+bool ClinicalService::set_patient_allergies(
+    const std::string& patient_id, const std::string& allergies)
+{
+    if (patient_id.empty() || allergies.size() > 2000) return false;
+    return repository_.set_patient_allergies(
+        patient_id, trim_ascii(allergies));
 }
 
 struct PostgresClinicalRepository::Connection {
@@ -395,18 +540,63 @@ bool PostgresClinicalRepository::add_prescription(
         input.item,
         input.dosage,
         input.frequency,
-        std::to_string(input.days)
+        std::to_string(input.days),
+        input.override_reason
     };
     PGresult* raw = execute(
         connection_->value,
-        "INSERT INTO prescriptions (visit_id, item, dosage, frequency, days) "
-        "SELECT v.visit_id, $3, $4, $5, $6::integer FROM visits v "
+        "INSERT INTO prescriptions "
+        "(visit_id, item, dosage, frequency, days, override_reason) "
+        "SELECT v.visit_id, $3, $4, $5, $6::integer, NULLIF($7, '') "
+        "FROM visits v "
         "JOIN doctors d ON d.doctor_id = v.doctor_id "
         "WHERE v.visit_id = $1::bigint AND d.user_id = $2::bigint "
         "RETURNING prescription_id",
         values);
     require_status(connection_->value, raw, PGRES_TUPLES_OK,
                    "Could not add prescription");
+    PgResult result(raw);
+    return pg_tuples(result.get()) != 0;
+}
+
+VisitAllergies PostgresClinicalRepository::visit_allergies(
+    long long visit_id, const std::string& doctor_user_id)
+{
+    PGresult* raw = execute(
+        connection_->value,
+        "SELECT COALESCE(encode(p.allergies, 'hex'), '') FROM visits v "
+        "JOIN appointments a ON a.appointment_id = v.appointment_id "
+        "JOIN patients p ON p.patient_id = a.patient_id "
+        "JOIN doctors d ON d.doctor_id = v.doctor_id "
+        "WHERE v.visit_id = $1::bigint AND d.user_id = $2::bigint",
+        {std::to_string(visit_id), doctor_user_id});
+    require_status(connection_->value, raw, PGRES_TUPLES_OK,
+                   "Could not load patient allergies");
+    PgResult result(raw);
+    VisitAllergies recorded;
+    if (pg_tuples(result.get()) == 0) return recorded;
+    recorded.visit_found = true;
+    const std::string encoded = pg_value(result.get(), 0, 0);
+    if (!encoded.empty()) {
+        recorded.readable = decrypt_hex(
+            encoded, encryption_key_, "patient:allergies:v1",
+            recorded.allergies);
+    }
+    return recorded;
+}
+
+bool PostgresClinicalRepository::set_patient_allergies(
+    const std::string& patient_id, const std::string& allergies)
+{
+    PGresult* raw = execute(
+        connection_->value,
+        "UPDATE patients SET allergies = decode($2, 'hex'), "
+        "updated_at = CURRENT_TIMESTAMP WHERE patient_id = $1 "
+        "RETURNING patient_id",
+        {patient_id,
+         encrypt_hex(allergies, encryption_key_, "patient:allergies:v1")});
+    require_status(connection_->value, raw, PGRES_TUPLES_OK,
+                   "Could not save patient allergies");
     PgResult result(raw);
     return pg_tuples(result.get()) != 0;
 }

@@ -7,6 +7,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #define CHECK(condition)                                                   \
     do {                                                                    \
@@ -58,6 +59,27 @@ void test_postgres_repository_when_enabled()
         {created.visit_id, "Medicine", "1 tablet", "Twice daily", 5}, "2"));
     CHECK(!repository.add_prescription(
         {created.visit_id, "Medicine", "1 tablet", "Twice daily", 5}, "3"));
+
+    CHECK(repository.set_patient_allergies("PID-00000001", "Penicillin"));
+    CHECK(!repository.set_patient_allergies("PID-99999999", "Penicillin"));
+    const auto allergies = repository.visit_allergies(created.visit_id, "2");
+    CHECK(allergies.visit_found && allergies.readable);
+    CHECK(allergies.allergies == "Penicillin");
+    CHECK(!repository.visit_allergies(created.visit_id, "3").visit_found);
+
+    hms::clinical::ClinicalService service(repository);
+    CHECK(service.add_prescription(
+        {created.visit_id, "Amoxicillin", "1 tablet", "Daily", 5}, "2")
+              .status == hms::clinical::PrescriptionStatus::AllergyWarning);
+    CHECK(service.add_prescription(
+        {created.visit_id, "Amoxicillin", "1 tablet", "Daily", 5,
+         "No alternative available"}, "2").overridden);
+
+    hms::clinical::PostgresClinicalRepository wrong_key(
+        "fedcba9876543210fedcba9876543210");
+    const auto unreadable = wrong_key.visit_allergies(created.visit_id, "2");
+    CHECK(unreadable.visit_found && !unreadable.readable);
+    CHECK(repository.set_patient_allergies("PID-00000001", ""));
 }
 
 class InMemoryClinicalRepository final : public hms::clinical::ClinicalRepository {
@@ -86,15 +108,99 @@ public:
             return false;
         }
         prescription_created_ = true;
+        stored_override_reason_ = input.override_reason;
         return true;
     }
 
+    hms::clinical::VisitAllergies visit_allergies(
+        long long visit_id, const std::string& doctor_user_id) override
+    {
+        hms::clinical::VisitAllergies recorded;
+        recorded.visit_found = visit_created_ &&
+            doctor_user_id == "doctor-1" && visit_id == 12;
+        recorded.readable = allergies_readable_;
+        recorded.allergies = allergies_;
+        return recorded;
+    }
+
+    bool set_patient_allergies(const std::string& patient_id,
+                               const std::string& allergies) override
+    {
+        if (patient_id != "PID-00000001") return false;
+        allergies_ = allergies;
+        return true;
+    }
+
+    void corrupt_allergies() { allergies_readable_ = false; }
     bool prescription_created() const { return prescription_created_; }
+    void reset_prescription() { prescription_created_ = false; }
+    const std::string& stored_override_reason() const
+    {
+        return stored_override_reason_;
+    }
 
 private:
     bool visit_created_ = false;
     bool prescription_created_ = false;
+    bool allergies_readable_ = true;
+    std::string allergies_;
+    std::string stored_override_reason_;
 };
+
+// TC-CLN-03: a matching medicine is held until a reason is given.
+void test_allergy_warning(InMemoryClinicalRepository& repository,
+                          hms::clinical::ClinicalService& service)
+{
+    using hms::clinical::PrescriptionStatus;
+    using hms::clinical::find_allergy_conflicts;
+
+    CHECK(find_allergy_conflicts("Penicillin, Dust", "Amoxicillin 500mg") ==
+          std::vector<std::string>{"Penicillin"});
+    CHECK(find_allergy_conflicts("Aspirin", "ASPIRIN 75mg").size() == 1);
+    CHECK(find_allergy_conflicts("nsaid; sulfa", "Ibuprofen").size() == 1);
+    CHECK(find_allergy_conflicts("Penicillin", "Paracetamol").empty());
+    CHECK(find_allergy_conflicts("", "Paracetamol").empty());
+    CHECK(find_allergy_conflicts(" , ;", "Paracetamol").empty());
+
+    CHECK(service.set_patient_allergies("PID-00000001", " Penicillin "));
+    CHECK(!service.set_patient_allergies("PID-00000002", "Penicillin"));
+    CHECK(!service.set_patient_allergies(
+        "PID-00000001", std::string(2001, 'x')));
+
+    repository.reset_prescription();
+    const hms::clinical::PrescriptionInput risky{
+        12, "Amoxicillin", "1 tablet", "Daily", 5};
+    const auto warned = service.add_prescription(risky, "doctor-1");
+    CHECK(warned.status == PrescriptionStatus::AllergyWarning);
+    CHECK(warned.allergy_conflicts ==
+          std::vector<std::string>{"Penicillin"});
+    CHECK(!repository.prescription_created());
+
+    auto blank_reason = risky;
+    blank_reason.override_reason = "   ";
+    CHECK(service.add_prescription(blank_reason, "doctor-1").status ==
+          PrescriptionStatus::AllergyWarning);
+    CHECK(!repository.prescription_created());
+
+    auto reasoned = risky;
+    reasoned.override_reason = "Tolerated previously";
+    const auto overridden = service.add_prescription(reasoned, "doctor-1");
+    CHECK(overridden.status == PrescriptionStatus::Created);
+    CHECK(overridden.overridden);
+    CHECK(repository.stored_override_reason() == "Tolerated previously");
+
+    auto unrelated = reasoned;
+    unrelated.item = "Paracetamol";
+    const auto safe = service.add_prescription(unrelated, "doctor-1");
+    CHECK(safe.status == PrescriptionStatus::Created);
+    CHECK(!safe.overridden);
+    CHECK(repository.stored_override_reason().empty());
+
+    repository.corrupt_allergies();
+    CHECK(service.add_prescription(
+        {12, "Paracetamol", "1 tablet", "Daily", 5}, "doctor-1").status ==
+          PrescriptionStatus::AllergyWarning);
+}
 
 } // namespace
 
@@ -119,13 +225,17 @@ int main()
           hms::clinical::VisitRecordStatus::AlreadyRecorded);
 
     CHECK(service.add_prescription(
-        {12, "Medicine", "1 tablet", "Twice daily", 5}, "doctor-1"));
+        {12, "Medicine", "1 tablet", "Twice daily", 5}, "doctor-1").status ==
+          hms::clinical::PrescriptionStatus::Created);
     CHECK(repository.prescription_created());
-    CHECK(!service.add_prescription(
-        {12, "Medicine", "1 tablet", "Twice daily", 0}, "doctor-1"));
-    CHECK(!service.add_prescription(
-        {12, "Medicine", "1 tablet", "Twice daily", 5}, "another-doctor"));
+    CHECK(service.add_prescription(
+        {12, "Medicine", "1 tablet", "Twice daily", 0}, "doctor-1").status ==
+          hms::clinical::PrescriptionStatus::VisitUnavailable);
+    CHECK(service.add_prescription(
+        {12, "Medicine", "1 tablet", "Twice daily", 5}, "another-doctor")
+              .status == hms::clinical::PrescriptionStatus::VisitUnavailable);
 
+    test_allergy_warning(repository, service);
     test_postgres_repository_when_enabled();
 
     std::cout << "All clinical service tests passed.\n";

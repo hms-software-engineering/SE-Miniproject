@@ -1784,7 +1784,9 @@ void handle_client(TlsConnection& client,
             if (!has_content_length ||
                 raw.size() < body_start + content_length ||
                 !parse_json_body(raw.substr(body_start, content_length), fields) ||
-                fields.size() != 4 ||
+                (fields.size() != 4 &&
+                 !(fields.size() == 5 &&
+                   fields.find("overrideReason") != fields.end())) ||
                 fields.find("item") == fields.end() ||
                 fields.find("dosage") == fields.end() ||
                 fields.find("frequency") == fields.end() ||
@@ -1798,20 +1800,47 @@ void handle_client(TlsConnection& client,
                 !parse_positive_id(fields.at("days"), days) ||
                 days > 3650) {
                 send_error(client, 400, "INVALID_REQUEST",
-                           "Provide item, dosage, frequency, and positive days.",
+                           "Provide item, dosage, frequency, positive days, "
+                           "and optionally overrideReason.",
                            request_id);
                 return;
             }
             const hms::clinical::PrescriptionInput prescription{
                 visit_id, fields.at("item"), fields.at("dosage"),
-                fields.at("frequency"), static_cast<int>(days)
+                fields.at("frequency"), static_cast<int>(days),
+                fields.count("overrideReason") != 0
+                    ? fields.at("overrideReason") : std::string()
             };
-            if (!clinical_service.add_prescription(
-                    prescription, principal.user_id)) {
+            const auto prescribed = clinical_service.add_prescription(
+                prescription, principal.user_id);
+            if (prescribed.status ==
+                hms::clinical::PrescriptionStatus::VisitUnavailable) {
                 send_error(client, 404, "VISIT_NOT_FOUND",
                            "Visit was not found for this doctor.",
                            request_id);
                 return;
+            }
+            if (prescribed.status ==
+                hms::clinical::PrescriptionStatus::AllergyWarning) {
+                std::string conflicts;
+                for (const auto& conflict : prescribed.allergy_conflicts) {
+                    if (!conflicts.empty()) conflicts += ", ";
+                    conflicts += conflict;
+                }
+                send_error(client, 409, "ALLERGY_WARNING",
+                           "Patient allergy matches this medicine (" +
+                               conflicts + "). Resubmit with overrideReason "
+                               "to prescribe it.",
+                           request_id);
+                return;
+            }
+            if (prescribed.overridden) {
+                auth_service.record_audit_event({
+                    principal.user_id,
+                    std::string(hms::role_name(principal.role)),
+                    "OVERRIDE_ALLERGY_WARNING", visit_id_text,
+                    client.source_ip
+                });
             }
             auth_service.record_audit_event({
                 principal.user_id,
@@ -1924,6 +1953,53 @@ void handle_client(TlsConnection& client,
                           "{\"patient\":" + json_patient(patient) + "}");
             return;
         }
+        constexpr char allergy_patient_path[] = "/api/v1/patients/";
+        constexpr char allergy_suffix[] = "/allergies";
+        if (method == "PUT" &&
+            path.rfind(allergy_patient_path, 0) == 0 &&
+            path.size() > sizeof(allergy_patient_path) - 1 +
+                              sizeof(allergy_suffix) - 1 &&
+            path.compare(path.size() - sizeof(allergy_suffix) + 1,
+                         sizeof(allergy_suffix) - 1, allergy_suffix) == 0) {
+            const std::string patient_id = path.substr(
+                sizeof(allergy_patient_path) - 1,
+                path.size() - (sizeof(allergy_patient_path) - 1) -
+                    (sizeof(allergy_suffix) - 1));
+            if (!is_json_content_type(content_type)) {
+                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                           "Content-Type must be application/json.",
+                           request_id);
+                return;
+            }
+            const std::size_t body_start = header_end + 4;
+            std::map<std::string, std::string> fields;
+            if (!has_content_length ||
+                raw.size() < body_start + content_length ||
+                !parse_json_body(raw.substr(body_start, content_length),
+                                 fields) ||
+                fields.size() != 1 ||
+                fields.find("allergies") == fields.end() ||
+                fields.at("allergies").size() > 2000) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide allergies as a comma separated string.",
+                           request_id);
+                return;
+            }
+            if (!clinical_service.set_patient_allergies(
+                    patient_id, fields.at("allergies"))) {
+                send_error(client, 404, "PATIENT_NOT_FOUND",
+                           "Patient was not found.", request_id);
+                return;
+            }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "UPDATE_PATIENT_ALLERGIES", patient_id, client.source_ip
+            });
+            send_response(client, 200, "{\"updated\":true}");
+            return;
+        }
+
         if ((method == "PUT" || method == "PATCH") &&
             path.rfind(patient_path, 0) == 0) {
             const std::string patient_id =
