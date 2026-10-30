@@ -119,12 +119,52 @@ void test_postgres_repository_when_enabled()
             item_rejected = true;
         }
         CHECK(item_rejected);
+
+        using hms::billing::PaymentStatus;
+        const auto partial = hms::billing::record_payment(
+            repository, created.bill.id, "0.40", "UPI");
+        CHECK(partial.status == PaymentStatus::Recorded);
+        CHECK(partial.bill_status == "Partially Paid");
+        CHECK(partial.payment.receipt_no.rfind("RCPT-", 0) == 0);
+        CHECK(hms::billing::record_payment(
+                  repository, created.bill.id, "0.61", "Cash").status ==
+              PaymentStatus::Overpayment);
+        const auto settled = hms::billing::record_payment(
+            repository, created.bill.id, "0.60", "Card");
+        CHECK(settled.status == PaymentStatus::Recorded);
+        CHECK(settled.bill_status == "Paid");
+        CHECK(settled.payment.receipt_no != partial.payment.receipt_no);
+        CHECK(hms::billing::record_payment(
+                  repository, 9223372036854775807LL, "1.00", "Cash").status ==
+              PaymentStatus::BillMissing);
+
+        // TC-CLN-05: only the patient's own bills are returned.
+        const auto bills = repository.bills_for_patient("PID-00000001");
+        CHECK(!bills.empty());
+        bool found_bill = false;
+        for (const auto& entry : bills) {
+            if (entry.bill.id != created.bill.id) continue;
+            found_bill = true;
+            CHECK(entry.bill.status == "Paid");
+            CHECK(entry.paid_cents == 100);
+            CHECK(entry.bill.items.size() == 1);
+            CHECK(entry.bill.items[0].description == "Consultation");
+        }
+        CHECK(found_bill);
+        CHECK(repository.bills_for_patient("PID-99999999").empty());
+        CHECK(hms::billing::patient_bills_to_json(bills).find(
+                  "\"balance\":\"0.00\"") != std::string::npos);
     }
 
+    const std::string remove_payments =
+        "DELETE FROM payments WHERE bill_id IN "
+        "(SELECT bill_id FROM bills WHERE visit_id IN (" + visits + "))";
+    PGresult* result = run_query(connection, remove_payments.c_str());
+    PQclear(result);
     const std::string remove_items =
         "DELETE FROM bill_items WHERE bill_id IN "
         "(SELECT bill_id FROM bills WHERE visit_id IN (" + visits + "))";
-    PGresult* result = run_query(connection, remove_items.c_str());
+    result = run_query(connection, remove_items.c_str());
     PQclear(result);
     const std::string remove_bills =
         "DELETE FROM bills WHERE visit_id IN (" + visits + ")";
@@ -158,7 +198,82 @@ public:
                 {1, visit_id, items, subtotal_cents, tax_rate_basis_points,
                  tax_cents, total_cents, "Unpaid"}};
     }
+
+    // Applies the same rules as the PostgreSQL repository to one bill.
+    hms::billing::RecordPaymentResult persist_payment(
+        long long bill_id,
+        std::int64_t amount_cents,
+        const std::string& mode) override
+    {
+        if (bill_id != 1) {
+            return {hms::billing::PaymentStatus::BillMissing, {}, 0, 0, {}};
+        }
+        const auto check = hms::billing::check_payment(
+            bill_status_, 84000, paid_cents_, amount_cents);
+        if (check != hms::billing::PaymentStatus::Recorded) {
+            return {check, {}, 84000, paid_cents_, bill_status_};
+        }
+        paid_cents_ += amount_cents;
+        bill_status_ =
+            hms::billing::bill_status_after_payment(84000, paid_cents_);
+        ++payments_;
+        return {hms::billing::PaymentStatus::Recorded,
+                {payments_, bill_id, amount_cents, mode,
+                 "RCPT-" + std::to_string(payments_)},
+                84000, paid_cents_, bill_status_};
+    }
+
+    void cancel_bill() { bill_status_ = "Cancelled"; }
+    long long payments() const { return payments_; }
+
+private:
+    std::int64_t paid_cents_ = 0;
+    long long payments_ = 0;
+    std::string bill_status_ = "Unpaid";
 };
+
+// TC-BIL-02: on 840.00 pay 400 by UPI, reject 500, then settle with 440.
+void test_record_payment()
+{
+    using hms::billing::PaymentStatus;
+    using hms::billing::record_payment;
+    FakeBillRepository repository;
+
+    const auto first = record_payment(repository, 1, "400.00", "UPI");
+    CHECK(first.status == PaymentStatus::Recorded);
+    CHECK(first.bill_status == "Partially Paid");
+    CHECK(hms::billing::payment_to_json(first).find(
+              "\"balance\":\"440.00\"") != std::string::npos);
+
+    const auto over = record_payment(repository, 1, "500.00", "Cash");
+    CHECK(over.status == PaymentStatus::Overpayment);
+    CHECK(repository.payments() == 1);
+
+    const auto last = record_payment(repository, 1, "440.00", "Card");
+    CHECK(last.status == PaymentStatus::Recorded);
+    CHECK(last.bill_status == "Paid");
+    CHECK(last.payment.receipt_no != first.payment.receipt_no);
+
+    CHECK(record_payment(repository, 1, "0.01", "Cash").status ==
+          PaymentStatus::Overpayment);
+    CHECK(record_payment(repository, 1, "1.00", "Cheque").status ==
+          PaymentStatus::InvalidRequest);
+    CHECK(record_payment(repository, 1, "1.00", "Bank Transfer").status ==
+          PaymentStatus::InvalidRequest);
+    CHECK(record_payment(repository, 1, "0.00", "Cash").status ==
+          PaymentStatus::InvalidRequest);
+    CHECK(record_payment(repository, 1, "-1.00", "Cash").status ==
+          PaymentStatus::InvalidRequest);
+    CHECK(record_payment(repository, 0, "1.00", "Cash").status ==
+          PaymentStatus::InvalidRequest);
+    CHECK(record_payment(repository, 99, "1.00", "Cash").status ==
+          PaymentStatus::BillMissing);
+
+    FakeBillRepository cancelled;
+    cancelled.cancel_bill();
+    CHECK(record_payment(cancelled, 1, "1.00", "Cash").status ==
+          PaymentStatus::BillCancelled);
+}
 
 }  // namespace
 
@@ -221,6 +336,7 @@ int main()
               repository, 1, too_many_items, "18").status ==
           hms::billing::CreateBillStatus::InvalidRequest);
 
+    test_record_payment();
     test_postgres_repository_when_enabled();
 
     std::cout << "All billing service tests passed.\n";
