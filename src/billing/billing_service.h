@@ -40,6 +40,11 @@ struct CreateBillResult {
     Bill bill;
 };
 
+struct PatientBill {
+    Bill bill;
+    std::int64_t paid_cents = 0;
+};
+
 enum class PaymentStatus {
     Recorded,
     InvalidRequest,
@@ -102,6 +107,8 @@ public:
         long long bill_id,
         std::int64_t amount_cents,
         const std::string& mode) override;
+    // Newest bill first.
+    std::vector<PatientBill> bills_for_patient(const std::string& patient_id);
 
 private:
     struct Connection;
@@ -131,5 +138,6 @@ std::string bill_status_after_payment(std::int64_t total_cents,
 std::string format_money(std::int64_t amount_cents);
 std::string bill_to_json(const Bill& bill);
 std::string payment_to_json(const RecordPaymentResult& result);
+std::string patient_bills_to_json(const std::vector<PatientBill>& bills);
 
 }  // namespace hms::billing

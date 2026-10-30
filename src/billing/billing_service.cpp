@@ -499,6 +499,67 @@ RecordPaymentResult PostgresBillingRepository::persist_payment(
     }
 }
 
+std::vector<PatientBill> PostgresBillingRepository::bills_for_patient(
+    const std::string& patient_id)
+{
+    const auto stored_money = [](const char* value) {
+        std::int64_t cents = 0;
+        if (!parse_money(value, cents)) {
+            throw std::runtime_error("Stored bill amount is invalid.");
+        }
+        return cents;
+    };
+    PGresult* bills_raw = execute(
+        connection_->value,
+        "SELECT b.bill_id::text, b.visit_id::text, b.subtotal::text, "
+        "b.tax_rate::text, b.tax::text, b.total::text, b.status, "
+        "(SELECT COALESCE(SUM(p.amount), 0)::numeric(14,2)::text "
+        " FROM payments p WHERE p.bill_id = b.bill_id) "
+        "FROM bills b JOIN visits v ON v.visit_id = b.visit_id "
+        "JOIN appointments a ON a.appointment_id = v.appointment_id "
+        "WHERE a.patient_id = $1 "
+        "ORDER BY b.created_at DESC, b.bill_id DESC",
+        {patient_id});
+    require_pg_status(connection_->value, bills_raw, PGRES_TUPLES_OK,
+                      "Could not load patient bills");
+    PgResult bills_result(bills_raw);
+
+    std::vector<PatientBill> bills;
+    bills.reserve(static_cast<std::size_t>(pg_tuples(bills_result.get())));
+    for (int row = 0; row < pg_tuples(bills_result.get()); ++row) {
+        PatientBill entry;
+        entry.bill.id = std::stoll(pg_value(bills_result.get(), row, 0));
+        entry.bill.visit_id = std::stoll(pg_value(bills_result.get(), row, 1));
+        entry.bill.subtotal_cents =
+            stored_money(pg_value(bills_result.get(), row, 2));
+        entry.bill.tax_rate_basis_points =
+            stored_money(pg_value(bills_result.get(), row, 3));
+        entry.bill.tax_cents =
+            stored_money(pg_value(bills_result.get(), row, 4));
+        entry.bill.total_cents =
+            stored_money(pg_value(bills_result.get(), row, 5));
+        entry.bill.status = pg_value(bills_result.get(), row, 6);
+        entry.paid_cents = stored_money(pg_value(bills_result.get(), row, 7));
+
+        PGresult* items_raw = execute(
+            connection_->value,
+            "SELECT item, amount::text FROM bill_items "
+            "WHERE bill_id = $1::bigint ORDER BY bill_item_id",
+            {std::to_string(entry.bill.id)});
+        require_pg_status(connection_->value, items_raw, PGRES_TUPLES_OK,
+                          "Could not load bill items");
+        PgResult items_result(items_raw);
+        for (int item = 0; item < pg_tuples(items_result.get()); ++item) {
+            entry.bill.items.push_back({
+                pg_value(items_result.get(), item, 0),
+                stored_money(pg_value(items_result.get(), item, 1))
+            });
+        }
+        bills.push_back(std::move(entry));
+    }
+    return bills;
+}
+
 CreateBillResult create_itemized_bill(
     BillRepository& repository,
     long long visit_id,
@@ -595,6 +656,20 @@ std::string bill_to_json(const Bill& bill)
         ",\"total\":" + json_string(format_money(bill.total_cents)) +
         ",\"status\":" + json_string(bill.status) + "}";
     return json;
+}
+
+std::string patient_bills_to_json(const std::vector<PatientBill>& bills)
+{
+    std::string json = "{\"bills\":[";
+    for (std::size_t index = 0; index < bills.size(); ++index) {
+        if (index != 0) json += ',';
+        const auto& entry = bills[index];
+        json += "{\"bill\":" + bill_to_json(entry.bill) +
+            ",\"paid\":" + json_string(format_money(entry.paid_cents)) +
+            ",\"balance\":" + json_string(format_money(
+                entry.bill.total_cents - entry.paid_cents)) + "}";
+    }
+    return json + "]}";
 }
 
 std::string payment_to_json(const RecordPaymentResult& result)

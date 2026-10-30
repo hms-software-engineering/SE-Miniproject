@@ -1397,6 +1397,32 @@ void handle_client(TlsConnection& client,
             return;
         }
 
+        if (method == "GET" &&
+            (path == "/api/v1/patients/me/history" ||
+             path == "/api/v1/patients/me/bills")) {
+            const std::string patient_id =
+                clinical_service.patient_id_for_user(principal.user_id);
+            if (patient_id.empty()) {
+                send_error(client, 404, "PATIENT_NOT_FOUND",
+                           "No patient record is linked to this account.",
+                           request_id);
+                return;
+            }
+            const bool history = path == "/api/v1/patients/me/history";
+            const std::string body = history
+                ? visit_history_json(clinical_service.visit_history(patient_id))
+                : hms::billing::patient_bills_to_json(
+                      billing_repository.bills_for_patient(patient_id));
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                history ? "VIEW_OWN_HISTORY" : "VIEW_OWN_BILLS",
+                patient_id, client.source_ip
+            });
+            send_response(client, 200, body);
+            return;
+        }
+
         constexpr char visits_patient_path[] = "/api/v1/patients/";
         constexpr char visits_suffix[] = "/visits";
         if (method == "GET" &&

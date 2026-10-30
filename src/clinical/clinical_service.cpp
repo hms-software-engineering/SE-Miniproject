@@ -451,6 +451,12 @@ std::vector<VisitHistoryEntry> ClinicalService::visit_history(
     return repository_.visit_history(patient_id);
 }
 
+std::string ClinicalService::patient_id_for_user(const std::string& user_id)
+{
+    if (user_id.empty()) return {};
+    return repository_.patient_id_for_user(user_id);
+}
+
 struct PostgresClinicalRepository::Connection {
     PGconn* value = nullptr;
 };
@@ -670,6 +676,20 @@ std::vector<VisitHistoryEntry> PostgresClinicalRepository::visit_history(
         entries.push_back(std::move(entry));
     }
     return entries;
+}
+
+std::string PostgresClinicalRepository::patient_id_for_user(
+    const std::string& user_id)
+{
+    PGresult* raw = execute(
+        connection_->value,
+        "SELECT patient_id FROM patients WHERE user_id = $1::bigint",
+        {user_id});
+    require_status(connection_->value, raw, PGRES_TUPLES_OK,
+                   "Could not find patient for user");
+    PgResult result(raw);
+    return pg_tuples(result.get()) == 0
+        ? std::string() : std::string(pg_value(result.get(), 0, 0));
 }
 
 } // namespace hms::clinical

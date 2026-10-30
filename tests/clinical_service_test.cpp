@@ -106,6 +106,10 @@ void test_postgres_repository_when_enabled()
     CHECK(history[1].prescriptions[1].override_reason ==
           "No alternative available");
     CHECK(repository.visit_history("PID-99999999").empty());
+
+    // TC-CLN-05: a patient account resolves to its own record only.
+    CHECK(repository.patient_id_for_user("3") == "PID-00000001");
+    CHECK(repository.patient_id_for_user("999999").empty());
 }
 
 class InMemoryClinicalRepository final : public hms::clinical::ClinicalRepository {
@@ -162,6 +166,11 @@ public:
     {
         if (patient_id != "PID-00000001") return {};
         return {{12, "2026-10-20 10:00", "Cough", "Infection", "", {}}};
+    }
+
+    std::string patient_id_for_user(const std::string& user_id) override
+    {
+        return user_id == "patient-1" ? "PID-00000001" : "";
     }
 
     void corrupt_allergies() { allergies_readable_ = false; }
@@ -272,6 +281,9 @@ int main()
     CHECK(service.visit_history("PID-00000001").size() == 1);
     CHECK(service.visit_history("PID-00000002").empty());
     CHECK(service.visit_history("").empty());
+    CHECK(service.patient_id_for_user("patient-1") == "PID-00000001");
+    CHECK(service.patient_id_for_user("patient-2").empty());
+    CHECK(service.patient_id_for_user("").empty());
     test_postgres_repository_when_enabled();
 
     std::cout << "All clinical service tests passed.\n";

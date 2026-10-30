@@ -84,6 +84,8 @@ public:
     // Newest visit first.
     virtual std::vector<VisitHistoryEntry> visit_history(
         const std::string& patient_id) = 0;
+    // Empty when the user has no linked patient record.
+    virtual std::string patient_id_for_user(const std::string& user_id) = 0;
 };
 
 // Allergies from a comma or semicolon separated list that match a medicine,
@@ -103,6 +105,7 @@ public:
         const std::string& patient_id, const std::string& allergies);
     std::vector<VisitHistoryEntry> visit_history(
         const std::string& patient_id);
+    std::string patient_id_for_user(const std::string& user_id);
 
 private:
     ClinicalRepository& repository_;
@@ -129,6 +132,7 @@ public:
         const std::string& patient_id, const std::string& allergies) override;
     std::vector<VisitHistoryEntry> visit_history(
         const std::string& patient_id) override;
+    std::string patient_id_for_user(const std::string& user_id) override;
 
 private:
     struct Connection;

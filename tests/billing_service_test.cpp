@@ -137,6 +137,23 @@ void test_postgres_repository_when_enabled()
         CHECK(hms::billing::record_payment(
                   repository, 9223372036854775807LL, "1.00", "Cash").status ==
               PaymentStatus::BillMissing);
+
+        // TC-CLN-05: only the patient's own bills are returned.
+        const auto bills = repository.bills_for_patient("PID-00000001");
+        CHECK(!bills.empty());
+        bool found_bill = false;
+        for (const auto& entry : bills) {
+            if (entry.bill.id != created.bill.id) continue;
+            found_bill = true;
+            CHECK(entry.bill.status == "Paid");
+            CHECK(entry.paid_cents == 100);
+            CHECK(entry.bill.items.size() == 1);
+            CHECK(entry.bill.items[0].description == "Consultation");
+        }
+        CHECK(found_bill);
+        CHECK(repository.bills_for_patient("PID-99999999").empty());
+        CHECK(hms::billing::patient_bills_to_json(bills).find(
+                  "\"balance\":\"0.00\"") != std::string::npos);
     }
 
     const std::string remove_payments =
