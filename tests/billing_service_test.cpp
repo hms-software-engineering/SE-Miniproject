@@ -101,7 +101,7 @@ void test_postgres_repository_when_enabled()
         const auto created = repository.persist_bill(
             first.visit_id, {{"Consultation", 100}}, 100, 0, 0, 100);
 
-        // ---- existing persist_bill checks (single copy) ----
+        // ---- persist_bill checks (single copy) ----
         CHECK(created.status == hms::billing::CreateBillStatus::Created);
         CHECK(created.bill.id > 0);
         CHECK(repository.persist_bill(
@@ -122,31 +122,76 @@ void test_postgres_repository_when_enabled()
         }
         CHECK(item_rejected);
 
-        // ---- new payment / receipt checks ----
-        const auto payment =
-            repository.persist_payment(created.bill.id, 100, "Card");
-        CHECK(payment.status == hms::billing::PaymentStatus::Recorded);
-        CHECK(payment.payment.id > 0);
-        CHECK(!payment.payment.receipt_no.empty());
-        CHECK(payment.payment.receipt_no.rfind("RCPT-", 0) == 0);
+        using hms::billing::PaymentStatus;
 
-        const auto receipt = repository.find_receipt(payment.payment.id);
-        CHECK(receipt.has_value());
-        CHECK(receipt->amount_cents == 100);
-        CHECK(receipt->mode == "Card");
-        CHECK(receipt->bill_id == created.bill.id);
-        CHECK(receipt->receipt_no == payment.payment.receipt_no);
+        // ---- Partial payment via record_payment (main) ----
+        const auto partial = hms::billing::record_payment(
+            repository, created.bill.id, "0.40", "UPI");
+        CHECK(partial.status == PaymentStatus::Recorded);
+        CHECK(partial.bill_status == "Partially Paid");
+        CHECK(partial.payment.receipt_no.rfind("RCPT-", 0) == 0);
 
+        // ---- find_receipt for the partial payment (feature) ----
+        const auto partial_receipt =
+            repository.find_receipt(partial.payment.id);
+        CHECK(partial_receipt.has_value());
+        CHECK(partial_receipt->amount_cents == 40);
+        CHECK(partial_receipt->mode == "UPI");
+        CHECK(partial_receipt->bill_id == created.bill.id);
+        CHECK(partial_receipt->receipt_no == partial.payment.receipt_no);
+        CHECK(partial_receipt->balance_cents == 60);
+
+        // ---- Unknown receipt returns nullopt (feature) ----
         CHECK(!repository.find_receipt(999999).has_value());
 
-        // Bill is fully paid (100/100); any further payment is an overpayment.
-        const auto over =
-            repository.persist_payment(created.bill.id, 1, "Cash");
-        CHECK(over.status == hms::billing::PaymentStatus::Overpayment);
+        // ---- Overpayment on a partially paid bill (main) ----
+        CHECK(hms::billing::record_payment(
+                  repository, created.bill.id, "0.61", "Cash").status ==
+              PaymentStatus::Overpayment);
 
-        const auto missing = repository.persist_payment(
-            9223372036854775807LL, 1000, "UPI");
-        CHECK(missing.status == hms::billing::PaymentStatus::BillMissing);
+        // ---- Settle the bill (main) ----
+        const auto settled = hms::billing::record_payment(
+            repository, created.bill.id, "0.60", "Card");
+        CHECK(settled.status == PaymentStatus::Recorded);
+        CHECK(settled.bill_status == "Paid");
+        CHECK(settled.payment.receipt_no != partial.payment.receipt_no);
+
+        // ---- find_receipt for the settling payment (feature) ----
+        const auto settled_receipt =
+            repository.find_receipt(settled.payment.id);
+        CHECK(settled_receipt.has_value());
+        CHECK(settled_receipt->amount_cents == 60);
+        CHECK(settled_receipt->mode == "Card");
+        CHECK(settled_receipt->balance_cents == 0);
+
+        // ---- Any payment on a fully paid bill is an overpayment (feature) ----
+        CHECK(repository.persist_payment(created.bill.id, 1, "Cash").status ==
+              PaymentStatus::Overpayment);
+
+        // ---- Missing bill on both entry points (main + feature) ----
+        CHECK(hms::billing::record_payment(
+                  repository, 9223372036854775807LL, "1.00", "Cash").status ==
+              PaymentStatus::BillMissing);
+        CHECK(repository.persist_payment(
+                  9223372036854775807LL, 1000, "UPI").status ==
+              PaymentStatus::BillMissing);
+
+        // ---- TC-CLN-05: only the patient's own bills are returned (main) ----
+        const auto bills = repository.bills_for_patient("PID-00000001");
+        CHECK(!bills.empty());
+        bool found_bill = false;
+        for (const auto& entry : bills) {
+            if (entry.bill.id != created.bill.id) continue;
+            found_bill = true;
+            CHECK(entry.bill.status == "Paid");
+            CHECK(entry.paid_cents == 100);
+            CHECK(entry.bill.items.size() == 1);
+            CHECK(entry.bill.items[0].description == "Consultation");
+        }
+        CHECK(found_bill);
+        CHECK(repository.bills_for_patient("PID-99999999").empty());
+        CHECK(hms::billing::patient_bills_to_json(bills).find(
+                  "\"balance\":\"0.00\"") != std::string::npos);
     }
 
     // Cleanup order matters: payments → bill_items → bills → visits → appointments.
@@ -197,15 +242,82 @@ public:
                 {1, visit_id, items, subtotal_cents, tax_rate_basis_points,
                  tax_cents, total_cents, "Unpaid"}};
     }
+
+    // Applies the same rules as the PostgreSQL repository to one bill.
     hms::billing::RecordPaymentResult persist_payment(
-        long long,
-        std::int64_t,
-        const std::string&) override
+        long long bill_id,
+        std::int64_t amount_cents,
+        const std::string& mode) override
     {
-        return {hms::billing::PaymentStatus::InvalidRequest,
-                {}, 0, 0, {}};
+        if (bill_id != 1) {
+            return {hms::billing::PaymentStatus::BillMissing, {}, 0, 0, {}};
+        }
+        const auto check = hms::billing::check_payment(
+            bill_status_, 84000, paid_cents_, amount_cents);
+        if (check != hms::billing::PaymentStatus::Recorded) {
+            return {check, {}, 84000, paid_cents_, bill_status_};
+        }
+        paid_cents_ += amount_cents;
+        bill_status_ =
+            hms::billing::bill_status_after_payment(84000, paid_cents_);
+        ++payments_;
+        return {hms::billing::PaymentStatus::Recorded,
+                {payments_, bill_id, amount_cents, mode,
+                 "RCPT-" + std::to_string(payments_)},
+                84000, paid_cents_, bill_status_};
     }
+
+    void cancel_bill() { bill_status_ = "Cancelled"; }
+    long long payments() const { return payments_; }
+
+private:
+    std::int64_t paid_cents_ = 0;
+    long long payments_ = 0;
+    std::string bill_status_ = "Unpaid";
 };
+
+// TC-BIL-02: on 840.00 pay 400 by UPI, reject 500, then settle with 440.
+void test_record_payment()
+{
+    using hms::billing::PaymentStatus;
+    using hms::billing::record_payment;
+    FakeBillRepository repository;
+
+    const auto first = record_payment(repository, 1, "400.00", "UPI");
+    CHECK(first.status == PaymentStatus::Recorded);
+    CHECK(first.bill_status == "Partially Paid");
+    CHECK(hms::billing::payment_to_json(first).find(
+              "\"balance\":\"440.00\"") != std::string::npos);
+
+    const auto over = record_payment(repository, 1, "500.00", "Cash");
+    CHECK(over.status == PaymentStatus::Overpayment);
+    CHECK(repository.payments() == 1);
+
+    const auto last = record_payment(repository, 1, "440.00", "Card");
+    CHECK(last.status == PaymentStatus::Recorded);
+    CHECK(last.bill_status == "Paid");
+    CHECK(last.payment.receipt_no != first.payment.receipt_no);
+
+    CHECK(record_payment(repository, 1, "0.01", "Cash").status ==
+          PaymentStatus::Overpayment);
+    CHECK(record_payment(repository, 1, "1.00", "Cheque").status ==
+          PaymentStatus::InvalidRequest);
+    CHECK(record_payment(repository, 1, "1.00", "Bank Transfer").status ==
+          PaymentStatus::InvalidRequest);
+    CHECK(record_payment(repository, 1, "0.00", "Cash").status ==
+          PaymentStatus::InvalidRequest);
+    CHECK(record_payment(repository, 1, "-1.00", "Cash").status ==
+          PaymentStatus::InvalidRequest);
+    CHECK(record_payment(repository, 0, "1.00", "Cash").status ==
+          PaymentStatus::InvalidRequest);
+    CHECK(record_payment(repository, 99, "1.00", "Cash").status ==
+          PaymentStatus::BillMissing);
+
+    FakeBillRepository cancelled;
+    cancelled.cancel_bill();
+    CHECK(record_payment(cancelled, 1, "1.00", "Cash").status ==
+          PaymentStatus::BillCancelled);
+}
 
 }  // namespace
 
@@ -268,6 +380,7 @@ int main()
               repository, 1, too_many_items, "18").status ==
           hms::billing::CreateBillStatus::InvalidRequest);
 
+    test_record_payment();
     test_postgres_repository_when_enabled();
 
     std::cout << "All billing service tests passed.\n";

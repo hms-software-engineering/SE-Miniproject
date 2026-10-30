@@ -729,6 +729,7 @@ std::string payment_to_json(const RecordPaymentResult& result)
             result.total_cents - result.paid_cents)) +
         ",\"billStatus\":" + json_string(result.bill_status) + "}";
 }
+
 namespace {
 std::string html_escape(const std::string& value)
 {

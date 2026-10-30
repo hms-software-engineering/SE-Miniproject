@@ -649,7 +649,7 @@ std::optional<AuditAction> parse_audit_action(const std::string& value)
              AuditAction::CreatePrescription, AuditAction::CreatePatient,
              AuditAction::UpdatePatient, AuditAction::DeactivateUser,
              AuditAction::CreateBill,
-             AuditAction::RecordPayment,AuditAction::ViewReceipt,
+             AuditAction::RecordPayment, AuditAction::ViewReceipt,
              AuditAction::UpdatePatientAllergies,
              AuditAction::OverrideAllergyWarning,
              AuditAction::ViewVisitHistory,
