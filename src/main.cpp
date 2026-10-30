@@ -1233,6 +1233,93 @@ void handle_client(TlsConnection& client,
             return;
         }
 
+        if (method == "POST" && path == "/api/v1/payments") {
+            if (!is_json_content_type(content_type)) {
+                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                           "Content-Type must be application/json.",
+                           request_id);
+                return;
+            }
+            const std::size_t body_start = header_end + 4;
+            if (!has_content_length ||
+                raw.size() < body_start + content_length) {
+                send_error(client, 411, "LENGTH_REQUIRED",
+                           "A Content-Length and request body are required.",
+                           request_id);
+                return;
+            }
+            nlohmann::json request;
+            try {
+                request = nlohmann::json::parse(
+                    raw.substr(body_start, content_length));
+            } catch (const nlohmann::json::parse_error&) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide billId, amount and mode.", request_id);
+                return;
+            }
+            if (!request.is_object() || request.size() != 3 ||
+                !request.contains("billId") ||
+                !request.at("billId").is_string() ||
+                !request.contains("amount") ||
+                !request.at("amount").is_string() ||
+                !request.contains("mode") ||
+                !request.at("mode").is_string()) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide string billId, amount and mode.",
+                           request_id);
+                return;
+            }
+            long long bill_id = 0;
+            if (!parse_positive_id(request.at("billId").get<std::string>(),
+                                   bill_id)) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "billId must be a positive integer string.",
+                           request_id);
+                return;
+            }
+            const auto result = hms::billing::record_payment(
+                billing_repository, bill_id,
+                request.at("amount").get<std::string>(),
+                request.at("mode").get<std::string>());
+            if (result.status == hms::billing::PaymentStatus::InvalidRequest) {
+                send_error(client, 400, "INVALID_PAYMENT",
+                           "Provide a positive amount to two decimal places "
+                           "and a mode of Cash, Card or UPI.",
+                           request_id);
+                return;
+            }
+            if (result.status == hms::billing::PaymentStatus::BillMissing) {
+                send_error(client, 404, "BILL_NOT_FOUND",
+                           "Bill was not found.", request_id);
+                return;
+            }
+            if (result.status == hms::billing::PaymentStatus::BillCancelled) {
+                send_error(client, 409, "BILL_CANCELLED",
+                           "A cancelled bill cannot accept payments.",
+                           request_id);
+                return;
+            }
+            if (result.status == hms::billing::PaymentStatus::Overpayment) {
+                send_error(client, 409, "OVERPAYMENT",
+                           "Payment exceeds the outstanding balance of " +
+                               hms::billing::format_money(
+                                   result.total_cents - result.paid_cents) +
+                               ".",
+                           request_id);
+                return;
+            }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "RECORD_PAYMENT", std::to_string(result.payment.id),
+                client.source_ip
+            });
+            send_response(client, 201,
+                          "{\"payment\":" +
+                              hms::billing::payment_to_json(result) + "}");
+            return;
+        }
+
         if (method == "GET" && path == "/api/v1/reports") {
             std::string start_date;
             std::string end_date;
