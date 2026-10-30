@@ -158,7 +158,17 @@ public:
                 {1, visit_id, items, subtotal_cents, tax_rate_basis_points,
                  tax_cents, total_cents, "Unpaid"}};
     }
+    hms::billing::RecordPaymentResult persist_payment(
+        long long,
+        std::int64_t,
+        const std::string&) override
+    {
+        return {hms::billing::PaymentStatus::InvalidRequest,
+                {}, 0, 0, {}};
+    }
 };
+
+
 
 }  // namespace
 
