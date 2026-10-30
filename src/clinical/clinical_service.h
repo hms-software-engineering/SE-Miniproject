@@ -52,6 +52,23 @@ struct VisitAllergies {
     std::string allergies;
 };
 
+struct PrescriptionRecord {
+    std::string item;
+    std::string dosage;
+    std::string frequency;
+    int days = 0;
+    std::string override_reason;
+};
+
+struct VisitHistoryEntry {
+    long long visit_id = 0;
+    std::string visited_at;
+    std::string symptoms;
+    std::string diagnosis;
+    std::string notes;
+    std::vector<PrescriptionRecord> prescriptions;
+};
+
 class ClinicalRepository {
 public:
     virtual ~ClinicalRepository() = default;
@@ -64,6 +81,9 @@ public:
         long long visit_id, const std::string& doctor_user_id) = 0;
     virtual bool set_patient_allergies(
         const std::string& patient_id, const std::string& allergies) = 0;
+    // Newest visit first.
+    virtual std::vector<VisitHistoryEntry> visit_history(
+        const std::string& patient_id) = 0;
 };
 
 // Allergies from a comma or semicolon separated list that match a medicine,
@@ -81,6 +101,8 @@ public:
         const PrescriptionInput& input, const std::string& doctor_user_id);
     bool set_patient_allergies(
         const std::string& patient_id, const std::string& allergies);
+    std::vector<VisitHistoryEntry> visit_history(
+        const std::string& patient_id);
 
 private:
     ClinicalRepository& repository_;
@@ -105,6 +127,8 @@ public:
         long long visit_id, const std::string& doctor_user_id) override;
     bool set_patient_allergies(
         const std::string& patient_id, const std::string& allergies) override;
+    std::vector<VisitHistoryEntry> visit_history(
+        const std::string& patient_id) override;
 
 private:
     struct Connection;

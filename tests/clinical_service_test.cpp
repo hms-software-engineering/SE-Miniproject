@@ -80,6 +80,32 @@ void test_postgres_repository_when_enabled()
     const auto unreadable = wrong_key.visit_allergies(created.visit_id, "2");
     CHECK(unreadable.visit_found && !unreadable.readable);
     CHECK(repository.set_patient_allergies("PID-00000001", ""));
+
+    // TC-CLN-04: the later visit comes first, with its prescriptions.
+    const auto later_appointment = appointments.insert(
+        {0, "PID-00000001", 1, integration_test_date() + " 10:30", {}});
+    CHECK(later_appointment.status == hms::SaveStatus::Ok);
+    const auto later = repository.record_visit(
+        {later_appointment.appointment.id, "Fever", "Viral fever", ""}, "2");
+    CHECK(later.status == hms::clinical::VisitRecordStatus::Created);
+    CHECK(repository.add_prescription(
+        {later.visit_id, "Paracetamol", "1 tablet", "Daily", 3}, "2"));
+
+    const auto history = repository.visit_history("PID-00000001");
+    CHECK(history.size() >= 2);
+    CHECK(history[0].visit_id == later.visit_id);
+    CHECK(history[0].visited_at >= history[1].visited_at);
+    CHECK(history[0].symptoms == "Fever");
+    CHECK(history[0].diagnosis == "Viral fever");
+    CHECK(history[0].prescriptions.size() == 1);
+    CHECK(history[0].prescriptions[0].item == "Paracetamol");
+    CHECK(history[0].prescriptions[0].days == 3);
+    CHECK(history[1].visit_id == created.visit_id);
+    CHECK(history[1].notes == "Rest and fluids");
+    CHECK(history[1].prescriptions.size() == 2);
+    CHECK(history[1].prescriptions[1].override_reason ==
+          "No alternative available");
+    CHECK(repository.visit_history("PID-99999999").empty());
 }
 
 class InMemoryClinicalRepository final : public hms::clinical::ClinicalRepository {
@@ -129,6 +155,13 @@ public:
         if (patient_id != "PID-00000001") return false;
         allergies_ = allergies;
         return true;
+    }
+
+    std::vector<hms::clinical::VisitHistoryEntry> visit_history(
+        const std::string& patient_id) override
+    {
+        if (patient_id != "PID-00000001") return {};
+        return {{12, "2026-10-20 10:00", "Cough", "Infection", "", {}}};
     }
 
     void corrupt_allergies() { allergies_readable_ = false; }
@@ -236,6 +269,9 @@ int main()
               .status == hms::clinical::PrescriptionStatus::VisitUnavailable);
 
     test_allergy_warning(repository, service);
+    CHECK(service.visit_history("PID-00000001").size() == 1);
+    CHECK(service.visit_history("PID-00000002").empty());
+    CHECK(service.visit_history("").empty());
     test_postgres_repository_when_enabled();
 
     std::cout << "All clinical service tests passed.\n";

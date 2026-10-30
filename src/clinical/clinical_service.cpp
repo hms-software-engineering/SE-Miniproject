@@ -444,6 +444,13 @@ bool ClinicalService::set_patient_allergies(
         patient_id, trim_ascii(allergies));
 }
 
+std::vector<VisitHistoryEntry> ClinicalService::visit_history(
+    const std::string& patient_id)
+{
+    if (patient_id.empty()) return {};
+    return repository_.visit_history(patient_id);
+}
+
 struct PostgresClinicalRepository::Connection {
     PGconn* value = nullptr;
 };
@@ -599,6 +606,70 @@ bool PostgresClinicalRepository::set_patient_allergies(
                    "Could not save patient allergies");
     PgResult result(raw);
     return pg_tuples(result.get()) != 0;
+}
+
+std::vector<VisitHistoryEntry> PostgresClinicalRepository::visit_history(
+    const std::string& patient_id)
+{
+    PGresult* visits_raw = execute(
+        connection_->value,
+        "SELECT v.visit_id::text, "
+        "to_char(v.visited_at, 'YYYY-MM-DD HH24:MI'), "
+        "encode(v.symptoms, 'hex'), encode(v.diagnosis, 'hex'), "
+        "COALESCE(encode(v.notes, 'hex'), '') FROM visits v "
+        "JOIN appointments a ON a.appointment_id = v.appointment_id "
+        "WHERE a.patient_id = $1 "
+        "ORDER BY v.visited_at DESC, v.visit_id DESC",
+        {patient_id});
+    require_status(connection_->value, visits_raw, PGRES_TUPLES_OK,
+                   "Could not load visit history");
+    PgResult visits(visits_raw);
+
+    const auto decrypt_field = [this](const std::string& encoded,
+                                      const char* context) {
+        std::string plaintext;
+        if (!encoded.empty() &&
+            !decrypt_hex(encoded, encryption_key_, context, plaintext)) {
+            throw std::runtime_error(
+                "Visit data authentication failed; check the encryption key.");
+        }
+        return plaintext;
+    };
+
+    std::vector<VisitHistoryEntry> entries;
+    entries.reserve(static_cast<std::size_t>(pg_tuples(visits.get())));
+    for (int row = 0; row < pg_tuples(visits.get()); ++row) {
+        VisitHistoryEntry entry;
+        entry.visit_id = std::stoll(pg_value(visits.get(), row, 0));
+        entry.visited_at = pg_value(visits.get(), row, 1);
+        entry.symptoms = decrypt_field(
+            pg_value(visits.get(), row, 2), "visit:symptoms:v1");
+        entry.diagnosis = decrypt_field(
+            pg_value(visits.get(), row, 3), "visit:diagnosis:v1");
+        entry.notes = decrypt_field(
+            pg_value(visits.get(), row, 4), "visit:notes:v1");
+
+        PGresult* prescriptions_raw = execute(
+            connection_->value,
+            "SELECT item, dosage, frequency, days::text, "
+            "COALESCE(override_reason, '') FROM prescriptions "
+            "WHERE visit_id = $1::bigint ORDER BY prescription_id",
+            {std::to_string(entry.visit_id)});
+        require_status(connection_->value, prescriptions_raw, PGRES_TUPLES_OK,
+                       "Could not load visit prescriptions");
+        PgResult prescriptions(prescriptions_raw);
+        for (int item = 0; item < pg_tuples(prescriptions.get()); ++item) {
+            entry.prescriptions.push_back({
+                pg_value(prescriptions.get(), item, 0),
+                pg_value(prescriptions.get(), item, 1),
+                pg_value(prescriptions.get(), item, 2),
+                std::stoi(pg_value(prescriptions.get(), item, 3)),
+                pg_value(prescriptions.get(), item, 4)
+            });
+        }
+        entries.push_back(std::move(entry));
+    }
+    return entries;
 }
 
 } // namespace hms::clinical
