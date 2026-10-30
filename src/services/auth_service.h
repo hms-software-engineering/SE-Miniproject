@@ -55,7 +55,9 @@ enum class AuditAction {
     UpdatePatient,
     DeactivateUser,
     CreateBill,
-    RecordPayment
+    RecordPayment,
+    UpdatePatientAllergies,
+    OverrideAllergyWarning
 };
 
 class AuditRecordId {
