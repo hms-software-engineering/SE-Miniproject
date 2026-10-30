@@ -820,8 +820,7 @@ void AuthService::record_audit_event(const AuditEvent& event)
 
 AuditReadResult AuthService::read_audit_events(
     const std::string& token,
-    std::optional<AuditAction> action,
-    std::optional<AuditRecordId> record_id) const
+    const AuditFilter& filter) const
 {
     const auto principal = authenticate_token(token);
     if (!principal)
@@ -830,9 +829,7 @@ AuditReadResult AuthService::read_audit_events(
     if (!authorize(principal->role, Permission::ViewAuditLog,
                    authorization_error))
         return {AuditReadStatus::AccessDenied, {}};
-    return {AuditReadStatus::Success,
-            repository_.read_audit_events(std::move(action),
-                                          std::move(record_id))};
+    return {AuditReadStatus::Success, repository_.read_audit_events(filter)};
 }
 
 struct PostgresAuthRepository::Connection {
@@ -1199,23 +1196,30 @@ void PostgresAuthRepository::record_audit_event(const AuditEvent& event)
 }
 
 std::vector<AuditRecord> PostgresAuthRepository::read_audit_events(
-    std::optional<AuditAction> action,
-    std::optional<AuditRecordId> record_id) const
+    const AuditFilter& filter) const
 {
-    const char* action_value = action ? audit_action_name(*action) : nullptr;
-    const char* record_value = record_id ? record_id->value().c_str() : nullptr;
-    const char* values[] = {action_value, record_value};
+    const char* values[] = {
+        filter.action ? audit_action_name(*filter.action) : nullptr,
+        filter.record_id ? filter.record_id->value().c_str() : nullptr,
+        filter.username ? filter.username->c_str() : nullptr,
+        filter.from_date ? filter.from_date->c_str() : nullptr,
+        filter.to_date ? filter.to_date->c_str() : nullptr
+    };
     PGresult* raw = pg_exec_params(
         connection_->value,
-        "SELECT COALESCE(user_id::text,''), role, action, "
-        "COALESCE(record_id,''), "
-        "to_char(\"timestamp\" AT TIME ZONE 'UTC', "
+        "SELECT COALESCE(a.user_id::text,''), a.role, a.action, "
+        "COALESCE(a.record_id,''), "
+        "to_char(a.\"timestamp\" AT TIME ZONE 'UTC', "
         "'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), "
-        "COALESCE(host(source_ip),'') FROM audit_log "
-        "WHERE ($1::varchar IS NULL OR action = $1) "
-        "AND ($2::varchar IS NULL OR record_id = $2) "
-        "ORDER BY \"timestamp\" DESC, audit_id DESC",
-        2, nullptr, values, nullptr, nullptr, 0);
+        "COALESCE(host(a.source_ip),''), COALESCE(u.username,'') "
+        "FROM audit_log a LEFT JOIN users u ON u.user_id = a.user_id "
+        "WHERE ($1::varchar IS NULL OR a.action = $1) "
+        "AND ($2::varchar IS NULL OR a.record_id = $2) "
+        "AND ($3::varchar IS NULL OR u.username = $3) "
+        "AND ($4::date IS NULL OR a.\"timestamp\" >= $4::date) "
+        "AND ($5::date IS NULL OR a.\"timestamp\" < ($5::date + 1)) "
+        "ORDER BY a.\"timestamp\" DESC, a.audit_id DESC LIMIT 1000",
+        5, nullptr, values, nullptr, nullptr, 0);
     require_status(connection_->value, raw, PGRES_TUPLES_OK,
                    "Could not read audit events");
     Result result(raw);
@@ -1227,6 +1231,7 @@ std::vector<AuditRecord> PostgresAuthRepository::read_audit_events(
         const auto parsed_action = parse_audit_action(pg_value(result.get(), row, 2));
         const std::string record_text = pg_value(result.get(), row, 3);
         const std::string source_ip = pg_value(result.get(), row, 5);
+        const std::string username = pg_value(result.get(), row, 6);
         const auto user_id = user_text.empty()
             ? std::optional<std::uint64_t>{}
             : parse_audit_user_id(user_text);
@@ -1238,7 +1243,8 @@ std::vector<AuditRecord> PostgresAuthRepository::read_audit_events(
             throw std::runtime_error("Invalid audit record in database.");
         }
         records.push_back({user_id, *role, *parsed_action, parsed_record,
-                           pg_value(result.get(), row, 4), source_ip});
+                           pg_value(result.get(), row, 4), source_ip,
+                           username});
     }
     return records;
 }

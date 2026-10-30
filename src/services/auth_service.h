@@ -95,6 +95,7 @@ struct AuditRecord {
     std::optional<AuditRecordId> record_id;
     std::string timestamp;
     std::string source_ip;
+    std::string username;
 };
 
 enum class AuditReadStatus {
@@ -106,6 +107,14 @@ enum class AuditReadStatus {
 struct AuditReadResult {
     AuditReadStatus status = AuditReadStatus::AuthenticationRequired;
     std::vector<AuditRecord> records;
+};
+
+struct AuditFilter {
+    std::optional<AuditAction> action;
+    std::optional<AuditRecordId> record_id;
+    std::optional<std::string> username;
+    std::optional<std::string> from_date;  // YYYY-MM-DD, inclusive
+    std::optional<std::string> to_date;    // YYYY-MM-DD, inclusive
 };
 
 AuditRole audit_role(Role role) noexcept;
@@ -161,8 +170,7 @@ public:
 private:
     friend class AuthService;
     virtual std::vector<AuditRecord> read_audit_events(
-        std::optional<AuditAction> action,
-        std::optional<AuditRecordId> record_id) const = 0;
+        const AuditFilter& filter) const = 0;
 };
 
 struct AuthResult {
@@ -195,8 +203,7 @@ public:
     void record_audit_event(const AuditEvent& event);
     AuditReadResult read_audit_events(
         const std::string& token,
-        std::optional<AuditAction> action = std::nullopt,
-        std::optional<AuditRecordId> record_id = std::nullopt) const;
+        const AuditFilter& filter = AuditFilter{}) const;
 
 private:
     AuthRepository& repository_;
@@ -234,8 +241,7 @@ public:
 
 private:
     std::vector<AuditRecord> read_audit_events(
-        std::optional<AuditAction> action,
-        std::optional<AuditRecordId> record_id) const override;
+        const AuditFilter& filter) const override;
     struct Connection;
     Connection* connection_;
 };
