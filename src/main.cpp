@@ -20,9 +20,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <cerrno>
-#include <fstream>
 #include <sys/stat.h>
-#include <iterator>
 
 using SOCKET = int;
 
@@ -48,12 +46,15 @@ inline int WSACleanup() { return 0; }
 #include <cstdint>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
