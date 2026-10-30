@@ -205,6 +205,13 @@ void test_postgres_repository_when_enabled()
     CHECK(after_update.matches.front().demographics.name == registration.name);
     CHECK(persisted.search_patients(phone).matches.empty());
     CHECK(persisted.search_patients(registration.phone).matches.size() == 1);
+    const auto history = persisted.patient_history(created.patient.patient_id);
+    CHECK(history.size() == 1);
+    CHECK(history.front().old_values.name == unique_name);
+
+    const auto missing_update = service.update_patient(
+        "PID-99999999", registration, "21-10-2026", "1");
+    CHECK(!missing_update.saved);
 }
 
 } // namespace

@@ -1,7 +1,9 @@
 
 #include "../src/appointments/appointments.h"
+#include "test_date_utils.h"
 
 #include <cstdlib>
+#include <chrono>
 #include <ctime>
 #include <iomanip>
 #include <iostream>
@@ -37,6 +39,40 @@ static std::string date_offset(int days) {
 
 static int weekday(const std::string& date) {
     return hms::weekday_of(date);
+}
+
+static std::string integration_test_date() {
+    return test_support::integration_test_date();
+}
+
+static void test_postgres_repository_when_enabled() {
+    const char* enabled = std::getenv("HMS_APPOINTMENT_TEST_POSTGRES");
+    if (enabled == nullptr || std::string(enabled) != "1") return;
+
+    hms::PostgresAppointmentRepository repository;
+    const std::string date = integration_test_date();
+    CHECK(!repository.working_hours(1).empty());
+    CHECK(repository.working_hours(999999).empty());
+
+    hms::Appointment appointment{0, "PID-00000001", 1, date + " 09:00", {}};
+    const auto saved = repository.insert(appointment);
+    CHECK(saved.status == hms::SaveStatus::Ok);
+    CHECK(saved.appointment.id > 0);
+    CHECK(saved.appointment.status == "Confirmed");
+
+    const auto duplicate = repository.insert(appointment);
+    CHECK(duplicate.status == hms::SaveStatus::SlotTaken);
+    CHECK(repository.booked_times(1, date).size() == 1);
+    const auto scheduled = repository.appointments_for_doctor_on(1, date);
+    CHECK(scheduled.size() == 1);
+    CHECK(scheduled.front().id == saved.appointment.id);
+    CHECK(repository.patient_belongs_to_user("PID-00000001", "3"));
+    CHECK(!repository.patient_belongs_to_user("PID-00000001", "4"));
+    CHECK(repository.doctor_id_for_user("2") == "1");
+    CHECK(repository.doctor_id_for_user("999999").empty());
+    const auto report = repository.daily_report(date, date);
+    CHECK(report.size() == 1);
+    CHECK(report.front().appointment_count == 1);
 }
 
 namespace {
@@ -113,6 +149,15 @@ private:
 
 int main() {
     hms::InMemoryAppointmentRepository repo;
+
+    CHECK(test_support::date_from_half_hour_bucket(0) == "2000-01-01");
+    CHECK(test_support::date_from_half_hour_bucket(58) == "2000-02-28");
+    CHECK(test_support::date_from_half_hour_bucket(59) == "2000-02-29");
+    CHECK(test_support::date_from_half_hour_bucket(60) == "2000-03-01");
+    CHECK(test_support::date_from_half_hour_bucket(365) == "2000-12-31");
+    CHECK(test_support::date_from_half_hour_bucket(366) == "2001-01-01");
+    CHECK(test_support::date_from_half_hour_bucket(9999) == "2027-05-18");
+    CHECK(test_support::date_from_half_hour_bucket(10000) == "2000-01-01");
 
     // Existing weekday and slot-generation behavior.
     CHECK(weekday("2026-10-26") == 1);
@@ -277,6 +322,8 @@ int main() {
           == "{\"slots\":[\"09:00\",\"09:30\"]}");
     CHECK(hms::appointment_to_json(r.appointment).find(
           "\"status\":\"Confirmed\"") != std::string::npos);
+
+    test_postgres_repository_when_enabled();
 
     std::cout << "All appointment tests passed.\n";
     return 0;

@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-latest]
+        os: [ubuntu-22.04, windows-2022]
 
     steps:
       - name: Checkout repository
@@ -22,84 +22,189 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev
+          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev qt6-base-dev libgl1-mesa-dev libxkbcommon-dev
+
+      # ---------- Windows (MSVC 2022 + Qt6) ----------
+      - name: Install Qt for MSVC 2022 (Windows)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          install-deps: true
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: |
+          g++ --version
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >-
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVCPKG_TARGET_TRIPLET=x64-windows
+
+      - name: Build the Qt client (Linux)
+        if: runner.os == 'Linux'
+        run: cmake --build build --config Release --target hms_client --parallel 4
+
+      - name: Build the Qt client (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cmake --build build --config Release --target hms_client --parallel 4
 
       - name: Build (Linux)
         if: runner.os == 'Linux'
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: cmake --build build --config Release --parallel 4
 
       - name: Run tests (Linux)
         if: runner.os == 'Linux'
         run: ctest --test-dir build -C Release --output-on-failure
 
-      # ---------- Windows (MSYS2 UCRT64) ----------
-      # Three setup attempts + cache: the action’s built-in retry is only
-      # two tries and often misses a slow mirror.  Once one run succeeds,
-      # the cache makes future runs skip the network entirely.
-      - name: Setup MSYS2 (attempt 1)
-        id: msys2_attempt1
-        if: runner.os == 'Windows'
-        continue-on-error: true
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: false          # avoid the fragile internal pacman -Syuu
-          cache: true
-          install: >-
-            mingw-w64-ucrt-x86_64-gcc
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-make
-            mingw-w64-ucrt-x86_64-openssl
-            mingw-w64-ucrt-x86_64-argon2
-            mingw-w64-ucrt-x86_64-postgresql
-
-      - name: Setup MSYS2 (retry 1)
-        id: msys2_attempt2
-        if: runner.os == 'Windows' && steps.msys2_attempt1.outcome == 'failure'
-        continue-on-error: true
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: false
-          cache: true
-          install: >-
-            mingw-w64-ucrt-x86_64-gcc
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-make
-            mingw-w64-ucrt-x86_64-openssl
-            mingw-w64-ucrt-x86_64-argon2
-            mingw-w64-ucrt-x86_64-postgresql
-
-      - name: Setup MSYS2 (retry 2 – final)
-        if: runner.os == 'Windows' && steps.msys2_attempt1.outcome == 'failure' && steps.msys2_attempt2.outcome == 'failure'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: false
-          cache: true
-          install: >-
-            mingw-w64-ucrt-x86_64-gcc
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-make
-            mingw-w64-ucrt-x86_64-openssl
-            mingw-w64-ucrt-x86_64-argon2
-            mingw-w64-ucrt-x86_64-postgresql
-
-      - name: Configure (Windows)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        run: cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$MSYSTEM_PREFIX"
-
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        run: cmake --build build --config Release --parallel 4
-
       - name: Run tests (Windows)
         if: runner.os == 'Windows'
-        shell: msys2 {0}
+        shell: pwsh
         run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Smoke test Qt client startup (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          QT_QPA_PLATFORM=offscreen ./build/hms_client > /tmp/hms-client-smoke.log 2>&1 &
+          client_pid=$!
+          sleep 3
+          client_state=$(ps -o stat= -p "$client_pid" 2>/dev/null || true)
+          if ! kill -0 "$client_pid" 2>/dev/null || [[ "$client_state" == Z* ]]; then
+            cat /tmp/hms-client-smoke.log
+            wait "$client_pid"
+            echo "hms_client exited during startup smoke test"
+            exit 1
+          fi
+          kill "$client_pid"
+          wait "$client_pid" || test "$?" -eq 143
+
+      - name: Smoke test Qt client startup (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          $stdout = Join-Path $env:RUNNER_TEMP 'hms-client-smoke.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'hms-client-smoke.stderr.log'
+          $client = Start-Process -FilePath (Join-Path $PWD 'build\Release\hms_client.exe') -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          Start-Sleep -Seconds 3
+          if ($client.HasExited) {
+            Get-Content $stdout, $stderr -ErrorAction SilentlyContinue
+            throw "hms_client exited during startup smoke test with code $($client.ExitCode)"
+          }
+          Stop-Process -Id $client.Id
+          Wait-Process -Id $client.Id -ErrorAction SilentlyContinue
+
+  coverage:
+    name: Per-service coverage (Ubuntu)
+    runs-on: ubuntu-22.04
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: hms
+          POSTGRES_USER: hms_app
+          POSTGRES_PASSWORD: hms_coverage_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hms_app -d hms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: hms
+      PGUSER: hms_app
+      PGPASSWORD: hms_coverage_test
+      HMS_AUTH_TEST_POSTGRES: 1
+      HMS_PATIENT_TEST_POSTGRES: 1
+      HMS_APPOINTMENT_TEST_POSTGRES: 1
+      HMS_CLINICAL_TEST_POSTGRES: 1
+      HMS_BILLING_TEST_POSTGRES: 1
+      HMS_BACKUP_TEST_POSTGRES: 1
+      HMS_BACKUP_TEST_RESTORE_DATABASE: hms_backup_restore_test
+      HMS_PATIENT_DATA_KEY: 0123456789abcdef0123456789abcdef
+      HMS_PATIENT_NAME_INDEX_KEY: abcdef0123456789abcdef0123456789
+      HMS_PATIENT_PHONE_INDEX_KEY: fedcba9876543210fedcba9876543210
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux coverage dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev lcov postgresql-client qt6-base-dev libgl1-mesa-dev libxkbcommon-dev
+
+      - name: Configure GCC coverage build
+        run: cmake -S . -B build-coverage -DCMAKE_BUILD_TYPE=Debug -DHMS_ENABLE_COVERAGE=ON
+
+      - name: Build instrumented service modules and unit tests
+        run: cmake --build build-coverage --parallel 4
+
+      - name: Apply PostgreSQL migrations for adapter tests
+        run: |
+          for migration in PostgreSQL/database/migrations/00*.sql; do
+            psql -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          createdb "$HMS_BACKUP_TEST_RESTORE_DATABASE"
+          client_bin="$RUNNER_TEMP/postgres-15-client-bin"
+          mkdir -p "$client_bin"
+          for tool in pg_dump pg_restore psql; do
+            cat > "$client_bin/$tool" <<EOF
+          #!/usr/bin/env bash
+          exec docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" \
+            -v /tmp:/tmp \
+            -w "$GITHUB_WORKSPACE" \
+            -e PGHOST -e PGPORT -e PGDATABASE -e PGUSER -e PGPASSWORD \
+            postgres:15 $tool "\$@"
+          EOF
+            chmod +x "$client_bin/$tool"
+          done
+          echo "$client_bin" >> "$GITHUB_PATH"
+
+      - name: Validate coverage threshold checker
+        run: python3 scripts/test_check_service_coverage.py
+
+      - name: Run instrumented unit and repository tests
+        run: ctest --test-dir build-coverage --output-on-failure
+
+      - name: Capture and enforce per-service line coverage
+        run: |
+          mkdir -p build-coverage/coverage
+          lcov --capture --directory build-coverage --base-directory . \
+            --output-file build-coverage/coverage/raw.info --rc branch_coverage=0
+          lcov --remove build-coverage/coverage/raw.info \
+            '*/tests/*' '*/_deps/*' '*/src/main.cpp' '*/src/client/*' '*/src/api.cpp' \
+            --output-file build-coverage/coverage/service-modules.info \
+            --rc branch_coverage=0
+          python3 scripts/check_service_coverage.py \
+            --manifest build-coverage/service-module-sources.txt \
+            --lcov build-coverage/coverage/service-modules.info \
+            --threshold 70
+
+      - name: Upload LCOV report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-module-lcov-report
+          path: build-coverage/coverage/service-modules.info
+          if-no-files-found: ignore

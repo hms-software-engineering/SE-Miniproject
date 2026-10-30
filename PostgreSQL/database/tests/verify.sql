@@ -21,7 +21,7 @@ DECLARE
     'visits.visit_id','visits.appointment_id','visits.symptoms','visits.diagnosis','visits.notes',
     'prescriptions.visit_id','prescriptions.item','prescriptions.dosage','prescriptions.frequency',
     'prescriptions.days','prescriptions.override_reason',
-    'bills.bill_id','bills.visit_id','bills.subtotal','bills.tax','bills.total','bills.status',
+    'bills.bill_id','bills.visit_id','bills.subtotal','bills.tax_rate','bills.tax','bills.total','bills.status',
     'bill_items.bill_id','bill_items.item','bill_items.amount',
     'payments.payment_id','payments.bill_id','payments.amount','payments.mode','payments.receipt_no',
     'audit_log.audit_id','audit_log.user_id','audit_log.role','audit_log.action',
