@@ -100,6 +100,8 @@ void test_postgres_repository_when_enabled()
         hms::billing::PostgresBillingRepository repository;
         const auto created = repository.persist_bill(
             first.visit_id, {{"Consultation", 100}}, 100, 0, 0, 100);
+
+        // ---- existing persist_bill checks (single copy) ----
         CHECK(created.status == hms::billing::CreateBillStatus::Created);
         CHECK(created.bill.id > 0);
         CHECK(repository.persist_bill(
@@ -119,25 +121,62 @@ void test_postgres_repository_when_enabled()
             item_rejected = true;
         }
         CHECK(item_rejected);
+
+        // ---- new payment / receipt checks ----
+        const auto payment =
+            repository.persist_payment(created.bill.id, 100, "Card");
+        CHECK(payment.status == hms::billing::PaymentStatus::Recorded);
+        CHECK(payment.payment.id > 0);
+        CHECK(!payment.payment.receipt_no.empty());
+        CHECK(payment.payment.receipt_no.rfind("RCPT-", 0) == 0);
+
+        const auto receipt = repository.find_receipt(payment.payment.id);
+        CHECK(receipt.has_value());
+        CHECK(receipt->amount_cents == 100);
+        CHECK(receipt->mode == "Card");
+        CHECK(receipt->bill_id == created.bill.id);
+        CHECK(receipt->receipt_no == payment.payment.receipt_no);
+
+        CHECK(!repository.find_receipt(999999).has_value());
+
+        // Bill is fully paid (100/100); any further payment is an overpayment.
+        const auto over =
+            repository.persist_payment(created.bill.id, 1, "Cash");
+        CHECK(over.status == hms::billing::PaymentStatus::Overpayment);
+
+        const auto missing = repository.persist_payment(
+            9223372036854775807LL, 1000, "UPI");
+        CHECK(missing.status == hms::billing::PaymentStatus::BillMissing);
     }
+
+    // Cleanup order matters: payments → bill_items → bills → visits → appointments.
+    const std::string remove_payments =
+        "DELETE FROM payments WHERE bill_id IN "
+        "(SELECT bill_id FROM bills WHERE visit_id IN (" + visits + "))";
+    PGresult* result = run_query(connection, remove_payments.c_str());
+    PQclear(result);
 
     const std::string remove_items =
         "DELETE FROM bill_items WHERE bill_id IN "
         "(SELECT bill_id FROM bills WHERE visit_id IN (" + visits + "))";
-    PGresult* result = run_query(connection, remove_items.c_str());
+    result = run_query(connection, remove_items.c_str());
     PQclear(result);
+
     const std::string remove_bills =
         "DELETE FROM bills WHERE visit_id IN (" + visits + ")";
     result = run_query(connection, remove_bills.c_str());
     PQclear(result);
+
     const std::string remove_visits =
         "DELETE FROM visits WHERE visit_id IN (" + visits + ")";
     result = run_query(connection, remove_visits.c_str());
     PQclear(result);
+
     const std::string remove_appointments =
         "DELETE FROM appointments WHERE appointment_id IN (" + appointments + ")";
     result = run_query(connection, remove_appointments.c_str());
     PQclear(result);
+
     PQfinish(connection);
 }
 #else
@@ -167,8 +206,6 @@ public:
                 {}, 0, 0, {}};
     }
 };
-
-
 
 }  // namespace
 

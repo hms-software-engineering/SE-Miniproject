@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <cstdio>
+#include <stdexcept>
 
 #define CHECK(condition)                                                    \
     do {                                                                    \
@@ -104,6 +105,8 @@ int main()
     CHECK(receipt->amount_cents == 40000);
     CHECK(receipt->mode == "UPI");
     CHECK(receipt->balance_cents == 44000);
+    CHECK(receipt->bill_id == 7);
+    CHECK(!receipt->paid_at.empty());
 
     const std::string html = render_receipt_html(*receipt);
     CHECK(contains(html, "window.print()"));       // printable
@@ -131,6 +134,89 @@ int main()
     Receipt hostile = *receipt;
     hostile.mode = "<script>";
     CHECK(!contains(render_receipt_html(hostile), "<script>"));
+
+    // ============================================================
+    // Edge cases added to raise billing_service.cpp line coverage.
+    // Inserted AFTER the existing assertions, BEFORE the summary print.
+    // ============================================================
+
+    // 1. A fully-paid receipt (balance == 0) still renders valid printable HTML.
+    {
+        const auto paid = repo.find_receipt(second.payment.id);
+        CHECK(paid.has_value());
+        CHECK(paid->balance_cents == 0);
+        const std::string paid_html = render_receipt_html(*paid);
+        CHECK(!paid_html.empty());
+        CHECK(contains(paid_html, "window.print()"));
+        CHECK(contains(paid_html, paid->receipt_no));
+    }
+
+    // 2. HTML escaping neutralises extra script-injection variants in 'mode'.
+    {
+        for (const std::string& evil :
+             {std::string("<script>alert(1)</script>"),
+              std::string("<script src=evil.js>")}) {
+            Receipt h = *receipt;
+            h.mode = evil;
+            CHECK(!contains(render_receipt_html(h), "<script>"));
+        }
+    }
+
+    // 3. Any further payment on a fully-paid bill is rejected as overpayment.
+    {
+        const auto before = repo.payments.size();
+        const auto third = record_payment(repo, 7, "0.01", "Cash");
+        CHECK(third.status == PaymentStatus::Overpayment);
+        CHECK(repo.payments.size() == before);
+    }
+
+    // 4. Non-numeric amount string is rejected without creating a payment.
+    {
+        FakeRepository r2;
+        const auto before = r2.payments.size();
+        bool rejected = false;
+        try {
+            const auto bad = record_payment(r2, 10, "not-a-number", "Cash");
+            rejected = (bad.status != PaymentStatus::Recorded);
+        } catch (const std::exception&) {
+            rejected = true;
+        }
+        CHECK(rejected);
+        CHECK(r2.payments.size() == before);
+    }
+
+    // 5. Empty amount string is rejected the same way.
+    {
+        FakeRepository r2;
+        const auto before = r2.payments.size();
+        bool rejected = false;
+        try {
+            const auto empty = record_payment(r2, 10, "", "Cash");
+            rejected = (empty.status != PaymentStatus::Recorded);
+        } catch (const std::exception&) {
+            rejected = true;
+        }
+        CHECK(rejected);
+        CHECK(r2.payments.size() == before);
+    }
+
+    // 6. Two payments on the same bill get distinct receipt numbers and
+    //    independent running balances.
+    {
+        FakeRepository r2;
+        const auto a = record_payment(r2, 11, "100.00", "UPI");
+        const auto b = record_payment(r2, 11, "200.00", "Cash");
+        CHECK(a.status == PaymentStatus::Recorded);
+        CHECK(b.status == PaymentStatus::Recorded);
+        CHECK(a.payment.receipt_no != b.payment.receipt_no);
+        CHECK(a.payment.id != b.payment.id);
+        const auto ra = r2.find_receipt(a.payment.id);
+        const auto rb = r2.find_receipt(b.payment.id);
+        CHECK(ra.has_value() && rb.has_value());
+        CHECK(ra->balance_cents == r2.total_cents - 10000);
+        CHECK(rb->balance_cents == r2.total_cents - 30000);
+        CHECK(ra->bill_id == 11 && rb->bill_id == 11);
+    }
 
     std::cout << "All receipt tests passed.\n";
     return 0;
