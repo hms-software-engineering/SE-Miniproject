@@ -20,6 +20,9 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <cerrno>
+#include <fstream>
+#include <sys/stat.h>
+#include <iterator>
 
 using SOCKET = int;
 
@@ -477,7 +480,8 @@ bool parse_patient_registration(
     const std::map<std::string, std::string>& fields,
     hms::patients::Registration& registration)
 {
-    if (fields.size() != 5 ||
+    const bool has_allergies = fields.find("allergies") != fields.end();
+    if (fields.size() != (has_allergies ? 6u : 5u) ||
         fields.find("name") == fields.end() ||
         fields.find("dateOfBirth") == fields.end() ||
         fields.find("gender") == fields.end() ||
@@ -485,10 +489,14 @@ bool parse_patient_registration(
         fields.find("address") == fields.end()) {
         return false;
     }
+    if (has_allergies && fields.at("allergies").size() > 2000) {
+        return false;
+    }
     registration = {
         fields.at("name"), fields.at("dateOfBirth"), fields.at("gender"),
         fields.at("phone"), fields.at("address")
     };
+    if (has_allergies) registration.allergies = fields.at("allergies");
     return true;
 }
 
@@ -517,7 +525,8 @@ std::string json_patient(const hms::patients::Patient& patient)
         json_string(patient.demographics.date_of_birth) +
         ",\"gender\":" + json_string(patient.demographics.gender) +
         ",\"phone\":" + json_string(patient.demographics.phone) +
-        ",\"address\":" + json_string(patient.demographics.address) + "}";
+        ",\"address\":" + json_string(patient.demographics.address) +
+        ",\"allergies\":" + json_string(patient.demographics.allergies) + "}";
 }
 
 std::string validation_error(
@@ -1771,8 +1780,40 @@ void handle_client(TlsConnection& client,
     send_error(client, 404, "NOT_FOUND",
                "The requested resource was not found.", request_id);
 }
+std::string load_secret(const char* file_env, const char* value_env)
+{
+    const char* path = std::getenv(file_env);
+    if (path != nullptr && *path != '\0') {
+#ifndef _WIN32
+        struct stat info{};
+        if (stat(path, &info) != 0 || !S_ISREG(info.st_mode)) {
+            throw std::runtime_error(std::string(file_env) +
+                                     " must name a readable regular file.");
+        }
+        if ((info.st_mode & 077) != 0) {
+            throw std::runtime_error(std::string(file_env) +
+                " must not be accessible by group or others (use chmod 600).");
+        }
+#endif
+        std::ifstream in(path, std::ios::binary);
+        std::string value((std::istreambuf_iterator<char>(in)),
+                          std::istreambuf_iterator<char>());
+        while (!value.empty() &&
+               (value.back() == '\n' || value.back() == '\r')) {
+            value.pop_back();
+        }
+        if (value.empty()) {
+            throw std::runtime_error(std::string(file_env) + " is empty.");
+        }
+        return value;
+    }
+    const char* fallback = std::getenv(value_env);
+    return fallback == nullptr ? std::string() : std::string(fallback);
+}  
 
 } // namespace
+
+
 
 int main()
 {
@@ -1815,40 +1856,51 @@ int main()
     std::unique_ptr<hms::clinical::PostgresClinicalRepository>
         clinical_repository;
     std::unique_ptr<hms::clinical::ClinicalService> clinical_service;
+    
     try {
         auth_repository = std::make_unique<hms::PostgresAuthRepository>();
-        const char* data_key = std::getenv("HMS_PATIENT_DATA_KEY");
+
+        const std::string data_key_value = load_secret(
+            "HMS_PATIENT_DATA_KEY_FILE", "HMS_PATIENT_DATA_KEY");
+        const char* data_key = data_key_value.c_str();
+
         const char* name_index_key =
             std::getenv("HMS_PATIENT_NAME_INDEX_KEY");
         const char* phone_index_key =
             std::getenv("HMS_PATIENT_PHONE_INDEX_KEY");
-        if (data_key == nullptr || name_index_key == nullptr ||
+
+        if (data_key_value.empty() || name_index_key == nullptr ||
             phone_index_key == nullptr) {
             throw std::runtime_error(
-                "Set HMS_PATIENT_DATA_KEY, HMS_PATIENT_NAME_INDEX_KEY, and "
+                "Set HMS_PATIENT_DATA_KEY_FILE (or HMS_PATIENT_DATA_KEY), "
+                "HMS_PATIENT_NAME_INDEX_KEY, and "
                 "HMS_PATIENT_PHONE_INDEX_KEY before starting the server.");
         }
+
         if (std::string(data_key) == name_index_key ||
             std::string(data_key) == phone_index_key) {
             throw std::runtime_error(
                 "Patient encryption and blind-index keys must be distinct.");
         }
+
         patient_repository =
             std::make_unique<hms::patients::PostgresPatientRepository>(
                 data_key);
         patient_service =
             std::make_unique<hms::patients::PatientService>(
                 *patient_repository, name_index_key, phone_index_key);
+
         appointment_repository =
             std::make_unique<hms::PostgresAppointmentRepository>();
+
         clinical_repository =
             std::make_unique<hms::clinical::PostgresClinicalRepository>(
                 data_key);
         clinical_service =
             std::make_unique<hms::clinical::ClinicalService>(
                 *clinical_repository);
-        hms::AuthService auth_service(*auth_repository);
 
+        hms::AuthService auth_service(*auth_repository);
         const char* bootstrap_username =
             std::getenv("HMS_BOOTSTRAP_ADMIN_USERNAME");
         const char* bootstrap_password =

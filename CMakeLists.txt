@@ -171,6 +171,14 @@ add_executable(patient_service_test tests/patient_service_test.cpp)
 target_link_libraries(patient_service_test PRIVATE hms_patients)
 add_test(NAME patient_service_test COMMAND patient_service_test)
 
+add_executable(patient_field_encryption_test tests/patient_field_encryption_test.cpp)
+target_link_libraries(patient_field_encryption_test PRIVATE hms_patients)
+if(NOT WIN32)
+    target_link_libraries(patient_field_encryption_test PRIVATE PostgreSQL::PostgreSQL)
+    target_compile_definitions(patient_field_encryption_test PRIVATE HMS_TEST_HAS_LIBPQ=1)
+endif()
+add_test(NAME patient_field_encryption_test COMMAND patient_field_encryption_test)
+
 # Clinical records
 add_library(hms_clinical_records
     src/clinical/clinical.cpp
@@ -294,10 +302,11 @@ if(HMS_ENABLE_COVERAGE)
         target_compile_options("${target_name}" PRIVATE --coverage -O0 -g)
     endforeach()
     foreach(coverage_executable IN ITEMS
-            auth_service_test health_test password_security_test
-            appointments_test change_appointment_test doctor_schedule_test
-            clinical_service_test clinical_test report_service_test
-            patient_service_test backup_service_test hms_backup_cli hms_server)
+        auth_service_test health_test password_security_test
+        appointments_test change_appointment_test doctor_schedule_test
+        clinical_service_test clinical_test report_service_test
+        patient_service_test patient_field_encryption_test
+        backup_service_test hms_backup_cli hms_server)
         if(TARGET "${coverage_executable}")
             target_link_options("${coverage_executable}" PRIVATE --coverage)
         endif()

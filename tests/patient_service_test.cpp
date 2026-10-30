@@ -220,6 +220,17 @@ int main()
 {
     const std::string name_key(32, 'n');
     const std::string phone_key(32, 'p');
+    {
+    InMemoryPatientRepository allergy_repository;
+    PatientService allergy_service(allergy_repository, name_key, phone_key);
+    Registration with_allergies = valid_registration();
+    with_allergies.allergies = "Dummy Penicillin Allergy";
+    const auto saved = allergy_service.register_patient(with_allergies, "21-10-2026");
+    CHECK(saved.saved);
+    const auto found = allergy_service.search_patients(saved.patient.patient_id);
+    CHECK(found.matches.size() == 1);
+    CHECK(found.matches.front().demographics.allergies == "Dummy Penicillin Allergy");
+    }
     InMemoryPatientRepository repository;
     PatientService service(repository, name_key, phone_key);
 

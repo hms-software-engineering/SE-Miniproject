@@ -549,6 +549,36 @@ bool parse_history_payload(const std::string& payload,
 
 } // namespace
 
+#include "patients/field_crypto.h"   // put this with the other includes at the top instead
+
+std::string encrypt_patient_field(const std::string& plaintext,
+                                  const std::string& key,
+                                  const std::string& context)
+{
+    if (key.size() != AES_KEY_SIZE) {
+        throw std::invalid_argument("Patient data key must contain exactly 32 bytes.");
+    }
+    return encrypt_hex(plaintext, key, context);
+}
+
+std::string decrypt_patient_field(const std::string& encoded,
+                                  const std::string& key,
+                                  const std::string& context)
+{
+    if (key.size() != AES_KEY_SIZE) {
+        throw std::invalid_argument("Patient data key must contain exactly 32 bytes.");
+    }
+    return decrypt_value(encoded, key, context);
+}
+
+// Empty optional field -> "" (SQL turns it into NULL); otherwise ciphertext hex.
+static std::string encrypt_optional_hex(const std::string& value,
+                                        const std::string& key,
+                                        const std::string& context)
+{
+    return value.empty() ? std::string() : encrypt_hex(value, key, context);
+}
+
 struct PostgresPatientRepository::Connection {
     PGconn* value = nullptr;
 };
@@ -616,33 +646,34 @@ Patient PostgresPatientRepository::create_patient(
     const std::string patient_id =
         "PID-" + std::string(8 - sequence_value.size(), '0') + sequence_value;
 
-    std::vector<std::string> values = {
+        std::vector<std::string> values = {
         patient_id,
         encrypt_hex(registration.name, data_encryption_key_, "patient:name:v1"),
-        encrypt_hex(registration.date_of_birth, data_encryption_key_,
-                    "patient:dob:v1"),
+        encrypt_hex(registration.date_of_birth, data_encryption_key_, "patient:dob:v1"),
         registration.gender,
-        encrypt_hex(registration.phone, data_encryption_key_,
-                    "patient:phone:v1"),
-        encrypt_hex(registration.address, data_encryption_key_,
-                    "patient:address:v1"),
-        registration.linked_user_id
+        encrypt_hex(registration.phone, data_encryption_key_, "patient:phone:v1"),
+        encrypt_hex(registration.address, data_encryption_key_, "patient:address:v1"),
+        registration.linked_user_id,
+        encrypt_optional_hex(registration.allergies, data_encryption_key_,
+                             "patient:allergies:v1")
     };
-    values.reserve(8 + name_prefix_indexes.size());
+    values.reserve(9 + name_prefix_indexes.size());
     for (const auto& index : name_prefix_indexes) {
         values.push_back(encode_hex(index.data(), index.size()));
     }
     values.push_back(encode_hex(phone_index.data(), phone_index.size()));
 
-    const std::string array = prefix_array_sql(name_prefix_indexes.size(), 8);
+    const std::string array = prefix_array_sql(name_prefix_indexes.size(), 9);
     const std::string sql =
         "INSERT INTO patients (patient_id,name,dob,gender,phone,address,user_id,"
-        "name_prefix_blind_indexes,phone_blind_index) "
+        "allergies,name_prefix_blind_indexes,phone_blind_index) "
         "VALUES ($1,decode($2,'hex'),decode($3,'hex'),$4,"
-        "decode($5,'hex'),decode($6,'hex'),NULLIF($7,'')::bigint," +
-        array + ",decode($" + std::to_string(8 + name_prefix_indexes.size()) +
+        "decode($5,'hex'),decode($6,'hex'),NULLIF($7,'')::bigint,"
+        "decode(NULLIF($8,''),'hex')," +
+        array + ",decode($" + std::to_string(9 + name_prefix_indexes.size()) +
         ",'hex')) ON CONFLICT (user_id) DO NOTHING RETURNING patient_id";
-    const auto params = pointers(values);
+    
+        const auto params = pointers(values);
     PGresult* raw = pg_exec_params(
         connection_->value, sql.c_str(), static_cast<int>(params.size()),
         params.data());
@@ -655,6 +686,7 @@ Patient PostgresPatientRepository::create_patient(
     return {pg_value(result.get(), 0, 0), registration};
 }
 
+
 bool PostgresPatientRepository::update_patient(
     const std::string& patient_id,
     const Registration& registration,
@@ -665,22 +697,29 @@ bool PostgresPatientRepository::update_patient(
     if (name_prefix_indexes.empty()) {
         throw std::invalid_argument("Patient name must not be empty.");
     }
-    PGresult* begin = pg_exec_params(connection_->value, "BEGIN", 0, nullptr);
+
+    PGresult* begin = pg_exec_params(
+        connection_->value, "BEGIN", 0, nullptr);
     require_status(connection_->value, begin, PGRES_COMMAND_OK,
                    "Could not start patient update");
     Result begin_result(begin);
+
     bool committed = false;
+
     try {
         const char* id_value[] = {patient_id.c_str()};
+
         PGresult* raw = pg_exec_params(
             connection_->value,
             "SELECT encode(name,'hex'),encode(dob,'hex'),gender,"
             "encode(phone,'hex'),encode(address,'hex') "
             "FROM patients WHERE patient_id=$1 FOR UPDATE",
             1, id_value);
+
         require_status(connection_->value, raw, PGRES_TUPLES_OK,
                        "Could not load patient for update");
         Result existing(raw);
+
         if (pg_tuples(existing.get()) == 0) {
             PGresult* rollback =
                 pg_exec_params(connection_->value, "ROLLBACK", 0, nullptr);
@@ -690,29 +729,37 @@ bool PostgresPatientRepository::update_patient(
             committed = true;
             return false;
         }
+
         Registration previous{
-            decrypt_value(pg_value(existing.get(), 0, 0), data_encryption_key_,
-                          "patient:name:v1"),
-            decrypt_value(pg_value(existing.get(), 0, 1), data_encryption_key_,
-                          "patient:dob:v1"),
+            decrypt_value(pg_value(existing.get(), 0, 0),
+                          data_encryption_key_, "patient:name:v1"),
+            decrypt_value(pg_value(existing.get(), 0, 1),
+                          data_encryption_key_, "patient:dob:v1"),
             pg_value(existing.get(), 0, 2),
-            decrypt_value(pg_value(existing.get(), 0, 3), data_encryption_key_,
-                          "patient:phone:v1"),
-            decrypt_value(pg_value(existing.get(), 0, 4), data_encryption_key_,
-                          "patient:address:v1")
+            decrypt_value(pg_value(existing.get(), 0, 3),
+                          data_encryption_key_, "patient:phone:v1"),
+            decrypt_value(pg_value(existing.get(), 0, 4),
+                          data_encryption_key_, "patient:address:v1")
         };
+
         const std::string encrypted_history = encrypt_hex(
             history_payload(previous), data_encryption_key_,
             "patient:history:v1");
+
         const char* history_values[] = {
-            patient_id.c_str(), encrypted_history.c_str(),
-            changed_by_user_id.empty() ? nullptr : changed_by_user_id.c_str()
+            patient_id.c_str(),
+            encrypted_history.c_str(),
+            changed_by_user_id.empty()
+                ? nullptr
+                : changed_by_user_id.c_str()
         };
+
         raw = pg_exec_params(
             connection_->value,
             "INSERT INTO patient_history(patient_id,old_values,changed_by) "
             "VALUES($1,decode($2,'hex'),$3::bigint)",
             3, history_values);
+
         require_status(connection_->value, raw, PGRES_COMMAND_OK,
                        "Could not record patient history");
         {
@@ -729,46 +776,66 @@ bool PostgresPatientRepository::update_patient(
             encrypt_hex(registration.phone, data_encryption_key_,
                         "patient:phone:v1"),
             encrypt_hex(registration.address, data_encryption_key_,
-                        "patient:address:v1")
+                        "patient:address:v1"),
+            encrypt_optional_hex(registration.allergies, data_encryption_key_,
+                                 "patient:allergies:v1")
         };
-        values.reserve(7 + name_prefix_indexes.size());
-        for (const auto& index : name_prefix_indexes) {
-            values.push_back(encode_hex(index.data(), index.size()));
-        }
-        values.push_back(encode_hex(phone_index.data(), phone_index.size()));
 
-        const std::string array = prefix_array_sql(name_prefix_indexes.size(), 7);
+        values.reserve(8 + name_prefix_indexes.size());
+
+        for (const auto& index : name_prefix_indexes) {
+            values.push_back(
+                encode_hex(index.data(), index.size()));
+        }
+
+        values.push_back(
+            encode_hex(phone_index.data(), phone_index.size()));
+
+        const std::string array =
+            prefix_array_sql(name_prefix_indexes.size(), 8);
+
         const std::string sql =
             "UPDATE patients SET name=decode($2,'hex'),dob=decode($3,'hex'),"
             "gender=$4,phone=decode($5,'hex'),address=decode($6,'hex'),"
+            "allergies=decode(NULLIF($7,''),'hex'),"
             "name_prefix_blind_indexes=" + array +
             ",phone_blind_index=decode($" +
-            std::to_string(7 + name_prefix_indexes.size()) +
+            std::to_string(8 + name_prefix_indexes.size()) +
             ",'hex'),updated_at=CURRENT_TIMESTAMP WHERE patient_id=$1";
+
         const auto params = pointers(values);
+
         raw = pg_exec_params(
-            connection_->value, sql.c_str(), static_cast<int>(params.size()),
-            params.data());
+            connection_->value, sql.c_str(),
+            static_cast<int>(params.size()), params.data());
+
         require_status(connection_->value, raw, PGRES_COMMAND_OK,
                        "Could not update patient");
         {
             Result update_result(raw);
         }
-        raw = pg_exec_params(connection_->value, "COMMIT", 0, nullptr);
+
+        raw = pg_exec_params(
+            connection_->value, "COMMIT", 0, nullptr);
         require_status(connection_->value, raw, PGRES_COMMAND_OK,
                        "Could not commit patient update");
         Result commit_result(raw);
+
         committed = true;
         return true;
+
     } catch (...) {
         if (!committed) {
             PGresult* rollback =
                 pg_exec_params(connection_->value, "ROLLBACK", 0, nullptr);
-            if (rollback != nullptr) pg_clear(rollback);
+            if (rollback != nullptr) {
+                pg_clear(rollback);
+            }
         }
         throw;
     }
 }
+
 
 namespace {
 
@@ -787,21 +854,20 @@ std::vector<Patient> read_patients(PGconn* connection,
     std::vector<Patient> patients;
     patients.reserve(static_cast<std::size_t>(pg_tuples(result.get())));
     for (int row = 0; row < pg_tuples(result.get()); ++row) {
-        patients.push_back({
-            pg_value(result.get(), row, 0),
-            {
-                decrypt_value(pg_value(result.get(), row, 1), key,
-                              "patient:name:v1"),
-                decrypt_value(pg_value(result.get(), row, 2), key,
-                              "patient:dob:v1"),
-                pg_value(result.get(), row, 3),
-                decrypt_value(pg_value(result.get(), row, 4), key,
-                              "patient:phone:v1"),
-                decrypt_value(pg_value(result.get(), row, 5), key,
-                              "patient:address:v1")
-            }
-            ,pg_value(result.get(), row, 6)
-        });
+        Registration demographics{
+            decrypt_value(pg_value(result.get(), row, 1), key, "patient:name:v1"),
+            decrypt_value(pg_value(result.get(), row, 2), key, "patient:dob:v1"),
+            pg_value(result.get(), row, 3),
+            decrypt_value(pg_value(result.get(), row, 4), key, "patient:phone:v1"),
+            decrypt_value(pg_value(result.get(), row, 5), key, "patient:address:v1")
+        };
+        const std::string allergies_hex = pg_value(result.get(), row, 7);
+        if (!allergies_hex.empty()) {
+            demographics.allergies =
+                decrypt_value(allergies_hex, key, "patient:allergies:v1");
+        }
+        patients.push_back({pg_value(result.get(), row, 0), demographics,
+                            pg_value(result.get(), row, 6)});
     }
     return patients;
 }
@@ -815,7 +881,8 @@ std::vector<Patient> PostgresPatientRepository::find_by_id(
         connection_->value,
         "SELECT patient_id,encode(name,'hex'),encode(dob,'hex'),gender,"
         "encode(phone,'hex'),encode(address,'hex'),"
-        "COALESCE(user_id::text,'') "
+        "COALESCE(user_id::text,''),"
+        "COALESCE(encode(allergies,'hex'),'') "
         "FROM patients WHERE patient_id=$1",
         {patient_id}, data_encryption_key_);
 }
@@ -827,7 +894,8 @@ std::vector<Patient> PostgresPatientRepository::find_by_name_prefix(
         connection_->value,
         "SELECT patient_id,encode(name,'hex'),encode(dob,'hex'),gender,"
         "encode(phone,'hex'),encode(address,'hex'),"
-        "COALESCE(user_id::text,'') "
+        "COALESCE(user_id::text,''),"
+        "COALESCE(encode(allergies,'hex'),'') "
         "FROM patients WHERE name_prefix_blind_indexes "
         "@> ARRAY[decode($1,'hex')]::bytea[] ORDER BY patient_id",
         {encode_hex(name_prefix_index.data(), name_prefix_index.size())},
@@ -841,7 +909,8 @@ std::vector<Patient> PostgresPatientRepository::find_by_phone_index(
         connection_->value,
         "SELECT patient_id,encode(name,'hex'),encode(dob,'hex'),gender,"
         "encode(phone,'hex'),encode(address,'hex'),"
-        "COALESCE(user_id::text,'') "
+        "COALESCE(user_id::text,''),"
+        "COALESCE(encode(allergies,'hex'),'') "
         "FROM patients WHERE phone_blind_index=decode($1,'hex') "
         "ORDER BY patient_id",
         {encode_hex(phone_index.data(), phone_index.size())},
