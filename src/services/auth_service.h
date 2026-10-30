@@ -58,7 +58,9 @@ enum class AuditAction {
     RecordPayment,
     UpdatePatientAllergies,
     OverrideAllergyWarning,
-    ViewVisitHistory
+    ViewVisitHistory,
+    ViewOwnHistory,
+    ViewOwnBills
 };
 
 class AuditRecordId {
