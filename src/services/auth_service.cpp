@@ -616,6 +616,7 @@ const char* audit_action_name(AuditAction action) noexcept
     case AuditAction::RecordPayment: return "RECORD_PAYMENT";
     case AuditAction::UpdatePatientAllergies: return "UPDATE_PATIENT_ALLERGIES";
     case AuditAction::OverrideAllergyWarning: return "OVERRIDE_ALLERGY_WARNING";
+    case AuditAction::ViewVisitHistory: return "VIEW_VISIT_HISTORY";
     }
     return "";
 }
@@ -647,7 +648,8 @@ std::optional<AuditAction> parse_audit_action(const std::string& value)
              AuditAction::CreateBill,
              AuditAction::RecordPayment,
              AuditAction::UpdatePatientAllergies,
-             AuditAction::OverrideAllergyWarning}) {
+             AuditAction::OverrideAllergyWarning,
+             AuditAction::ViewVisitHistory}) {
         if (value == audit_action_name(action)) return action;
     }
     return std::nullopt;
