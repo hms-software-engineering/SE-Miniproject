@@ -167,6 +167,14 @@ counts by status and payments received on that day. Successful responses are
 downloadable attachments; malformed dates, reversed ranges, and unsupported
 formats return HTTP 400.
 
+Billing Officers and Administrators can create an itemized bill for a visit
+with `POST /api/v1/bills` and a JSON body containing string `visitId` and
+`items`, an array of objects with string `description` and decimal `amount`.
+Configure `HMS_BILL_TAX_RATE` as a percentage from `0` to `100` with at most
+two decimal places (for example, `18.00`) before starting the server. The bill
+response includes each item, subtotal, applied tax rate, rounded tax, total,
+and initial `Unpaid` status. Each visit can have at most one bill.
+
 ## Run the API and desktop client over TLS
 
 The API listens only on `127.0.0.1:8443` and requires HTTPS with TLS 1.2 or
@@ -233,6 +241,45 @@ keyboard or pointer activity, then requests server-side token revocation. If
 the server cannot be reached during logout, the client warns that remote
 revocation could not be confirmed; server-side inactivity expiry still limits
 the token lifetime.
+
+## Appointment booking concurrency target (HMS-NF-002)
+
+The API accepts requests on a bounded pool of 12 workers. Each worker owns
+separate authentication, patient, appointment, and clinical PostgreSQL
+repositories; a repository/connection is never shared between request threads.
+The listener also performs TLS handshakes on workers, while the pending socket
+queue is capped at 100 connections. Each server instance therefore holds up
+to 60 application database connections, in addition to PostgreSQL's reserved
+and other application connections. Size the database connection limit
+accordingly.
+
+The appointment load test sends 100 booking requests concurrently and measures
+the end-to-end HTTP response latency. Prepare a JSON scenario file with exactly
+100 distinct, valid `patientId`, `doctorId`, `date`, `time`, and `token` string
+fields per request. Each token must belong to a user permitted to book the
+associated patient, and each appointment slot must be free. Keep tokens out of
+source control and remove the scenario file securely after testing. Successful
+requests create real appointment and audit records; use a test database and
+fresh slots for each run. To match the NF-002 workload, populate the test
+database with 100,000 patient records and provision 100 booking users before
+the run; each user submits one booking in the simultaneous batch.
+
+Run the server and test from the same host, with PostgreSQL and the required
+TLS and patient-key environment variables configured:
+
+```sh
+python scripts/appointment_booking_load_test.py \
+  --base-url https://localhost:8443 \
+  --scenario appointment-bookings.json \
+  --ca-file path/to/test-ca.pem
+```
+
+Omit `--ca-file` only when the server certificate chains to a CA trusted by
+the host. The script reports successful bookings, failures, p50, p95, and
+maximum latency, and exits nonzero unless every request succeeds and p95 is
+under 3 seconds. Record the measured output with the server and database
+configuration; code changes alone do not demonstrate that the 95th-percentile
+target is met. Run the command from the project repository root.
 
 Stop the database:
 
