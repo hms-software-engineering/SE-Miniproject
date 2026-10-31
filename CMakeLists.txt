@@ -39,6 +39,7 @@ endif()
 
 enable_testing()
 
+
 # ---- HMS-NF-006 encrypted PostgreSQL backups ----
 add_library(hms_backup src/backup/backup_service.cpp)
 target_include_directories(hms_backup PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -54,8 +55,11 @@ add_test(NAME backup_service_test COMMAND backup_service_test)
 add_library(hms_auth
     src/services/auth_service.cpp
     src/services/rbac_service.cpp
+    src/validation/validator.cpp
 )
-target_include_directories(hms_auth PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(hms_auth PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/validation)
 target_include_directories(hms_auth PRIVATE ${ARGON2_INCLUDE_DIR})
 target_link_libraries(hms_auth PRIVATE ${ARGON2_LIBRARY})
 if(WIN32)
