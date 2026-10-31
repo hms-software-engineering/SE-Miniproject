@@ -17,12 +17,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ---------- Linux ----------
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake libssl-dev libpq-dev nlohmann-json3-dev libargon2-dev qt6-base-dev libgl1-mesa-dev libxkbcommon-dev
 
+      # ---------- Windows (MSVC 2022 + Qt6) ----------
       - name: Install Qt for MSVC 2022 (Windows)
         if: runner.os == 'Windows'
         uses: jurplel/install-qt-action@v4
@@ -55,6 +57,7 @@ jobs:
 
       - name: Build the Qt client (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         run: cmake --build build --config Release --target hms_client --parallel 4
 
       - name: Build (Linux)
@@ -63,8 +66,8 @@ jobs:
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
-        run: cmake --build build --config Release --parallel 4
         shell: pwsh
+        run: cmake --build build --config Release --parallel 4
 
       - name: Run tests (Linux)
         if: runner.os == 'Linux'
@@ -72,6 +75,7 @@ jobs:
 
       - name: Run tests (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         run: ctest --test-dir build -C Release --output-on-failure
 
       - name: Smoke test Qt client startup (Linux)
