@@ -184,6 +184,11 @@ add_executable(billing_tax_boundary_test tests/billing_tax_boundary_test.cpp)
 target_link_libraries(billing_tax_boundary_test PRIVATE hms_billing)
 add_test(NAME billing_tax_boundary_test COMMAND billing_tax_boundary_test)
 
+# ---- F-042 Printable receipt ----
+add_executable(receipt_test tests/receipt_test.cpp)
+target_link_libraries(receipt_test PRIVATE hms_billing)
+add_test(NAME receipt_test COMMAND receipt_test)
+
 # ---- Patients ----
 add_library(hms_patients
     src/patients/patient_service.cpp
@@ -335,13 +340,13 @@ if(HMS_ENABLE_COVERAGE)
         target_compile_options("${target_name}" PRIVATE --coverage -O0 -g)
     endforeach()
     foreach(coverage_executable IN ITEMS
-        auth_service_test health_test password_security_test
-        appointments_test change_appointment_test doctor_schedule_test
-        clinical_service_test clinical_test report_service_test
-        patient_service_test patient_field_encryption_test
-        backup_service_test billing_service_test
-        billing_tax_boundary_test hms_backup_cli hms_server
-        nf001_seed_patients)
+            auth_service_test health_test password_security_test
+            appointments_test change_appointment_test doctor_schedule_test
+            clinical_service_test clinical_test report_service_test
+            patient_service_test patient_field_encryption_test
+            backup_service_test billing_service_test
+            billing_tax_boundary_test receipt_test hms_backup_cli hms_server
+            nf001_seed_patients)
         if(TARGET "${coverage_executable}")
             target_link_options("${coverage_executable}" PRIVATE --coverage)
         endif()

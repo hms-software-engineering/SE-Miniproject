@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -69,6 +70,18 @@ struct RecordPaymentResult {
     std::string bill_status;
 };
 
+struct Receipt {
+    std::string receipt_no;
+    long long payment_id = 0;
+    long long bill_id = 0;
+    std::int64_t amount_cents = 0;
+    std::string mode;
+    std::string paid_at;              // DD-MM-YYYY HH:MM (IST)
+    std::int64_t total_cents = 0;
+    std::int64_t balance_cents = 0;   // balance right after this payment
+    std::string bill_status;
+};
+
 class BillRepository {
 public:
     virtual ~BillRepository() = default;
@@ -85,6 +98,10 @@ public:
         long long bill_id,
         std::int64_t amount_cents,
         const std::string& mode) = 0;
+    virtual std::optional<Receipt> find_receipt(long long /*payment_id*/)
+    {
+        return std::nullopt;
+    }
 };
 
 class PostgresBillingRepository final : public BillRepository {
@@ -107,6 +124,7 @@ public:
         long long bill_id,
         std::int64_t amount_cents,
         const std::string& mode) override;
+    std::optional<Receipt> find_receipt(long long payment_id) override;
     // Newest bill first.
     std::vector<PatientBill> bills_for_patient(const std::string& patient_id);
 
@@ -139,5 +157,6 @@ std::string format_money(std::int64_t amount_cents);
 std::string bill_to_json(const Bill& bill);
 std::string payment_to_json(const RecordPaymentResult& result);
 std::string patient_bills_to_json(const std::vector<PatientBill>& bills);
+std::string render_receipt_html(const Receipt& receipt);
 
 }  // namespace hms::billing

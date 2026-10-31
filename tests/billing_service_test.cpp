@@ -100,6 +100,8 @@ void test_postgres_repository_when_enabled()
         hms::billing::PostgresBillingRepository repository;
         const auto created = repository.persist_bill(
             first.visit_id, {{"Consultation", 100}}, 100, 0, 0, 100);
+
+        // ---- persist_bill checks (single copy) ----
         CHECK(created.status == hms::billing::CreateBillStatus::Created);
         CHECK(created.bill.id > 0);
         CHECK(repository.persist_bill(
@@ -121,24 +123,60 @@ void test_postgres_repository_when_enabled()
         CHECK(item_rejected);
 
         using hms::billing::PaymentStatus;
+
+        // ---- Partial payment via record_payment (main) ----
         const auto partial = hms::billing::record_payment(
             repository, created.bill.id, "0.40", "UPI");
         CHECK(partial.status == PaymentStatus::Recorded);
         CHECK(partial.bill_status == "Partially Paid");
         CHECK(partial.payment.receipt_no.rfind("RCPT-", 0) == 0);
+
+        // ---- find_receipt for the partial payment (feature) ----
+        const auto partial_receipt =
+            repository.find_receipt(partial.payment.id);
+        CHECK(partial_receipt.has_value());
+        CHECK(partial_receipt->amount_cents == 40);
+        CHECK(partial_receipt->mode == "UPI");
+        CHECK(partial_receipt->bill_id == created.bill.id);
+        CHECK(partial_receipt->receipt_no == partial.payment.receipt_no);
+        CHECK(partial_receipt->balance_cents == 60);
+
+        // ---- Unknown receipt returns nullopt (feature) ----
+        CHECK(!repository.find_receipt(999999).has_value());
+
+        // ---- Overpayment on a partially paid bill (main) ----
         CHECK(hms::billing::record_payment(
                   repository, created.bill.id, "0.61", "Cash").status ==
               PaymentStatus::Overpayment);
+
+        // ---- Settle the bill (main) ----
         const auto settled = hms::billing::record_payment(
             repository, created.bill.id, "0.60", "Card");
         CHECK(settled.status == PaymentStatus::Recorded);
         CHECK(settled.bill_status == "Paid");
         CHECK(settled.payment.receipt_no != partial.payment.receipt_no);
+
+        // ---- find_receipt for the settling payment (feature) ----
+        const auto settled_receipt =
+            repository.find_receipt(settled.payment.id);
+        CHECK(settled_receipt.has_value());
+        CHECK(settled_receipt->amount_cents == 60);
+        CHECK(settled_receipt->mode == "Card");
+        CHECK(settled_receipt->balance_cents == 0);
+
+        // ---- Any payment on a fully paid bill is an overpayment (feature) ----
+        CHECK(repository.persist_payment(created.bill.id, 1, "Cash").status ==
+              PaymentStatus::Overpayment);
+
+        // ---- Missing bill on both entry points (main + feature) ----
         CHECK(hms::billing::record_payment(
                   repository, 9223372036854775807LL, "1.00", "Cash").status ==
               PaymentStatus::BillMissing);
+        CHECK(repository.persist_payment(
+                  9223372036854775807LL, 1000, "UPI").status ==
+              PaymentStatus::BillMissing);
 
-        // TC-CLN-05: only the patient's own bills are returned.
+        // ---- TC-CLN-05: only the patient's own bills are returned (main) ----
         const auto bills = repository.bills_for_patient("PID-00000001");
         CHECK(!bills.empty());
         bool found_bill = false;
@@ -156,28 +194,34 @@ void test_postgres_repository_when_enabled()
                   "\"balance\":\"0.00\"") != std::string::npos);
     }
 
+    // Cleanup order matters: payments → bill_items → bills → visits → appointments.
     const std::string remove_payments =
         "DELETE FROM payments WHERE bill_id IN "
         "(SELECT bill_id FROM bills WHERE visit_id IN (" + visits + "))";
     PGresult* result = run_query(connection, remove_payments.c_str());
     PQclear(result);
+
     const std::string remove_items =
         "DELETE FROM bill_items WHERE bill_id IN "
         "(SELECT bill_id FROM bills WHERE visit_id IN (" + visits + "))";
     result = run_query(connection, remove_items.c_str());
     PQclear(result);
+
     const std::string remove_bills =
         "DELETE FROM bills WHERE visit_id IN (" + visits + ")";
     result = run_query(connection, remove_bills.c_str());
     PQclear(result);
+
     const std::string remove_visits =
         "DELETE FROM visits WHERE visit_id IN (" + visits + ")";
     result = run_query(connection, remove_visits.c_str());
     PQclear(result);
+
     const std::string remove_appointments =
         "DELETE FROM appointments WHERE appointment_id IN (" + appointments + ")";
     result = run_query(connection, remove_appointments.c_str());
     PQclear(result);
+
     PQfinish(connection);
 }
 #else
