@@ -22,6 +22,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <cerrno>
+#include <sys/stat.h>
 
 using SOCKET = int;
 
@@ -49,7 +50,9 @@ inline int WSACleanup() { return 0; }
 #include <cstdint>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
@@ -514,7 +517,8 @@ bool parse_patient_registration(
     const std::map<std::string, std::string>& fields,
     hms::patients::Registration& registration)
 {
-    if (fields.size() != 5 ||
+    const bool has_allergies = fields.find("allergies") != fields.end();
+    if (fields.size() != (has_allergies ? 6u : 5u) ||
         fields.find("name") == fields.end() ||
         fields.find("dateOfBirth") == fields.end() ||
         fields.find("gender") == fields.end() ||
@@ -524,13 +528,15 @@ bool parse_patient_registration(
     }
     if (!hms::validation::valid_name_address(fields.at("name"), 60) ||
         !hms::validation::valid_name_address(fields.at("address"), 120) ||
-        !hms::validation::valid_phone(fields.at("phone"))) {
+        !hms::validation::valid_phone(fields.at("phone")) ||
+        (has_allergies && fields.at("allergies").size() > 2000)) {
         return false;
     }
     registration = {
         fields.at("name"), fields.at("dateOfBirth"), fields.at("gender"),
         fields.at("phone"), fields.at("address")
     };
+    if (has_allergies) registration.allergies = fields.at("allergies");
     return true;
 }
 
@@ -559,7 +565,8 @@ std::string json_patient(const hms::patients::Patient& patient)
         json_string(patient.demographics.date_of_birth) +
         ",\"gender\":" + json_string(patient.demographics.gender) +
         ",\"phone\":" + json_string(patient.demographics.phone) +
-        ",\"address\":" + json_string(patient.demographics.address) + "}";
+        ",\"address\":" + json_string(patient.demographics.address) +
+        ",\"allergies\":" + json_string(patient.demographics.allergies) + "}";
 }
 
 std::string validation_error(
@@ -693,7 +700,7 @@ std::optional<hms::Permission> permission_for_request(
          path.rfind("/api/v1/reports/", 0) == 0)) {
         return hms::Permission::GenerateReports;
     }
-    if (method == "GET" && path == "/api/v1/audit" || path == "/api/v1/audit-log") {
+    if (method == "GET" && (path == "/api/v1/audit" || path == "/api/v1/audit-log")) {
         return hms::Permission::ViewAuditLog;
     }
     return std::nullopt;
@@ -1169,7 +1176,7 @@ void handle_client(TlsConnection& client,
         return;
     }
 
-    if (path == "/api/v1/audit" || path == "/api/v1/audit-log") { 
+    if (path == "/api/v1/audit" || path == "/api/v1/audit-log") {
         const auto response = hms::handle_audit_log(
             method, path, query_string, authorization, client.source_ip,
             request_id, auth_service);
@@ -2235,23 +2242,58 @@ void handle_client(TlsConnection& client,
                "The requested resource was not found.", request_id);
 }
 
+std::string load_secret(const char* file_env, const char* value_env)
+{
+    const char* path = std::getenv(file_env);
+    if (path != nullptr && *path != '\0') {
+#ifndef _WIN32
+        struct stat info{};
+        if (stat(path, &info) != 0 || !S_ISREG(info.st_mode)) {
+            throw std::runtime_error(std::string(file_env) +
+                                     " must name a readable regular file.");
+        }
+        if ((info.st_mode & 077) != 0) {
+            throw std::runtime_error(std::string(file_env) +
+                " must not be accessible by group or others (use chmod 600).");
+        }
+#endif
+        std::ifstream in(path, std::ios::binary);
+        std::string value((std::istreambuf_iterator<char>(in)),
+                          std::istreambuf_iterator<char>());
+        while (!value.empty() &&
+               (value.back() == '\n' || value.back() == '\r')) {
+            value.pop_back();
+        }
+        if (value.empty()) {
+            throw std::runtime_error(std::string(file_env) + " is empty.");
+        }
+        return value;
+    }
+    const char* fallback = std::getenv(value_env);
+    return fallback == nullptr ? std::string() : std::string(fallback);
+}
+
 class ClientServices {
 public:
     ClientServices()
     {
-        const char* data_key = std::getenv("HMS_PATIENT_DATA_KEY");
+        data_key_storage_ = load_secret(
+            "HMS_PATIENT_DATA_KEY_FILE", "HMS_PATIENT_DATA_KEY");
+        const char* data_key = data_key_storage_.c_str();
+
         const char* name_index_key =
             std::getenv("HMS_PATIENT_NAME_INDEX_KEY");
         const char* phone_index_key =
             std::getenv("HMS_PATIENT_PHONE_INDEX_KEY");
-        if (data_key == nullptr || name_index_key == nullptr ||
+        if (data_key_storage_.empty() || name_index_key == nullptr ||
             phone_index_key == nullptr) {
             throw std::runtime_error(
-                "Set HMS_PATIENT_DATA_KEY, HMS_PATIENT_NAME_INDEX_KEY, and "
+                "Set HMS_PATIENT_DATA_KEY_FILE (or HMS_PATIENT_DATA_KEY), "
+                "HMS_PATIENT_NAME_INDEX_KEY, and "
                 "HMS_PATIENT_PHONE_INDEX_KEY before starting the server.");
         }
-        if (std::string(data_key) == name_index_key ||
-            std::string(data_key) == phone_index_key ||
+        if (data_key_storage_ == name_index_key ||
+            data_key_storage_ == phone_index_key ||
             std::string(name_index_key) == phone_index_key) {
             throw std::runtime_error(
                 "Patient encryption and blind-index keys must be distinct.");
@@ -2287,6 +2329,7 @@ public:
                       *clinical_service);
     }
 
+    std::string data_key_storage_;
     std::unique_ptr<hms::PostgresAuthRepository> auth_repository;
     std::unique_ptr<hms::patients::PostgresPatientRepository>
         patient_repository;
@@ -2591,7 +2634,7 @@ int main()
     }
     tls_context.reset();
 #ifdef _WIN32
-        WSACleanup();
+    WSACleanup();
 #endif
 
     std::cout << "HMS server stopped.\n";

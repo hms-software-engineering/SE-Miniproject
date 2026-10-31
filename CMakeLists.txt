@@ -205,6 +205,16 @@ add_executable(patient_service_test tests/patient_service_test.cpp)
 target_link_libraries(patient_service_test PRIVATE hms_patients)
 add_test(NAME patient_service_test COMMAND patient_service_test)
 
+# ---- SEC-006 patient field encryption (from feature branch) ----
+add_executable(patient_field_encryption_test tests/patient_field_encryption_test.cpp)
+target_link_libraries(patient_field_encryption_test PRIVATE hms_patients)
+if(NOT WIN32)
+    target_link_libraries(patient_field_encryption_test PRIVATE PostgreSQL::PostgreSQL)
+    target_compile_definitions(patient_field_encryption_test PRIVATE HMS_TEST_HAS_LIBPQ=1)
+endif()
+add_test(NAME patient_field_encryption_test COMMAND patient_field_encryption_test)
+
+# ---- NF-001 seed utility (from main) ----
 add_executable(nf001_seed_patients EXCLUDE_FROM_ALL tests/performance/seed_patients.cpp)
 target_link_libraries(nf001_seed_patients PRIVATE hms_patients)
 
@@ -333,7 +343,8 @@ if(HMS_ENABLE_COVERAGE)
             auth_service_test health_test password_security_test
             appointments_test change_appointment_test doctor_schedule_test
             clinical_service_test clinical_test report_service_test
-            patient_service_test backup_service_test billing_service_test
+            patient_service_test patient_field_encryption_test
+            backup_service_test billing_service_test
             billing_tax_boundary_test receipt_test hms_backup_cli hms_server
             nf001_seed_patients)
         if(TARGET "${coverage_executable}")

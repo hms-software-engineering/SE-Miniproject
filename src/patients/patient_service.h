@@ -16,6 +16,7 @@ struct Registration {
     std::string phone;
     std::string address;
     std::string linked_user_id;
+    std::string allergies;
 };
 
 struct Patient {
