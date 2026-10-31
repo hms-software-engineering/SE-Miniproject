@@ -499,6 +499,51 @@ RecordPaymentResult PostgresBillingRepository::persist_payment(
     }
 }
 
+std::optional<Receipt> PostgresBillingRepository::find_receipt(
+    long long payment_id)
+{
+    const std::vector<std::string> values{std::to_string(payment_id)};
+    PGresult* raw = execute(
+        connection_->value,
+        "SELECT p.receipt_no, p.payment_id::text, p.bill_id::text, "
+        "p.amount::numeric(14,2)::text, p.mode, "
+        "to_char(p.paid_at AT TIME ZONE 'Asia/Kolkata', "
+        "        'DD-MM-YYYY HH24:MI'), "
+        "b.total::numeric(14,2)::text, "
+        "(SELECT COALESCE(SUM(q.amount), 0)::numeric(14,2)::text "
+        " FROM payments q WHERE q.bill_id = p.bill_id "
+        " AND q.payment_id <= p.payment_id) "
+        "FROM payments p JOIN bills b ON b.bill_id = p.bill_id "
+        "WHERE p.payment_id = $1::bigint",
+        values);
+    require_pg_status(connection_->value, raw, PGRES_TUPLES_OK,
+                      "Could not load receipt");
+    PgResult result(raw);
+    if (pg_tuples(result.get()) == 0) return std::nullopt;
+
+    const auto stored_money = [](const char* value) {
+        std::int64_t cents = 0;
+        if (!parse_money(value, cents)) {
+            throw std::runtime_error("Stored receipt amount is invalid.");
+        }
+        return cents;
+    };
+    Receipt receipt;
+    receipt.receipt_no = pg_value(result.get(), 0, 0);
+    receipt.payment_id = std::stoll(pg_value(result.get(), 0, 1));
+    receipt.bill_id = std::stoll(pg_value(result.get(), 0, 2));
+    receipt.amount_cents = stored_money(pg_value(result.get(), 0, 3));
+    receipt.mode = pg_value(result.get(), 0, 4);
+    receipt.paid_at = pg_value(result.get(), 0, 5);
+    receipt.total_cents = stored_money(pg_value(result.get(), 0, 6));
+    const std::int64_t paid_through =
+        stored_money(pg_value(result.get(), 0, 7));
+    receipt.balance_cents = receipt.total_cents - paid_through;
+    receipt.bill_status =
+        bill_status_after_payment(receipt.total_cents, paid_through);
+    return receipt;
+}
+
 std::vector<PatientBill> PostgresBillingRepository::bills_for_patient(
     const std::string& patient_id)
 {
@@ -683,6 +728,49 @@ std::string payment_to_json(const RecordPaymentResult& result)
         ",\"balance\":" + json_string(format_money(
             result.total_cents - result.paid_cents)) +
         ",\"billStatus\":" + json_string(result.bill_status) + "}";
+}
+
+namespace {
+std::string html_escape(const std::string& value)
+{
+    std::string out;
+    for (const char ch : value) {
+        switch (ch) {
+        case '&': out += "&amp;"; break;
+        case '<': out += "&lt;"; break;
+        case '>': out += "&gt;"; break;
+        case '"': out += "&quot;"; break;
+        default: out += ch;
+        }
+    }
+    return out;
+}
+}  // namespace
+
+std::string render_receipt_html(const Receipt& r)
+{
+    const std::string rupee = "&#8377;";
+    return
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+        "<title>Receipt " + html_escape(r.receipt_no) + "</title>"
+        "<style>body{font-family:sans-serif;max-width:420px;margin:24px auto}"
+        "table{width:100%;border-collapse:collapse}"
+        "td{padding:6px 0;border-bottom:1px solid #ccc}"
+        "td:last-child{text-align:right}"
+        "@media print{button{display:none}}</style></head><body>"
+        "<h2>Payment Receipt</h2><table>"
+        "<tr><td>Receipt No</td><td>" + html_escape(r.receipt_no) + "</td></tr>"
+        "<tr><td>Bill No</td><td>" + std::to_string(r.bill_id) + "</td></tr>"
+        "<tr><td>Amount Paid</td><td>" + rupee +
+        format_money(r.amount_cents) + "</td></tr>"
+        "<tr><td>Payment Mode</td><td>" + html_escape(r.mode) + "</td></tr>"
+        "<tr><td>Payment Date</td><td>" + html_escape(r.paid_at) + "</td></tr>"
+        "<tr><td>Bill Total</td><td>" + rupee +
+        format_money(r.total_cents) + "</td></tr>"
+        "<tr><td>Balance After Payment</td><td>" + rupee +
+        format_money(r.balance_cents) + "</td></tr></table>"
+        "<p><button onclick=\"window.print()\">Print</button></p>"
+        "</body></html>";
 }
 
 }  // namespace hms::billing

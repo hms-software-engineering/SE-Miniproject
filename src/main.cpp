@@ -395,6 +395,20 @@ void send_download_response(TlsConnection& client,
     }
 }
 
+void send_html_response(TlsConnection& client, const std::string& body)
+{
+    std::ostringstream response;
+    response << "HTTP/1.1 200 OK\r\n"
+             << "Content-Type: text/html; charset=utf-8\r\n"
+             << "Cache-Control: no-store\r\n"
+             << "Content-Length: " << body.size() << "\r\n"
+             << "Connection: close\r\n\r\n"
+             << body;
+    if (!send_all(client, response.str())) {
+        std::cerr << "Failed to send receipt.\n";
+    }
+}
+
 void send_error(
     TlsConnection& client,
     int status,
@@ -664,6 +678,14 @@ std::optional<hms::Permission> permission_for_request(
     if (method == "POST" &&
         (path == "/api/v1/bills" || path == "/api/v1/payments" ||
          path == "/api/v1/receipts")) {
+        return hms::Permission::BillingPaymentsReceipts;
+    }
+    if (method == "GET" &&
+        path.rfind("/api/v1/payments/", 0) == 0 &&
+        path.size() > std::string("/api/v1/payments/").size() +
+                          std::string("/receipt").size() &&
+        path.compare(path.size() - std::string("/receipt").size(),
+                     std::string("/receipt").size(), "/receipt") == 0) {
         return hms::Permission::BillingPaymentsReceipts;
     }
     if (method == "GET" &&
@@ -1371,6 +1393,39 @@ void handle_client(TlsConnection& client,
             send_response(client, 201,
                           "{\"payment\":" +
                               hms::billing::payment_to_json(result) + "}");
+            return;
+        }
+        constexpr char payments_prefix[] = "/api/v1/payments/";
+        constexpr char receipt_suffix[] = "/receipt";
+        if (method == "GET" && path.rfind(payments_prefix, 0) == 0 &&
+            path.size() > sizeof(payments_prefix) - 1 +
+                              sizeof(receipt_suffix) - 1 &&
+            path.compare(path.size() - (sizeof(receipt_suffix) - 1),
+                         sizeof(receipt_suffix) - 1, receipt_suffix) == 0) {
+            long long payment_id = 0;
+            const std::string id_text = path.substr(
+                sizeof(payments_prefix) - 1,
+                path.size() - (sizeof(payments_prefix) - 1) -
+                    (sizeof(receipt_suffix) - 1));
+            if (!parse_positive_id(id_text, payment_id)) {
+                send_error(client, 404, "RECEIPT_NOT_FOUND",
+                           "Receipt was not found.", request_id);
+                return;
+            }
+            const auto receipt = billing_repository.find_receipt(payment_id);
+            if (!receipt.has_value()) {
+                send_error(client, 404, "RECEIPT_NOT_FOUND",
+                           "Receipt was not found.", request_id);
+                return;
+            }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "VIEW_RECEIPT", std::to_string(payment_id),
+                client.source_ip
+            });
+            send_html_response(client,
+                               hms::billing::render_receipt_html(*receipt));
             return;
         }
 

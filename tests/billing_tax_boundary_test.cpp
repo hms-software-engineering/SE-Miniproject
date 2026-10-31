@@ -32,9 +32,12 @@ public:
     }
 
     hms::billing::RecordPaymentResult persist_payment(
-        long long, std::int64_t, const std::string&) override
+        long long,
+        std::int64_t,
+        const std::string&) override
     {
-        return {};
+        return {hms::billing::PaymentStatus::InvalidRequest,
+                {}, 0, 0, {}};
     }
 };
 

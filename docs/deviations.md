@@ -7,6 +7,12 @@
 
 These differences should be reviewed against the expected API response contract.
 
+## F-042 – Payment Receipt Generation
+
+- The SAD defines no receipt-retrieval endpoint. F-042 adds `GET /api/v1/payments/{paymentId}/receipt`, returning print-ready HTML. It follows F-041’s flat `/api/v1/payments` route, which already differs from the SAD’s `POST /api/v1/bills/{id}/payments`.
+- Receipt dates are shown in IST (`DD-MM-YYYY HH:MM`), converted from the stored `paid_at` TIMESTAMPTZ.
+- Receipt balance is computed as of that payment, so a reprint always shows the original figure.
+
 ## F-061 – Administrator Audit Log Filtering
 
 **1. Audit API response format**
@@ -27,12 +33,3 @@ These differences should be reviewed against the expected API response contract.
       }
     ]
   }
-  ```
-- This format is retained for compatibility with the existing API response structure. The `username` field is included to make the user filter results identifiable.
-
-**2. Audit log result limit**
-
-- The audit log query applies `LIMIT 1000` and returns at most the 1000 most recent matching entries.
-- Results are ordered by timestamp in descending order, with audit ID used as a secondary ordering field.
-- This limit is applied to avoid returning an excessively large number of records from the audit log table.
-- Consequently, matching records beyond the latest 1000 results are not included in a single response.
