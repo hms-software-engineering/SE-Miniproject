@@ -671,7 +671,7 @@ std::optional<hms::Permission> permission_for_request(
          path.rfind("/api/v1/reports/", 0) == 0)) {
         return hms::Permission::GenerateReports;
     }
-    if (method == "GET" && path == "/api/v1/audit-log") {
+    if (method == "GET" && path == "/api/v1/audit" || path == "/api/v1/audit-log") {
         return hms::Permission::ViewAuditLog;
     }
     return std::nullopt;
@@ -1147,7 +1147,7 @@ void handle_client(TlsConnection& client,
         return;
     }
 
-    if (path == "/api/v1/audit-log") {
+    if (path == "/api/v1/audit" || path == "/api/v1/audit-log") { 
         const auto response = hms::handle_audit_log(
             method, path, query_string, authorization, client.source_ip,
             request_id, auth_service);

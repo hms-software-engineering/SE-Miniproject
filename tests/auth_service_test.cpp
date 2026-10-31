@@ -165,17 +165,35 @@ public:
     }
 
     std::vector<hms::AuditRecord> read_audit_events(
-        std::optional<hms::AuditAction> action,
-        std::optional<hms::AuditRecordId> record_id) const override
+        const hms::AuditFilter& filter) const override
     {
         if (audit_read_fails) throw std::runtime_error("database detail");
+        bool user_filtered = false;
+        std::optional<std::uint64_t> wanted_user;
+        if (filter.username) {
+            user_filtered = true;
+            const auto found = users_.find(*filter.username);
+            if (found != users_.end())
+                wanted_user = std::stoull(found->second.user_id);
+        }
         std::vector<hms::AuditRecord> result;
         for (const auto& record : audit_records) {
-            if (action && record.action != *action) continue;
-            if (record_id && (!record.record_id ||
-                              record.record_id->value() != record_id->value()))
+            if (filter.action && record.action != *filter.action) continue;
+            if (filter.record_id && (!record.record_id ||
+                    record.record_id->value() != filter.record_id->value()))
                 continue;
-            result.push_back(record);
+            if (user_filtered && (!wanted_user || !record.user_id ||
+                                  *record.user_id != *wanted_user))
+                continue;
+            const std::string day = record.timestamp.substr(0, 10);
+            if (filter.from_date && day < *filter.from_date) continue;
+            if (filter.to_date && day > *filter.to_date) continue;
+            auto copy = record;
+            for (const auto& entry : users_)
+                if (record.user_id &&
+                    entry.second.user_id == std::to_string(*record.user_id))
+                    copy.username = entry.first;
+            result.push_back(copy);
         }
         return result;
     }
@@ -652,7 +670,7 @@ void test_postgres_authentication_when_enabled()
         persisted_audit_read.body);
     CHECK(persisted_json.at("entries").size() == 1);
     const auto& persisted_entry = persisted_json.at("entries").front();
-    CHECK(persisted_entry.size() == 6);
+    CHECK(persisted_entry.size() == 7);
     CHECK(persisted_entry.at("userId") == std::stoull(registered.user_id));
     CHECK(persisted_entry.at("role") == "Patient");
     CHECK(persisted_entry.at("action") == "LOGIN");
@@ -897,7 +915,8 @@ void test_audit_log_endpoint_security()
     CHECK(serialized.size() == 1);
     CHECK(serialized.at("entries").size() == 2);
     const std::set<std::string> allowed_fields = {
-        "userId", "role", "action", "recordId", "timestamp", "sourceIp"};
+        "userId", "username", "role", "action", "recordId", "timestamp",
+        "sourceIp"};
     for (const auto& entry : serialized.at("entries")) {
         CHECK(entry.size() == allowed_fields.size());
         for (const auto& field : entry.items())
@@ -977,6 +996,87 @@ void test_audit_log_endpoint_security()
     CHECK(secret_user_id_rejected);
 }
 
+void test_audit_log_filters()
+{
+    InMemoryAuthRepository repository;
+    hms::AuthService service(repository);
+    const auto login_as = [&](const std::string& name, hms::Role role) {
+        CHECK(service.create_user(name, "GoodPass1!", role).success);
+        const auto login = service.authenticate_user(name, "GoodPass1!");
+        CHECK(login.success);
+        return login;
+    };
+    const auto admin = login_as("f061_admin", hms::Role::Administrator);
+    const auto doctor = login_as("dr_rao", hms::Role::Doctor);
+    const auto reception = login_as("f061_reception", hms::Role::Receptionist);
+    const auto patient = login_as("f061_patient", hms::Role::Patient);
+    const auto billing = login_as("f061_billing", hms::Role::BillingOfficer);
+
+    repository.record_audit_event(hms::AuditEvent{
+        doctor.user_id, "Doctor", "LOGIN", doctor.user_id, "127.0.0.1"});
+    repository.record_audit_event(hms::AuditEvent{
+        doctor.user_id, "Doctor", "VIEW_PATIENT", "PID-00000001", "127.0.0.1"});
+    repository.record_audit_event(hms::AuditEvent{
+        reception.user_id, "Receptionist", "CREATE_PATIENT", "PID-00000002",
+        "127.0.0.1"});
+
+    const auto call = [&](const std::string& token, const std::string& query,
+                          const std::string& path = "/api/v1/audit") {
+        return hms::handle_audit_log(
+            "GET", path, query, token.empty() ? "" : "Bearer " + token,
+            "127.0.0.1", "req-f061", service);
+    };
+    const auto count = [&](const std::string& query) {
+        const auto response = call(admin.token, query);
+        CHECK(response.status == 200);
+        return nlohmann::json::parse(response.body).at("entries").size();
+    };
+
+    // No filters (run first: each successful read adds a VIEW_AUDIT_LOG row).
+    CHECK(count("") == 3);
+    // TC-ADM-02: user + date.
+    CHECK(count("user=dr_rao&from=2026-10-29&to=2026-10-29") == 2);
+    {
+        const auto r = call(admin.token, "user=dr_rao");
+        const auto entry = nlohmann::json::parse(r.body).at("entries").front();
+        CHECK(entry.at("username") == "dr_rao");
+        CHECK(entry.contains("action") && entry.contains("recordId") &&
+              entry.contains("timestamp"));
+    }
+    // Independent filters.
+    CHECK(count("user=dr_rao") == 2);
+    CHECK(count("user=f061_reception") == 1);
+    CHECK(count("action=CREATE_PATIENT") == 1);
+    CHECK(count("from=2026-10-29&to=2026-10-29") >= 3);
+    CHECK(count("from=2026-10-30") == 0);
+    CHECK(count("to=2026-10-28") == 0);
+    // Combined.
+    CHECK(count("user=dr_rao&action=VIEW_PATIENT&from=2026-10-29&to=2026-10-29") == 1);
+    CHECK(count("user=dr_rao&action=CREATE_PATIENT") == 0);
+    // Empty params are ignored; alias path still works.
+    CHECK(count("user=&from=&to=&action=") >= 3);
+    CHECK(call(admin.token, "", "/api/v1/audit-log").status == 200);
+    // Unknown user / injection text is just a literal that matches nothing.
+    CHECK(count("user=nobody") == 0);
+    CHECK(count("user=x%27%20OR%20%271%27%3D%271") == 0);
+    CHECK(count("user=%27%3BDROP%20TABLE%20audit_log%3B--") == 0);
+    // Invalid input rejected.
+    CHECK(call(admin.token, "from=2026-02-30").status == 400);
+    CHECK(call(admin.token, "from=29-10-2026").status == 400);
+    CHECK(call(admin.token, "from=2026-10-30&to=2026-10-29").status == 400);
+    CHECK(call(admin.token, "from=2026-10-29%27%3BDROP%20TABLE%20audit_log").status == 400);
+    CHECK(call(admin.token, "user=a&user=b").status == 400);
+    // Access control.
+    CHECK(call("", "").status == 401);
+    for (const auto* token : {&reception.token, &doctor.token, &patient.token,
+                              &billing.token}) {
+        CHECK(call(*token, "").status == 403);
+        CHECK(call(*token, "user=dr_rao&from=2026-10-29").status == 403);
+    }
+    // Existing records untouched by reads.
+    CHECK(repository.audit_records.front().action == hms::AuditAction::Login);
+}
+
 } // namespace
 
 void test_validator()
@@ -1024,6 +1124,7 @@ int main()
     test_account_deactivation();
     test_user_deactivation_endpoint();
     test_audit_log_endpoint_security();
+    test_audit_log_filters();
     test_postgres_authentication_when_enabled();
 
     std::cout << "All authentication and RBAC tests passed.\n";
