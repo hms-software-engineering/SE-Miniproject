@@ -2,11 +2,13 @@
 #include "api/audit_log_handler.h"
 #include "api/user_management_handler.h"
 #include "appointments/appointments.h"
+#include "billing/billing_service.h"
 #include "clinical/clinical_service.h"
 #include "health/health_service.h"
 #include "services/auth_service.h"
 #include "services/rbac_service.h"
 #include "patients/patient_service.h"
+#include "validation/validator.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -40,9 +42,11 @@ inline int WSACleanup() { return 0; }
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <cctype>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
 #include <ctime>
@@ -52,10 +56,14 @@ inline int WSACleanup() { return 0; }
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
+#include <queue>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -63,6 +71,8 @@ namespace {
 constexpr unsigned short PORT = 8443;
 constexpr std::size_t MAX_REQUEST_SIZE = 1024 * 1024;
 constexpr std::size_t MAX_HEADER_SIZE = 16 * 1024;
+constexpr std::size_t REQUEST_WORKER_COUNT = 12;
+constexpr std::size_t MAX_PENDING_CLIENTS = 100;
 
 std::string status_text(int status)
 {
@@ -81,8 +91,8 @@ std::string status_text(int status)
     case 431: return "Request Header Fields Too Large";
     case 423: return "Locked";
     case 500: return "Internal Server Error";
-    case 501: return "Not Implemented";
     case 503: return "Service Unavailable";
+    case 501: return "Not Implemented";
     default:  return "Error";
     }
 }
@@ -186,7 +196,13 @@ private:
         while (position_ < input_.size()) {
             const unsigned char ch =
                 static_cast<unsigned char>(input_[position_++]);
-            if (ch == '"') return true;
+            if (ch == '"') {
+                if (output.size() > 2000) return false;
+                for (const unsigned char value : output) {
+                    if (value == 0 || value < 0x20) return false;
+                }
+                return true;
+            }
             if (ch < 0x20) return false;
             if (ch != '\\') {
                 output.push_back(static_cast<char>(ch));
@@ -444,6 +460,12 @@ bool decode_query_value(const std::string& input, std::string& output)
             output.push_back(input[index]);
         }
     }
+    if (output.size() > 2000) return false;
+
+    for (const unsigned char ch : output) {
+        if (ch == 0 || ch < 0x20 || ch == 0x7f) return false;
+    }
+
     return true;
 }
 
@@ -490,7 +512,10 @@ bool parse_patient_registration(
         fields.find("address") == fields.end()) {
         return false;
     }
-    if (has_allergies && fields.at("allergies").size() > 2000) {
+    if (!hms::validation::valid_name_address(fields.at("name"), 60) ||
+        !hms::validation::valid_name_address(fields.at("address"), 120) ||
+        !hms::validation::valid_phone(fields.at("phone")) ||
+        (has_allergies && fields.at("allergies").size() > 2000)) {
         return false;
     }
     registration = {
@@ -604,6 +629,13 @@ std::optional<hms::Permission> permission_for_request(
     }
     if (method == "GET" &&
         path.rfind("/api/v1/patients/", 0) == 0 &&
+        path.size() > std::string("/api/v1/patients/").size() &&
+        path.compare(path.size() - std::string("/visits").size(),
+                     std::string("/visits").size(), "/visits") == 0) {
+        return hms::Permission::ViewPatientHistory;
+    }
+    if (method == "GET" &&
+        path.rfind("/api/v1/patients/", 0) == 0 &&
         path.find('/', std::string("/api/v1/patients/").size()) ==
             std::string::npos &&
         path.size() > std::string("/api/v1/patients/").size()) {
@@ -646,10 +678,39 @@ std::optional<hms::Permission> permission_for_request(
          path.rfind("/api/v1/reports/", 0) == 0)) {
         return hms::Permission::GenerateReports;
     }
-    if (method == "GET" && path == "/api/v1/audit-log") {
+    if (method == "GET" && (path == "/api/v1/audit" || path == "/api/v1/audit-log")) {
         return hms::Permission::ViewAuditLog;
     }
     return std::nullopt;
+}
+
+std::string visit_history_json(
+    const std::vector<hms::clinical::VisitHistoryEntry>& entries)
+{
+    std::string body = "{\"visits\":[";
+    for (std::size_t index = 0; index < entries.size(); ++index) {
+        if (index != 0) body += ',';
+        const auto& entry = entries[index];
+        body += "{\"visitId\":" +
+            json_string(std::to_string(entry.visit_id)) +
+            ",\"visitedAt\":" + json_string(entry.visited_at) +
+            ",\"symptoms\":" + json_string(entry.symptoms) +
+            ",\"diagnosis\":" + json_string(entry.diagnosis) +
+            ",\"notes\":" + json_string(entry.notes) +
+            ",\"prescriptions\":[";
+        for (std::size_t item = 0; item < entry.prescriptions.size(); ++item) {
+            if (item != 0) body += ',';
+            const auto& prescription = entry.prescriptions[item];
+            body += "{\"item\":" + json_string(prescription.item) +
+                ",\"dosage\":" + json_string(prescription.dosage) +
+                ",\"frequency\":" + json_string(prescription.frequency) +
+                ",\"days\":" + std::to_string(prescription.days) +
+                ",\"overrideReason\":" +
+                json_string(prescription.override_reason) + "}";
+        }
+        body += "]}";
+    }
+    return body + "]}";
 }
 
 void handle_client(TlsConnection& client,
@@ -657,6 +718,7 @@ void handle_client(TlsConnection& client,
                    hms::PostgresAuthRepository& auth_repository,
                    hms::patients::PatientService& patient_service,
                    hms::PostgresAppointmentRepository& appointment_repository,
+                   hms::billing::PostgresBillingRepository& billing_repository,
                    hms::clinical::ClinicalService& clinical_service)
 {
     const std::string request_id = make_request_id();
@@ -1092,7 +1154,7 @@ void handle_client(TlsConnection& client,
         return;
     }
 
-    if (path == "/api/v1/audit-log") {
+    if (path == "/api/v1/audit" || path == "/api/v1/audit-log") {
         const auto response = hms::handle_audit_log(
             method, path, query_string, authorization, client.source_ip,
             request_id, auth_service);
@@ -1113,6 +1175,209 @@ void handle_client(TlsConnection& client,
                             authorization_error)) {
             send_error(client, 403, "ACCESS_DENIED", authorization_error,
                        request_id);
+            return;
+        }
+
+        if (method == "POST" && path == "/api/v1/bills") {
+            if (!is_json_content_type(content_type)) {
+                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                           "Content-Type must be application/json.",
+                           request_id);
+                return;
+            }
+            const std::size_t body_start = header_end + 4;
+            if (!has_content_length ||
+                raw.size() < body_start + content_length) {
+                send_error(client, 411, "LENGTH_REQUIRED",
+                           "A Content-Length and request body are required.",
+                           request_id);
+                return;
+            }
+
+            nlohmann::json request;
+            try {
+                request = nlohmann::json::parse(
+                    raw.substr(body_start, content_length));
+            } catch (const nlohmann::json::parse_error&) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide visitId and an array of bill items.",
+                           request_id);
+                return;
+            }
+            if (!request.is_object() || request.size() != 2 ||
+                !request.contains("visitId") ||
+                !request.at("visitId").is_string() ||
+                !request.contains("items") ||
+                !request.at("items").is_array()) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide string visitId and an items array.",
+                           request_id);
+                return;
+            }
+            long long visit_id = 0;
+            if (!parse_positive_id(request.at("visitId").get<std::string>(),
+                                   visit_id)) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "visitId must be a positive integer string.",
+                           request_id);
+                return;
+            }
+            std::vector<hms::billing::BillItemInput> items;
+            const auto& item_array = request.at("items");
+            if (item_array.empty() || item_array.size() > 100) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide between 1 and 100 bill items.",
+                           request_id);
+                return;
+            }
+            for (const auto& item : item_array) {
+                if (!item.is_object() || item.size() != 2 ||
+                    !item.contains("description") ||
+                    !item.at("description").is_string() ||
+                    !item.contains("amount") ||
+                    !item.at("amount").is_string()) {
+                    send_error(client, 400, "INVALID_REQUEST",
+                               "Each item needs string description and amount.",
+                               request_id);
+                    return;
+                }
+                items.push_back({
+                    item.at("description").get<std::string>(),
+                    item.at("amount").get<std::string>()
+                });
+            }
+            const char* configured_tax_rate =
+                std::getenv("HMS_BILL_TAX_RATE");
+            const auto result = hms::billing::create_itemized_bill(
+                billing_repository, visit_id, items,
+                configured_tax_rate == nullptr ? "" : configured_tax_rate);
+            if (result.status ==
+                hms::billing::CreateBillStatus::TaxConfigurationInvalid) {
+                std::cerr << "HMS_BILL_TAX_RATE is missing or invalid; "
+                             "configure it as a percentage from 0 to 100 "
+                             "with at most two decimal places.\n";
+                send_error(client, 503, "BILLING_CONFIGURATION_ERROR",
+                           "Bill generation is unavailable until a valid "
+                           "HMS_BILL_TAX_RATE is configured.",
+                           request_id);
+                return;
+            }
+            if (result.status ==
+                hms::billing::CreateBillStatus::InvalidRequest) {
+                send_error(client, 400, "INVALID_BILL",
+                           "Provide a positive visitId and between 1 and "
+                           "100 valid items with amounts to two decimal places.",
+                           request_id);
+                return;
+            }
+            if (result.status == hms::billing::CreateBillStatus::VisitMissing) {
+                send_error(client, 404, "VISIT_NOT_FOUND",
+                           "Visit was not found.", request_id);
+                return;
+            }
+            if (result.status ==
+                hms::billing::CreateBillStatus::AlreadyExists) {
+                send_error(client, 409, "BILL_ALREADY_EXISTS",
+                           "A bill has already been created for this visit.",
+                           request_id);
+                return;
+            }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "CREATE_BILL", std::to_string(result.bill.id),
+                client.source_ip
+            });
+            send_response(client, 201,
+                          "{\"bill\":" +
+                              hms::billing::bill_to_json(result.bill) + "}");
+            return;
+        }
+
+        if (method == "POST" && path == "/api/v1/payments") {
+            if (!is_json_content_type(content_type)) {
+                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                           "Content-Type must be application/json.",
+                           request_id);
+                return;
+            }
+            const std::size_t body_start = header_end + 4;
+            if (!has_content_length ||
+                raw.size() < body_start + content_length) {
+                send_error(client, 411, "LENGTH_REQUIRED",
+                           "A Content-Length and request body are required.",
+                           request_id);
+                return;
+            }
+            nlohmann::json request;
+            try {
+                request = nlohmann::json::parse(
+                    raw.substr(body_start, content_length));
+            } catch (const nlohmann::json::parse_error&) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide billId, amount and mode.", request_id);
+                return;
+            }
+            if (!request.is_object() || request.size() != 3 ||
+                !request.contains("billId") ||
+                !request.at("billId").is_string() ||
+                !request.contains("amount") ||
+                !request.at("amount").is_string() ||
+                !request.contains("mode") ||
+                !request.at("mode").is_string()) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide string billId, amount and mode.",
+                           request_id);
+                return;
+            }
+            long long bill_id = 0;
+            if (!parse_positive_id(request.at("billId").get<std::string>(),
+                                   bill_id)) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "billId must be a positive integer string.",
+                           request_id);
+                return;
+            }
+            const auto result = hms::billing::record_payment(
+                billing_repository, bill_id,
+                request.at("amount").get<std::string>(),
+                request.at("mode").get<std::string>());
+            if (result.status == hms::billing::PaymentStatus::InvalidRequest) {
+                send_error(client, 400, "INVALID_PAYMENT",
+                           "Provide a positive amount to two decimal places "
+                           "and a mode of Cash, Card or UPI.",
+                           request_id);
+                return;
+            }
+            if (result.status == hms::billing::PaymentStatus::BillMissing) {
+                send_error(client, 404, "BILL_NOT_FOUND",
+                           "Bill was not found.", request_id);
+                return;
+            }
+            if (result.status == hms::billing::PaymentStatus::BillCancelled) {
+                send_error(client, 409, "BILL_CANCELLED",
+                           "A cancelled bill cannot accept payments.",
+                           request_id);
+                return;
+            }
+            if (result.status == hms::billing::PaymentStatus::Overpayment) {
+                send_error(client, 409, "OVERPAYMENT",
+                           "Payment exceeds the outstanding balance of " +
+                               hms::billing::format_money(
+                                   result.total_cents - result.paid_cents) +
+                               ".",
+                           request_id);
+                return;
+            }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "RECORD_PAYMENT", std::to_string(result.payment.id),
+                client.source_ip
+            });
+            send_response(client, 201,
+                          "{\"payment\":" +
+                              hms::billing::payment_to_json(result) + "}");
             return;
         }
 
@@ -1154,6 +1419,70 @@ void handle_client(TlsConnection& client,
                 format == "csv" ? "text/csv; charset=utf-8"
                                 : "application/pdf",
                 filename, body);
+            return;
+        }
+
+        if (method == "GET" &&
+            (path == "/api/v1/patients/me/history" ||
+             path == "/api/v1/patients/me/bills")) {
+            const std::string patient_id =
+                clinical_service.patient_id_for_user(principal.user_id);
+            if (patient_id.empty()) {
+                send_error(client, 404, "PATIENT_NOT_FOUND",
+                           "No patient record is linked to this account.",
+                           request_id);
+                return;
+            }
+            const bool history = path == "/api/v1/patients/me/history";
+            const std::string body = history
+                ? visit_history_json(clinical_service.visit_history(patient_id))
+                : hms::billing::patient_bills_to_json(
+                      billing_repository.bills_for_patient(patient_id));
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                history ? "VIEW_OWN_HISTORY" : "VIEW_OWN_BILLS",
+                patient_id, client.source_ip
+            });
+            send_response(client, 200, body);
+            return;
+        }
+
+        constexpr char visits_patient_path[] = "/api/v1/patients/";
+        constexpr char visits_suffix[] = "/visits";
+        if (method == "GET" &&
+            path.rfind(visits_patient_path, 0) == 0 &&
+            path.size() > sizeof(visits_patient_path) - 1 +
+                              sizeof(visits_suffix) - 1 &&
+            path.compare(path.size() - sizeof(visits_suffix) + 1,
+                         sizeof(visits_suffix) - 1, visits_suffix) == 0) {
+            if (principal.role != hms::Role::Doctor) {
+                send_error(client, 403, "ACCESS_DENIED", "Access denied",
+                           request_id);
+                return;
+            }
+            const std::string patient_id = path.substr(
+                sizeof(visits_patient_path) - 1,
+                path.size() - (sizeof(visits_patient_path) - 1) -
+                    (sizeof(visits_suffix) - 1));
+            if (patient_id.size() != 12 ||
+                patient_id.compare(0, 4, "PID-") != 0 ||
+                !std::all_of(patient_id.begin() + 4, patient_id.end(),
+                    [](unsigned char digit) {
+                        return digit >= '0' && digit <= '9';
+                    }) ||
+                patient_service.search_patients(patient_id).matches.empty()) {
+                send_error(client, 404, "PATIENT_NOT_FOUND",
+                           "Patient was not found.", request_id);
+                return;
+            }
+            const auto entries = clinical_service.visit_history(patient_id);
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "VIEW_VISIT_HISTORY", patient_id, client.source_ip
+            });
+            send_response(client, 200, visit_history_json(entries));
             return;
         }
 
@@ -1580,7 +1909,9 @@ void handle_client(TlsConnection& client,
             if (!has_content_length ||
                 raw.size() < body_start + content_length ||
                 !parse_json_body(raw.substr(body_start, content_length), fields) ||
-                fields.size() != 4 ||
+                (fields.size() != 4 &&
+                 !(fields.size() == 5 &&
+                   fields.find("overrideReason") != fields.end())) ||
                 fields.find("item") == fields.end() ||
                 fields.find("dosage") == fields.end() ||
                 fields.find("frequency") == fields.end() ||
@@ -1594,20 +1925,47 @@ void handle_client(TlsConnection& client,
                 !parse_positive_id(fields.at("days"), days) ||
                 days > 3650) {
                 send_error(client, 400, "INVALID_REQUEST",
-                           "Provide item, dosage, frequency, and positive days.",
+                           "Provide item, dosage, frequency, positive days, "
+                           "and optionally overrideReason.",
                            request_id);
                 return;
             }
             const hms::clinical::PrescriptionInput prescription{
                 visit_id, fields.at("item"), fields.at("dosage"),
-                fields.at("frequency"), static_cast<int>(days)
+                fields.at("frequency"), static_cast<int>(days),
+                fields.count("overrideReason") != 0
+                    ? fields.at("overrideReason") : std::string()
             };
-            if (!clinical_service.add_prescription(
-                    prescription, principal.user_id)) {
+            const auto prescribed = clinical_service.add_prescription(
+                prescription, principal.user_id);
+            if (prescribed.status ==
+                hms::clinical::PrescriptionStatus::VisitUnavailable) {
                 send_error(client, 404, "VISIT_NOT_FOUND",
                            "Visit was not found for this doctor.",
                            request_id);
                 return;
+            }
+            if (prescribed.status ==
+                hms::clinical::PrescriptionStatus::AllergyWarning) {
+                std::string conflicts;
+                for (const auto& conflict : prescribed.allergy_conflicts) {
+                    if (!conflicts.empty()) conflicts += ", ";
+                    conflicts += conflict;
+                }
+                send_error(client, 409, "ALLERGY_WARNING",
+                           "Patient allergy matches this medicine (" +
+                               conflicts + "). Resubmit with overrideReason "
+                               "to prescribe it.",
+                           request_id);
+                return;
+            }
+            if (prescribed.overridden) {
+                auth_service.record_audit_event({
+                    principal.user_id,
+                    std::string(hms::role_name(principal.role)),
+                    "OVERRIDE_ALLERGY_WARNING", visit_id_text,
+                    client.source_ip
+                });
             }
             auth_service.record_audit_event({
                 principal.user_id,
@@ -1720,6 +2078,53 @@ void handle_client(TlsConnection& client,
                           "{\"patient\":" + json_patient(patient) + "}");
             return;
         }
+        constexpr char allergy_patient_path[] = "/api/v1/patients/";
+        constexpr char allergy_suffix[] = "/allergies";
+        if (method == "PUT" &&
+            path.rfind(allergy_patient_path, 0) == 0 &&
+            path.size() > sizeof(allergy_patient_path) - 1 +
+                              sizeof(allergy_suffix) - 1 &&
+            path.compare(path.size() - sizeof(allergy_suffix) + 1,
+                         sizeof(allergy_suffix) - 1, allergy_suffix) == 0) {
+            const std::string patient_id = path.substr(
+                sizeof(allergy_patient_path) - 1,
+                path.size() - (sizeof(allergy_patient_path) - 1) -
+                    (sizeof(allergy_suffix) - 1));
+            if (!is_json_content_type(content_type)) {
+                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                           "Content-Type must be application/json.",
+                           request_id);
+                return;
+            }
+            const std::size_t body_start = header_end + 4;
+            std::map<std::string, std::string> fields;
+            if (!has_content_length ||
+                raw.size() < body_start + content_length ||
+                !parse_json_body(raw.substr(body_start, content_length),
+                                 fields) ||
+                fields.size() != 1 ||
+                fields.find("allergies") == fields.end() ||
+                fields.at("allergies").size() > 2000) {
+                send_error(client, 400, "INVALID_REQUEST",
+                           "Provide allergies as a comma separated string.",
+                           request_id);
+                return;
+            }
+            if (!clinical_service.set_patient_allergies(
+                    patient_id, fields.at("allergies"))) {
+                send_error(client, 404, "PATIENT_NOT_FOUND",
+                           "Patient was not found.", request_id);
+                return;
+            }
+            auth_service.record_audit_event({
+                principal.user_id,
+                std::string(hms::role_name(principal.role)),
+                "UPDATE_PATIENT_ALLERGIES", patient_id, client.source_ip
+            });
+            send_response(client, 200, "{\"updated\":true}");
+            return;
+        }
+
         if ((method == "PUT" || method == "PATCH") &&
             path.rfind(patient_path, 0) == 0) {
             const std::string patient_id =
@@ -1781,6 +2186,7 @@ void handle_client(TlsConnection& client,
     send_error(client, 404, "NOT_FOUND",
                "The requested resource was not found.", request_id);
 }
+
 std::string load_secret(const char* file_env, const char* value_env)
 {
     const char* path = std::getenv(file_env);
@@ -1810,11 +2216,80 @@ std::string load_secret(const char* file_env, const char* value_env)
     }
     const char* fallback = std::getenv(value_env);
     return fallback == nullptr ? std::string() : std::string(fallback);
-}  
+}
+
+class ClientServices {
+public:
+    ClientServices()
+    {
+        data_key_storage_ = load_secret(
+            "HMS_PATIENT_DATA_KEY_FILE", "HMS_PATIENT_DATA_KEY");
+        const char* data_key = data_key_storage_.c_str();
+
+        const char* name_index_key =
+            std::getenv("HMS_PATIENT_NAME_INDEX_KEY");
+        const char* phone_index_key =
+            std::getenv("HMS_PATIENT_PHONE_INDEX_KEY");
+        if (data_key_storage_.empty() || name_index_key == nullptr ||
+            phone_index_key == nullptr) {
+            throw std::runtime_error(
+                "Set HMS_PATIENT_DATA_KEY_FILE (or HMS_PATIENT_DATA_KEY), "
+                "HMS_PATIENT_NAME_INDEX_KEY, and "
+                "HMS_PATIENT_PHONE_INDEX_KEY before starting the server.");
+        }
+        if (data_key_storage_ == name_index_key ||
+            data_key_storage_ == phone_index_key ||
+            std::string(name_index_key) == phone_index_key) {
+            throw std::runtime_error(
+                "Patient encryption and blind-index keys must be distinct.");
+        }
+
+        auth_repository =
+            std::make_unique<hms::PostgresAuthRepository>();
+        patient_repository =
+            std::make_unique<hms::patients::PostgresPatientRepository>(
+                data_key);
+        patient_service =
+            std::make_unique<hms::patients::PatientService>(
+                *patient_repository, name_index_key, phone_index_key);
+        appointment_repository =
+            std::make_unique<hms::PostgresAppointmentRepository>();
+        billing_repository =
+            std::make_unique<hms::billing::PostgresBillingRepository>();
+        clinical_repository =
+            std::make_unique<hms::clinical::PostgresClinicalRepository>(
+                data_key);
+        clinical_service =
+            std::make_unique<hms::clinical::ClinicalService>(
+                *clinical_repository);
+        auth_service =
+            std::make_unique<hms::AuthService>(*auth_repository);
+    }
+
+    void handle(TlsConnection& client)
+    {
+        handle_client(client, *auth_service, *auth_repository,
+                      *patient_service, *appointment_repository,
+                      *billing_repository,
+                      *clinical_service);
+    }
+
+    std::string data_key_storage_;
+    std::unique_ptr<hms::PostgresAuthRepository> auth_repository;
+    std::unique_ptr<hms::patients::PostgresPatientRepository>
+        patient_repository;
+    std::unique_ptr<hms::patients::PatientService> patient_service;
+    std::unique_ptr<hms::PostgresAppointmentRepository>
+        appointment_repository;
+    std::unique_ptr<hms::billing::PostgresBillingRepository>
+        billing_repository;
+    std::unique_ptr<hms::clinical::PostgresClinicalRepository>
+        clinical_repository;
+    std::unique_ptr<hms::clinical::ClinicalService> clinical_service;
+    std::unique_ptr<hms::AuthService> auth_service;
+};
 
 } // namespace
-
-
 
 int main()
 {
@@ -1848,60 +2323,14 @@ int main()
     }
     SSL_CTX_set_options(tls_context.get(), SSL_OP_NO_COMPRESSION);
 
-    std::unique_ptr<hms::PostgresAuthRepository> auth_repository;
-    std::unique_ptr<hms::patients::PostgresPatientRepository>
-        patient_repository;
-    std::unique_ptr<hms::patients::PatientService> patient_service;
-    std::unique_ptr<hms::PostgresAppointmentRepository>
-        appointment_repository;
-    std::unique_ptr<hms::clinical::PostgresClinicalRepository>
-        clinical_repository;
-    std::unique_ptr<hms::clinical::ClinicalService> clinical_service;
-    
+    std::vector<std::unique_ptr<ClientServices>> worker_services;
     try {
-        auth_repository = std::make_unique<hms::PostgresAuthRepository>();
-
-        const std::string data_key_value = load_secret(
-            "HMS_PATIENT_DATA_KEY_FILE", "HMS_PATIENT_DATA_KEY");
-        const char* data_key = data_key_value.c_str();
-
-        const char* name_index_key =
-            std::getenv("HMS_PATIENT_NAME_INDEX_KEY");
-        const char* phone_index_key =
-            std::getenv("HMS_PATIENT_PHONE_INDEX_KEY");
-
-        if (data_key_value.empty() || name_index_key == nullptr ||
-            phone_index_key == nullptr) {
-            throw std::runtime_error(
-                "Set HMS_PATIENT_DATA_KEY_FILE (or HMS_PATIENT_DATA_KEY), "
-                "HMS_PATIENT_NAME_INDEX_KEY, and "
-                "HMS_PATIENT_PHONE_INDEX_KEY before starting the server.");
+        worker_services.reserve(REQUEST_WORKER_COUNT);
+        for (std::size_t index = 0;
+             index < REQUEST_WORKER_COUNT; ++index) {
+            worker_services.emplace_back(
+                std::make_unique<ClientServices>());
         }
-
-        if (std::string(data_key) == name_index_key ||
-            std::string(data_key) == phone_index_key) {
-            throw std::runtime_error(
-                "Patient encryption and blind-index keys must be distinct.");
-        }
-
-        patient_repository =
-            std::make_unique<hms::patients::PostgresPatientRepository>(
-                data_key);
-        patient_service =
-            std::make_unique<hms::patients::PatientService>(
-                *patient_repository, name_index_key, phone_index_key);
-
-        appointment_repository =
-            std::make_unique<hms::PostgresAppointmentRepository>();
-
-        clinical_repository =
-            std::make_unique<hms::clinical::PostgresClinicalRepository>(
-                data_key);
-        clinical_service =
-            std::make_unique<hms::clinical::ClinicalService>(
-                *clinical_repository);
-
-        hms::AuthService auth_service(*auth_repository);
         const char* bootstrap_username =
             std::getenv("HMS_BOOTSTRAP_ADMIN_USERNAME");
         const char* bootstrap_password =
@@ -1915,9 +2344,10 @@ int main()
         if (bootstrap_username != nullptr &&
             *bootstrap_username != '\0' &&
             *bootstrap_password != '\0') {
-            const auto result = auth_service.create_user(
-                bootstrap_username, bootstrap_password,
-                hms::Role::Administrator);
+            const auto result =
+                worker_services.front()->auth_service->create_user(
+                    bootstrap_username, bootstrap_password,
+                    hms::Role::Administrator);
             if (result.success) {
                 std::cout << "Bootstrap administrator created with userId="
                           << result.user_id << ".\n";
@@ -1931,11 +2361,10 @@ int main()
             }
         }
     } catch (const std::exception& error) {
-        std::cerr << "Could not initialize authentication: "
+        std::cerr << "Could not initialize request services: "
                   << error.what() << '\n';
         return 1;
     }
-    hms::AuthService auth_service(*auth_repository);
 
 #ifdef _WIN32
     WSADATA wsa_data{};
@@ -1995,8 +2424,98 @@ int main()
               << "Health endpoint: GET /api/v1/health\n"
               << "Stop with Ctrl+C or close this console.\n";
 
-    // Keep this simple server synchronous. Closing the console terminates
-    // the process; no unsafe signal handler is needed.
+    struct PendingClient {
+        SOCKET socket;
+        std::string source_ip;
+    };
+    std::queue<PendingClient> pending_clients;
+    std::mutex pending_mutex;
+    std::condition_variable pending_ready;
+    bool stopping = false;
+    std::vector<std::thread> workers;
+    workers.reserve(REQUEST_WORKER_COUNT);
+    try {
+        for (std::size_t index = 0;
+             index < REQUEST_WORKER_COUNT; ++index) {
+            ClientServices* services = worker_services[index].get();
+            workers.emplace_back([&, services] {
+                for (;;) {
+                    PendingClient pending{};
+                    {
+                        std::unique_lock<std::mutex> lock(pending_mutex);
+                        pending_ready.wait(lock, [&] {
+                            return stopping || !pending_clients.empty();
+                        });
+                        if (pending_clients.empty()) {
+                            return;
+                        }
+                        pending = std::move(pending_clients.front());
+                        pending_clients.pop();
+                    }
+
+                    SSL* ssl = SSL_new(tls_context.get());
+                    if (ssl == nullptr ||
+                        SSL_set_fd(ssl, static_cast<int>(pending.socket)) != 1 ||
+                        SSL_accept(ssl) != 1) {
+                        std::cerr << "TLS handshake failed.\n";
+                        ERR_print_errors_fp(stderr);
+                        if (ssl != nullptr) {
+                            SSL_free(ssl);
+                        }
+                        shutdown(pending.socket, SD_BOTH);
+                        closesocket(pending.socket);
+                        continue;
+                    }
+
+                    TlsConnection connection{ssl, pending.source_ip};
+                    try {
+                        services->handle(connection);
+                    } catch (const std::exception& error) {
+                        std::cerr << "Request handler exception: "
+                                  << error.what() << '\n';
+                        try {
+                            send_error(connection, 500, "INTERNAL_ERROR",
+                                       "Internal server error.",
+                                       make_request_id());
+                        } catch (const std::exception& send_error_exception) {
+                            std::cerr << "Could not send request error "
+                                         "response: "
+                                      << send_error_exception.what() << '\n';
+                        } catch (...) {
+                            std::cerr << "Could not send request error "
+                                         "response.\n";
+                        }
+                    } catch (...) {
+                        std::cerr << "Unknown request handler exception.\n";
+                    }
+
+                    SSL_shutdown(ssl);
+                    SSL_free(ssl);
+                    shutdown(pending.socket, SD_BOTH);
+                    closesocket(pending.socket);
+                    std::cout << "Client connection closed.\n";
+                }
+            });
+        }
+    } catch (const std::exception& error) {
+        std::cerr << "Could not start request workers: "
+                  << error.what() << '\n';
+        {
+            std::lock_guard<std::mutex> lock(pending_mutex);
+            stopping = true;
+        }
+        pending_ready.notify_all();
+        for (std::thread& worker : workers) {
+            worker.join();
+        }
+        closesocket(server);
+        tls_context.reset();
+#ifdef _WIN32
+        WSACleanup();
+#endif
+        return 1;
+    }
+
     for (;;) {
         std::cout << "Waiting for a client...\n";
 
@@ -2032,52 +2551,35 @@ int main()
             closesocket(client);
             continue;
         }
-        SSL* ssl = SSL_new(tls_context.get());
-        if (ssl == nullptr ||
-            SSL_set_fd(ssl, static_cast<int>(client)) != 1 ||
-            SSL_accept(ssl) != 1) {
-            std::cerr << "TLS handshake failed.\n";
-            ERR_print_errors_fp(stderr);
-            if (ssl != nullptr) {
-                SSL_free(ssl);
+        bool queued = false;
+        {
+            std::lock_guard<std::mutex> lock(pending_mutex);
+            if (pending_clients.size() < MAX_PENDING_CLIENTS) {
+                pending_clients.push({client, source_ip});
+                queued = true;
             }
+        }
+        if (!queued) {
+            std::cerr << "Request queue is full; rejecting client.\n";
             shutdown(client, SD_BOTH);
             closesocket(client);
             continue;
         }
-        TlsConnection connection{ssl, source_ip};
-
-        // Ensure the TLS session and socket close after each request.
-        try {
-            handle_client(connection, auth_service, *auth_repository,
-                          *patient_service,
-                          *appointment_repository, *clinical_service);
-        } catch (const std::exception& e) {
-            std::cerr << "Request handler exception: "
-                      << e.what() << '\n';
-
-            try {
-                send_error(connection, 500, "INTERNAL_ERROR",
-                           "Internal server error.", make_request_id());
-            } catch (...) {
-                // Do not allow an error response failure to escape.
-            }
-        } catch (...) {
-            std::cerr << "Unknown request handler exception.\n";
-        }
-
-        SSL_shutdown(ssl);
-        SSL_free(ssl);
-        shutdown(client, SD_BOTH);
-        closesocket(client);
-
-        std::cout << "Client connection closed.\n";
+        pending_ready.notify_one();
     }
 
     closesocket(server);
+    {
+        std::lock_guard<std::mutex> lock(pending_mutex);
+        stopping = true;
+    }
+    pending_ready.notify_all();
+    for (std::thread& worker : workers) {
+        worker.join();
+    }
     tls_context.reset();
 #ifdef _WIN32
-        WSACleanup();
+    WSACleanup();
 #endif
 
     std::cout << "HMS server stopped.\n";

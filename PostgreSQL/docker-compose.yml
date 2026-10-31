@@ -17,6 +17,7 @@ services:
       - ./database/migrations/004_patient_search_blind_indexes.sql:/docker-entrypoint-initdb.d/004_patient_search_blind_indexes.sql:ro
       - ./database/migrations/005_auth_sessions.sql:/docker-entrypoint-initdb.d/005_auth_sessions.sql:ro
       - ./database/migrations/006_patient_id_sequence.sql:/docker-entrypoint-initdb.d/006_patient_id_sequence.sql:ro
+      - ./database/migrations/007_bill_tax_rate.sql:/docker-entrypoint-initdb.d/007_bill_tax_rate.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U hms_app -d hms"]
       interval: 5s

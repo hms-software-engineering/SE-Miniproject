@@ -447,10 +447,13 @@ bool valid_username(const std::string& username)
     if (username.empty() || username.size() > 100) {
         return false;
     }
-    return std::none_of(username.begin(), username.end(),
-                        [](unsigned char ch) {
-                            return std::iscntrl(ch) != 0;
-                        });
+    return std::all_of(username.begin(), username.end(),
+                       [](unsigned char ch) {
+                           return (ch >= 'A' && ch <= 'Z') ||
+                                  (ch >= 'a' && ch <= 'z') ||
+                                  (ch >= '0' && ch <= '9') ||
+                                  ch == '_' || ch == '.' || ch == '-';
+                       });
 }
 
 bool valid_password(const std::string& password)
@@ -612,6 +615,13 @@ const char* audit_action_name(AuditAction action) noexcept
     case AuditAction::CreatePatient: return "CREATE_PATIENT";
     case AuditAction::UpdatePatient: return "UPDATE_PATIENT";
     case AuditAction::DeactivateUser: return "DEACTIVATE_USER";
+    case AuditAction::CreateBill: return "CREATE_BILL";
+    case AuditAction::RecordPayment: return "RECORD_PAYMENT";
+    case AuditAction::UpdatePatientAllergies: return "UPDATE_PATIENT_ALLERGIES";
+    case AuditAction::OverrideAllergyWarning: return "OVERRIDE_ALLERGY_WARNING";
+    case AuditAction::ViewVisitHistory: return "VIEW_VISIT_HISTORY";
+    case AuditAction::ViewOwnHistory: return "VIEW_OWN_HISTORY";
+    case AuditAction::ViewOwnBills: return "VIEW_OWN_BILLS";
     }
     return "";
 }
@@ -639,7 +649,14 @@ std::optional<AuditAction> parse_audit_action(const std::string& value)
              AuditAction::CreateAppointment, AuditAction::CancelAppointment,
              AuditAction::RescheduleAppointment, AuditAction::CreateVisit,
              AuditAction::CreatePrescription, AuditAction::CreatePatient,
-             AuditAction::UpdatePatient, AuditAction::DeactivateUser}) {
+             AuditAction::UpdatePatient, AuditAction::DeactivateUser,
+             AuditAction::CreateBill,
+             AuditAction::RecordPayment,
+             AuditAction::UpdatePatientAllergies,
+             AuditAction::OverrideAllergyWarning,
+             AuditAction::ViewVisitHistory,
+             AuditAction::ViewOwnHistory,
+             AuditAction::ViewOwnBills}) {
         if (value == audit_action_name(action)) return action;
     }
     return std::nullopt;
@@ -757,7 +774,7 @@ DeactivateUserStatus AuthService::deactivate_user(
 AuthResult AuthService::authenticate_user(const std::string& username,
                                           const std::string& password)
 {
-    if (username.size() > 100 || password.size() > 1024) {
+    if (!valid_username(username) || password.size() > 1024) {
         return {false, "", "", "Invalid username or password."};
     }
     const std::optional<AuthUser> user = repository_.find_user(username);
@@ -820,8 +837,7 @@ void AuthService::record_audit_event(const AuditEvent& event)
 
 AuditReadResult AuthService::read_audit_events(
     const std::string& token,
-    std::optional<AuditAction> action,
-    std::optional<AuditRecordId> record_id) const
+    const AuditFilter& filter) const
 {
     const auto principal = authenticate_token(token);
     if (!principal)
@@ -830,9 +846,7 @@ AuditReadResult AuthService::read_audit_events(
     if (!authorize(principal->role, Permission::ViewAuditLog,
                    authorization_error))
         return {AuditReadStatus::AccessDenied, {}};
-    return {AuditReadStatus::Success,
-            repository_.read_audit_events(std::move(action),
-                                          std::move(record_id))};
+    return {AuditReadStatus::Success, repository_.read_audit_events(filter)};
 }
 
 struct PostgresAuthRepository::Connection {
@@ -1199,23 +1213,30 @@ void PostgresAuthRepository::record_audit_event(const AuditEvent& event)
 }
 
 std::vector<AuditRecord> PostgresAuthRepository::read_audit_events(
-    std::optional<AuditAction> action,
-    std::optional<AuditRecordId> record_id) const
+    const AuditFilter& filter) const
 {
-    const char* action_value = action ? audit_action_name(*action) : nullptr;
-    const char* record_value = record_id ? record_id->value().c_str() : nullptr;
-    const char* values[] = {action_value, record_value};
+    const char* values[] = {
+        filter.action ? audit_action_name(*filter.action) : nullptr,
+        filter.record_id ? filter.record_id->value().c_str() : nullptr,
+        filter.username ? filter.username->c_str() : nullptr,
+        filter.from_date ? filter.from_date->c_str() : nullptr,
+        filter.to_date ? filter.to_date->c_str() : nullptr
+    };
     PGresult* raw = pg_exec_params(
         connection_->value,
-        "SELECT COALESCE(user_id::text,''), role, action, "
-        "COALESCE(record_id,''), "
-        "to_char(\"timestamp\" AT TIME ZONE 'UTC', "
+        "SELECT COALESCE(a.user_id::text,''), a.role, a.action, "
+        "COALESCE(a.record_id,''), "
+        "to_char(a.\"timestamp\" AT TIME ZONE 'UTC', "
         "'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), "
-        "COALESCE(host(source_ip),'') FROM audit_log "
-        "WHERE ($1::varchar IS NULL OR action = $1) "
-        "AND ($2::varchar IS NULL OR record_id = $2) "
-        "ORDER BY \"timestamp\" DESC, audit_id DESC",
-        2, nullptr, values, nullptr, nullptr, 0);
+        "COALESCE(host(a.source_ip),''), COALESCE(u.username,'') "
+        "FROM audit_log a LEFT JOIN users u ON u.user_id = a.user_id "
+        "WHERE ($1::varchar IS NULL OR a.action = $1) "
+        "AND ($2::varchar IS NULL OR a.record_id = $2) "
+        "AND ($3::varchar IS NULL OR u.username = $3) "
+        "AND ($4::date IS NULL OR a.\"timestamp\" >= $4::date) "
+        "AND ($5::date IS NULL OR a.\"timestamp\" < ($5::date + 1)) "
+        "ORDER BY a.\"timestamp\" DESC, a.audit_id DESC LIMIT 1000",
+        5, nullptr, values, nullptr, nullptr, 0);
     require_status(connection_->value, raw, PGRES_TUPLES_OK,
                    "Could not read audit events");
     Result result(raw);
@@ -1227,6 +1248,7 @@ std::vector<AuditRecord> PostgresAuthRepository::read_audit_events(
         const auto parsed_action = parse_audit_action(pg_value(result.get(), row, 2));
         const std::string record_text = pg_value(result.get(), row, 3);
         const std::string source_ip = pg_value(result.get(), row, 5);
+        const std::string username = pg_value(result.get(), row, 6);
         const auto user_id = user_text.empty()
             ? std::optional<std::uint64_t>{}
             : parse_audit_user_id(user_text);
@@ -1238,7 +1260,8 @@ std::vector<AuditRecord> PostgresAuthRepository::read_audit_events(
             throw std::runtime_error("Invalid audit record in database.");
         }
         records.push_back({user_id, *role, *parsed_action, parsed_record,
-                           pg_value(result.get(), row, 4), source_ip});
+                           pg_value(result.get(), row, 4), source_ip,
+                           username});
     }
     return records;
 }

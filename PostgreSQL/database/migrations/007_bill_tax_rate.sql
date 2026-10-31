@@ -1,0 +1,7 @@
+BEGIN;
+
+ALTER TABLE bills
+    ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5,2) NOT NULL DEFAULT 0
+    CHECK (tax_rate >= 0 AND tax_rate <= 100);
+
+COMMIT;

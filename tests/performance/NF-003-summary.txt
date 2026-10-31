@@ -1,0 +1,6 @@
+NF-003 / TC-PERF-03 summary
+Peak concurrent sessions: 200   Duration: 1800s
+Total: 345656  Successful: 344237  Failed: 1419  Error rate: 0.411%
+Avg: 20 ms  p95: 39 ms  max: 761 ms
+Server survived: yes
+RESULT: PASS

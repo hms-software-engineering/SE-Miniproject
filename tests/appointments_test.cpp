@@ -1,9 +1,9 @@
 
 #include "../src/appointments/appointments.h"
+#include "test_date_utils.h"
 
 #include <cstdlib>
 #include <chrono>
-#include <cstdio>
 #include <ctime>
 #include <iomanip>
 #include <iostream>
@@ -42,16 +42,7 @@ static int weekday(const std::string& date) {
 }
 
 static std::string integration_test_date() {
-    using namespace std::chrono;
-    const auto half_hour =
-        duration_cast<minutes>(system_clock::now().time_since_epoch()).count() /
-        30;
-    const sys_days base = year{2000}/January/1;
-    const year_month_day date = base + days{half_hour % 10000};
-    char text[11];
-    std::snprintf(text, sizeof(text), "%04d-%02u-%02u",
-                  int(date.year()), unsigned(date.month()), unsigned(date.day()));
-    return text;
+    return test_support::integration_test_date();
 }
 
 static void test_postgres_repository_when_enabled() {
@@ -158,6 +149,15 @@ private:
 
 int main() {
     hms::InMemoryAppointmentRepository repo;
+
+    CHECK(test_support::date_from_half_hour_bucket(0) == "2000-01-01");
+    CHECK(test_support::date_from_half_hour_bucket(58) == "2000-02-28");
+    CHECK(test_support::date_from_half_hour_bucket(59) == "2000-02-29");
+    CHECK(test_support::date_from_half_hour_bucket(60) == "2000-03-01");
+    CHECK(test_support::date_from_half_hour_bucket(365) == "2000-12-31");
+    CHECK(test_support::date_from_half_hour_bucket(366) == "2001-01-01");
+    CHECK(test_support::date_from_half_hour_bucket(9999) == "2027-05-18");
+    CHECK(test_support::date_from_half_hour_bucket(10000) == "2000-01-01");
 
     // Existing weekday and slot-generation behavior.
     CHECK(weekday("2026-10-26") == 1);

@@ -46,9 +46,23 @@ bool decode_component(std::string_view input, std::string& output)
     return true;
 }
 
-bool parse_filters(const std::string& query,
-                   std::optional<AuditAction>& action,
-                   std::optional<AuditRecordId>& record_id)
+bool valid_iso_date(const std::string& s)
+{
+    if (s.size() != 10 || s[4] != '-' || s[7] != '-') return false;
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        if (i == 4 || i == 7) continue;
+        if (!std::isdigit(static_cast<unsigned char>(s[i]))) return false;
+    }
+    const int year = std::stoi(s.substr(0, 4));
+    const int month = std::stoi(s.substr(5, 2));
+    const int day = std::stoi(s.substr(8, 2));
+    if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+    static const int days[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+    const bool leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    return day <= days[month - 1] + ((month == 2 && leap) ? 1 : 0);
+}
+
+bool parse_filters(const std::string& query, AuditFilter& filter)
 {
     if (query.size() > 512) return false;
     std::size_t offset = 0;
@@ -62,24 +76,39 @@ bool parse_filters(const std::string& query,
         std::string key;
         std::string value;
         if (!decode_component(item.substr(0, equal), key) ||
-            !decode_component(item.substr(equal + 1), value) || value.empty())
+            !decode_component(item.substr(equal + 1), value))
             return false;
-        if (key == "action") {
-            if (action) return false;
-            action = parse_audit_action(value);
-            if (!action) return false;
-        } else if (key == "recordId") {
-            if (record_id) return false;
-            record_id = AuditRecordId::parse(value);
-            if (!record_id) return false;
-        } else {
+        if (!value.empty()) {  // empty value = filter not supplied
+            if (key == "action") {
+                if (filter.action) return false;
+                filter.action = parse_audit_action(value);
+                if (!filter.action) return false;
+            } else if (key == "recordId") {
+                if (filter.record_id) return false;
+                filter.record_id = AuditRecordId::parse(value);
+                if (!filter.record_id) return false;
+            } else if (key == "user") {
+                if (filter.username || value.size() > 100) return false;
+                filter.username = value;
+            } else if (key == "from") {
+                if (filter.from_date || !valid_iso_date(value)) return false;
+                filter.from_date = value;
+            } else if (key == "to") {
+                if (filter.to_date || !valid_iso_date(value)) return false;
+                filter.to_date = value;
+            } else {
+                return false;
+            }
+        } else if (key != "action" && key != "recordId" && key != "user" &&
+                   key != "from" && key != "to") {
             return false;
         }
         if (end == std::string::npos) break;
         offset = end + 1;
         if (offset == query.size()) return false;
     }
-    return true;
+    return !(filter.from_date && filter.to_date &&
+             *filter.from_date > *filter.to_date);
 }
 
 nlohmann::json serialize_records(const std::vector<AuditRecord>& records)
@@ -89,6 +118,8 @@ nlohmann::json serialize_records(const std::vector<AuditRecord>& records)
         entries.push_back({
             {"userId", record.user_id ? nlohmann::json(*record.user_id)
                                       : nlohmann::json(nullptr)},
+            {"username", record.username.empty() ? nlohmann::json(nullptr)
+                                                 : nlohmann::json(record.username)},
             {"role", audit_role_name(record.role)},
             {"action", audit_action_name(record.action)},
             {"recordId", record.record_id
@@ -111,7 +142,7 @@ AuditLogResponse handle_audit_log(const std::string& method,
                                   const std::string& request_id,
                                   AuthService& auth_service)
 {
-    if (path != "/api/v1/audit-log")
+    if (path != "/api/v1/audit" && path != "/api/v1/audit-log")
         return error_response(404, "NOT_FOUND",
                               "The requested resource was not found.", request_id);
     if (method != "GET")
@@ -133,13 +164,11 @@ AuditLogResponse handle_audit_log(const std::string& method,
             return error_response(403, "ACCESS_DENIED", "Access denied.",
                                   request_id);
 
-        std::optional<AuditAction> action;
-        std::optional<AuditRecordId> record_id;
-        if (!parse_filters(query, action, record_id))
+        AuditFilter filter;
+        if (!parse_filters(query, filter))
             return error_response(400, "INVALID_AUDIT_FILTER",
                                   "Audit filters are invalid.", request_id);
-        const auto read_result = auth_service.read_audit_events(
-            *token, action, record_id);
+        const auto read_result = auth_service.read_audit_events(*token, filter);
         if (read_result.status == AuditReadStatus::AuthenticationRequired)
             return error_response(401, "AUTHENTICATION_REQUIRED",
                                   "Authentication required.", request_id);

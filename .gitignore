@@ -28,3 +28,5 @@ certs/
 *.pem
 *.pfx
 *.key
+results/
+tests/performance/search_queries.csv
