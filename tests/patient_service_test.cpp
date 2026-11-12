@@ -169,6 +169,14 @@ void test_postgres_repository_when_enabled()
 
     PostgresPatientRepository repository(data_key);
     PatientService service(repository, name_key, phone_key);
+    CHECK([&] {
+        try {
+            PostgresPatientRepository invalid_repository("short");
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    }());
     const auto stamp = std::chrono::high_resolution_clock::now()
                            .time_since_epoch()
                            .count();
@@ -180,6 +188,14 @@ void test_postgres_repository_when_enabled()
         unique_name, "14-03-1990", "Female", phone,
         "Integration Test Address"
     };
+    CHECK([&] {
+        try {
+            (void)repository.create_patient(registration, {}, BlindIndex{});
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    }());
     const auto created =
         service.register_patient(registration, "21-10-2026");
     CHECK(created.saved);
@@ -188,8 +204,19 @@ void test_postgres_repository_when_enabled()
     const auto by_id = service.search_patients(created.patient.patient_id);
     CHECK(by_id.matches.size() == 1);
     CHECK(by_id.matches.front().demographics.name == unique_name);
+    CHECK(service.search_patients("PID-99999999").matches.empty());
     CHECK(service.search_patients(unique_name).matches.size() == 1);
     CHECK(service.search_patients(phone).matches.size() == 1);
+
+    Registration linked_registration = registration;
+    linked_registration.name = unique_name + " Linked";
+    linked_registration.phone = "7" + std::to_string(
+        100000000 + stamp % 899999999);
+    linked_registration.linked_user_id = "3";
+    const auto already_linked = service.register_patient(
+        linked_registration, "21-10-2026");
+    CHECK(!already_linked.saved);
+    CHECK(already_linked.errors.front().field == "profile");
 
     registration.name += " Updated";
     registration.phone = "8" + std::to_string(100000000 + stamp % 899999999);
@@ -208,6 +235,16 @@ void test_postgres_repository_when_enabled()
     const auto history = persisted.patient_history(created.patient.patient_id);
     CHECK(history.size() == 1);
     CHECK(history.front().old_values.name == unique_name);
+
+    bool wrong_encryption_key_rejected = false;
+    try {
+        PostgresPatientRepository wrong_key_repository(
+            std::string(32, 'w'));
+        (void)wrong_key_repository.find_by_id(created.patient.patient_id);
+    } catch (const std::runtime_error&) {
+        wrong_encryption_key_rejected = true;
+    }
+    CHECK(wrong_encryption_key_rejected);
 
     const auto missing_update = service.update_patient(
         "PID-99999999", registration, "21-10-2026", "1");
@@ -366,6 +403,14 @@ int main()
     CHECK(reject(invalid) == "name");
 
     invalid = valid_registration();
+    invalid.name = std::string(61, 'N');
+    CHECK(reject(invalid) == "name");
+
+    Registration maximum_name = valid_registration();
+    maximum_name.name = std::string(60, 'N');
+    CHECK(service.register_patient(maximum_name, "21-10-2026").saved);
+
+    invalid = valid_registration();
     invalid.date_of_birth = "31-02-1990";
     CHECK(reject(invalid) == "dateOfBirth");
 
@@ -374,8 +419,28 @@ int main()
     CHECK(reject(invalid) == "dateOfBirth");
 
     invalid = valid_registration();
+    invalid.date_of_birth = "22-10-2026";
+    CHECK(reject(invalid) == "dateOfBirth");
+
+    Registration birthday_today = valid_registration();
+    birthday_today.date_of_birth = "21-10-2026";
+    birthday_today.name = "Birthday Today";
+    birthday_today.phone = "9876543298";
+    CHECK(service.register_patient(birthday_today, "21-10-2026").saved);
+
+    invalid = valid_registration();
     invalid.gender.clear();
     CHECK(reject(invalid) == "gender");
+
+    invalid = valid_registration();
+    invalid.gender = "Prefer not to say";
+    CHECK(reject(invalid) == "gender");
+
+    Registration other_gender = valid_registration();
+    other_gender.gender = "Other";
+    other_gender.name = "Other Gender";
+    other_gender.phone = "9876543297";
+    CHECK(service.register_patient(other_gender, "21-10-2026").saved);
 
     invalid = valid_registration();
     invalid.phone.clear();
@@ -390,8 +455,24 @@ int main()
     CHECK(reject(invalid) == "phone");
 
     invalid = valid_registration();
+    invalid.phone = "12345x7890";
+    CHECK(reject(invalid) == "phone");
+
+    invalid = valid_registration();
     invalid.address.clear();
     CHECK(reject(invalid) == "address");
+
+    invalid = valid_registration();
+    invalid.address = std::string(121, 'A');
+    CHECK(reject(invalid) == "address");
+
+    bool rejected_invalid_today = false;
+    try {
+        (void)service.register_patient(valid_registration(), "31-02-2026");
+    } catch (const std::invalid_argument&) {
+        rejected_invalid_today = true;
+    }
+    CHECK(rejected_invalid_today);
 
     bool rejected_short_key = false;
     try {
@@ -400,6 +481,24 @@ int main()
         rejected_short_key = true;
     }
     CHECK(rejected_short_key);
+
+    bool rejected_same_keys = false;
+    try {
+        PatientService invalid_service(repository, name_key, name_key);
+    } catch (const std::invalid_argument&) {
+        rejected_same_keys = true;
+    }
+    CHECK(rejected_same_keys);
+
+    CHECK(normalize_name_search("\tAsha \n  Nair\f") == "asha nair");
+    CHECK(make_name_prefix_blind_indexes(" \t\n ", name_key).empty());
+    bool rejected_empty_prefix = false;
+    try {
+        (void)make_name_prefix_blind_index(" \t ", name_key);
+    } catch (const std::invalid_argument&) {
+        rejected_empty_prefix = true;
+    }
+    CHECK(rejected_empty_prefix);
 
     CHECK(make_name_prefix_blind_index("Ash", name_key) ==
           make_name_prefix_blind_index("  aSH ", name_key));

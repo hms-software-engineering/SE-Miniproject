@@ -1,6 +1,8 @@
 
 # CMake build output
 build/
+build-vs/
+build-coverage/
 cmake-build-*/
 
 # Visual Studio build files
@@ -30,3 +32,4 @@ certs/
 *.key
 results/
 tests/performance/search_queries.csv
+__pycache__/

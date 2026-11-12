@@ -12,6 +12,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QInputDialog>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStackedWidget>
@@ -302,6 +303,33 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
             this, &WorkflowWindow::handleSuccess);
     connect(apiClient, &ApiClient::workflowOperationFailed,
             this, &WorkflowWindow::handleFailure);
+    connect(apiClient, &ApiClient::prescriptionAllergyWarning,
+            this, [this](const QString &message) {
+        if (workflow != Workflow::Consultation) {
+            return;
+        }
+        bool accepted = false;
+        const QString reason = QInputDialog::getText(
+            this, "Allergy warning",
+            message + "\n\nEnter a reason to override this warning:",
+            QLineEdit::Normal, QString(), &accepted).trimmed();
+        if (!accepted) {
+            showStatus("Prescription was not saved; the allergy warning "
+                       "was not overridden.");
+            return;
+        }
+        if (reason.isEmpty()) {
+            showStatus("An override reason is required. The prescription "
+                       "was not saved.");
+            return;
+        }
+        setBusy(true);
+        showStatus("Submitting the prescription with the override reason...");
+        apiClient->addPrescription(
+            visitIdInput->text(), medicineInput->text().trimmed(),
+            dosageInput->text().trimmed(), frequencyInput->text().trimmed(),
+            QString::number(durationInput->value()), reason);
+    });
 }
 
 void WorkflowWindow::loadFreeSlots()
