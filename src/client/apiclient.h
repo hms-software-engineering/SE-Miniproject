@@ -28,7 +28,8 @@ public:
                      const QString &diagnosis, const QString &notes);
     void addPrescription(const QString &visitId, const QString &item,
                         const QString &dosage, const QString &frequency,
-                        const QString &days);
+                        const QString &days,
+                        const QString &overrideReason = QString());
     void createUser(const QString &username, const QString &password,
                     const QString &role);
     void createMyPatientProfile(const QJsonObject &profile);
@@ -51,6 +52,7 @@ signals:
                                     const QJsonObject &response);
     void workflowOperationFailed(const QString &operation,
                                  const QString &message);
+    void prescriptionAllergyWarning(const QString &message);
 
 private:
     void sendPatientRequest(QNetworkAccessManager::Operation operation,

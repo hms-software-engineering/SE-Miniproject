@@ -251,13 +251,20 @@ void ApiClient::addPrescription(const QString &visitId,
                                 const QString &item,
                                 const QString &dosage,
                                 const QString &frequency,
-                                const QString &days)
+                                const QString &days,
+                                const QString &overrideReason)
 {
+    QJsonObject body{
+        {"item", item}, {"dosage", dosage}, {"frequency", frequency},
+        {"days", days}
+    };
+    if (!overrideReason.trimmed().isEmpty()) {
+        body.insert("overrideReason", overrideReason.trimmed());
+    }
     sendWorkflowRequest(
         QNetworkAccessManager::PostOperation,
         endpoint("/api/v1/visits/" + visitId + "/prescriptions"),
-        {{"item", item}, {"dosage", dosage}, {"frequency", frequency},
-         {"days", days}},
+        body,
         "addPrescription");
 }
 
@@ -315,8 +322,14 @@ void ApiClient::sendWorkflowRequest(
             reply->error() == QNetworkReply::NoError) {
             emit workflowOperationSucceeded(action, response);
         } else {
-            QString message = response.value("error").toObject()
-                                  .value("message").toString();
+            const QJsonObject error = response.value("error").toObject();
+            QString message = error.value("message").toString();
+            if (action == "addPrescription" &&
+                error.value("code").toString() == "ALLERGY_WARNING") {
+                emit prescriptionAllergyWarning(message);
+                reply->deleteLater();
+                return;
+            }
             const QJsonArray suggestions =
                 response.value("suggestedSlots").toArray();
             if (!suggestions.isEmpty()) {

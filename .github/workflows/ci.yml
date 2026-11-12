@@ -191,11 +191,14 @@ jobs:
         run: |
           mkdir -p build-coverage/coverage
           lcov --capture --directory build-coverage --base-directory . \
-            --output-file build-coverage/coverage/raw.info --rc branch_coverage=0
+            --output-file build-coverage/coverage/raw.info --rc branch_coverage=1
           lcov --remove build-coverage/coverage/raw.info \
             '*/tests/*' '*/_deps/*' '*/src/main.cpp' '*/src/client/*' '*/src/api.cpp' \
+            --ignore-errors unused \
             --output-file build-coverage/coverage/service-modules.info \
-            --rc branch_coverage=0
+            --rc branch_coverage=1
+          lcov --summary build-coverage/coverage/service-modules.info \
+            --rc branch_coverage=1
           python3 scripts/check_service_coverage.py \
             --manifest build-coverage/service-module-sources.txt \
             --lcov build-coverage/coverage/service-modules.info \
@@ -205,6 +208,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: service-module-lcov-report
+          name: service-module-lcov-and-branch-report
           path: build-coverage/coverage/service-modules.info
           if-no-files-found: ignore

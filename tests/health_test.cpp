@@ -107,20 +107,64 @@ void test_availability_window_and_target()
     CHECK(no_measurements.downtime == hours(16));
     CHECK(no_measurements.availability_percent == 0.0);
     CHECK(!no_measurements.target_met);
+
+    const auto negative_offset = hms::health::calculate_availability(
+        day_start, day_end, healthy, -14 * 60);
+    CHECK(negative_offset.eligible_time == hours(16));
+    CHECK(negative_offset.available_time == hours(16));
+    CHECK(negative_offset.target_met);
+
+    const auto partial_start = day_start + hours(5) + minutes(59) +
+                               seconds(30);
+    const auto partial_end = partial_start + seconds(90);
+    const auto partial_interval = hms::health::calculate_availability(
+        partial_start, partial_end,
+        {{partial_start, true}, {partial_start + minutes(1), true}}, 0);
+    CHECK(partial_interval.eligible_time == seconds(60));
+    CHECK(partial_interval.available_time == seconds(60));
+
+    const auto outside_service_hours = hms::health::calculate_availability(
+        day_start + hours(23), day_start + hours(24), {}, 0);
+    CHECK(outside_service_hours.eligible_time == seconds::zero());
+    CHECK(outside_service_hours.availability_percent == 0.0);
+    CHECK(!outside_service_hours.target_met);
 }
 
 void test_invalid_availability_inputs()
 {
     using namespace std::chrono;
-    bool rejected = false;
-    try {
-        (void)hms::health::calculate_availability(
-            system_clock::time_point{}, system_clock::time_point{} + hours(1),
-            {}, 15 * 60);
-    } catch (const std::invalid_argument&) {
-        rejected = true;
-    }
-    CHECK(rejected);
+    const auto period_start = system_clock::time_point{};
+    const auto period_end = period_start + hours(1);
+    const auto rejects = [](const auto& start, const auto& end,
+                            const std::vector<hms::health::ProbeObservation>&
+                                observations,
+                            int utc_offset_minutes,
+                            seconds probe_interval = minutes(1)) {
+        try {
+            (void)hms::health::calculate_availability(
+                start, end, observations, utc_offset_minutes, probe_interval);
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    };
+
+    CHECK(rejects(period_start, period_start, {}, 0));
+    CHECK(rejects(period_start, period_end, {}, 0, seconds::zero()));
+    CHECK(rejects(period_start, period_end, {}, 0, seconds(-1)));
+    CHECK(rejects(period_start, period_end, {}, -14 * 60 - 1));
+    CHECK(rejects(period_start, period_end, {}, 14 * 60 + 1));
+    CHECK(rejects(period_start + milliseconds(1), period_end, {}, 0));
+    CHECK(rejects(period_start, period_end,
+                  {{period_start + milliseconds(1), true}}, 0));
+    CHECK(rejects(period_start, period_end,
+                  {{period_start - minutes(1), true}}, 0));
+    CHECK(rejects(period_start, period_end,
+                  {{period_end, true}}, 0));
+    CHECK(rejects(period_start, period_end,
+                  {{period_start + seconds(30), true}}, 0));
+    CHECK(rejects(period_start, period_end,
+                  {{period_start, true}, {period_start, false}}, 0));
 }
 
 } // namespace
