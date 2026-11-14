@@ -58,26 +58,23 @@ mean a production or user-acceptance test has been completed.
 
 ## Validation snapshot
 
-The prior 2026-11-12 baseline recorded a Windows Visual Studio 2022 x64
-Release build, all 16 registered CTest suites, three coverage-checker unit
-tests, and an offscreen Qt startup smoke check. Its PostgreSQL-backed GCC
-13.3/lcov run measured 92.09% service-source line coverage (2,805/3,046) and
-51.62% branch coverage (3,618/7,009). Those coverage figures predate the
-desktop integration changes in this branch and should not be treated as
-current measurements. Detailed baseline evidence and limitations are in
-[docs/reports/](reports/) and the updated test cases in
+The latest application CI run completed Windows and Ubuntu builds and all 16
+registered CTest suites on both platforms. A separate PostgreSQL-enabled
+coverage job also passed all 16 suites, including the configured repository
+and backup integration paths. The Qt desktop client passed a bounded
+four-second offscreen startup smoke check.
+
+The refreshed GCC/gcov/lcov reports are based on the latest successful
+branch-enabled coverage artifact, captured from commit `b170901` in GitHub
+Actions run 43625440994. Service-source line coverage is 2,848/3,107 (91.66%);
+every service module exceeds the 70% line threshold. Branch coverage is
+3,582/6,550 (54.69%). No minimum branch-coverage threshold is specified in
+the Test Plan. Per-module data and limitations are in the dated reports under
+[docs/reports/](reports/), and the test execution record is in
 [docs/test-cases-updated.md](test-cases-updated.md).
 
-For the follow-up changes, the existing WSL/GCC build completed, all 16
-registered CTest suites passed, and the Qt client stayed running through a
-bounded four-second offscreen startup check. The PostgreSQL-specific account
-tests were not rerun because their dedicated `hms_f060_test` database is not
-present. A fresh Windows Visual Studio build and post-change coverage capture
-remain outstanding.
-
-The latest available historical GitHub Actions service coverage run is
-2026-10-31 at commit `82e117d935ecc80572398c215f187adad0e206a8`; its line
-coverage passed the configured per-module threshold. The measured 2026-11-12
-working-tree result is local evidence and is not yet a completed GitHub Actions
-run. Live API and PostgreSQL system validation, manual acceptance tests, and
-operational availability/recovery tests remain incomplete.
+Live API/TLS system validation, the five-user usability protocol, current
+production-scale performance and availability evidence, operational recovery
+drills, and some platform acceptance checks remain incomplete. The optional
+dedicated `hms_f060_test` PostgreSQL database was not available for a separate
+local rerun of the account-management integration tests.

@@ -1,23 +1,24 @@
-# System Validation Report — 2026-11-12
+# System Validation Report — 2026-11-14
 
 ## Outcome
 
 **PARTIAL — system acceptance is not complete.** The current Windows Release
-build succeeded, all 16 registered CTest suites passed, the database-backed
-Linux integration tests passed, and the Qt desktop client stayed running
-during a 4-second offscreen startup smoke check. These checks do not validate
-the live API routes or the full Test Plan.
+and Linux builds passed in CI, all 16 registered CTest suites passed on both
+platforms, the PostgreSQL-enabled coverage job passed its integration tests,
+and the Qt desktop client stayed running during a bounded 4-second offscreen
+startup check. These checks do not validate live API routes or the complete
+manual Test Plan.
 
 ## Environment and evidence
 
 | Check | Result | Evidence |
 | --- | --- | --- |
-| Build current configured Windows x64 Release targets | PASS | `cmake --build build-vs --config Release --parallel 4` exited successfully |
-| Automated Windows CTest suites | PASS | 16/16 passed; see `Unit-Test-Report-2026-11-12.md` |
-| Linux build and PostgreSQL-backed CTest suites | PASS | GCC 13.3 build succeeded; 16/16 tests passed with repository and backup integration flags enabled against PostgreSQL 16.15 |
-| PostgreSQL schema setup | PASS | All seven repository migrations applied to a disposable local database |
-| Encrypted database backup and restore | PASS | Integration test used `pg_dump`/`pg_restore`, restored to a separate empty test database, and verified a second restore was rejected |
-| Qt client launch | PASS | `hms_client.exe` remained active for 4 seconds with Qt offscreen; smoke process then stopped |
+| Windows 2022 build and CTest | PASS | GitHub Actions run 43625440994; all 16 CTest suites passed |
+| Ubuntu 22.04 build and CTest | PASS | GitHub Actions run 43625440994; all 16 CTest suites passed |
+| PostgreSQL adapter/backup integration | PASS | Coverage job in run 43625440994 ran all 16 suites with integration flags enabled |
+| Updated line and branch coverage capture | PASS | Run 43625440994 uploaded the branch-enabled LCOV artifact; see the code and branch coverage reports |
+| Local WSL CTest rerun | PASS | GCC 13.3 build; 16/16 passed in 12.06 seconds (PostgreSQL flags not enabled locally) |
+| Qt client launch | PASS | Linux offscreen client remained active throughout the bounded 4-second smoke window |
 | TLS API endpoint and role workflow validation | NOT RUN | No live HMS server was available in the reporting session |
 | Security scanner / end-to-end authorization | NOT RUN | Requires an approved isolated staging deployment and test accounts |
 | Performance, availability, five-user usability, recovery drill | NOT RUN | Requires the Test Plan's environment, synthetic data, participants, monitoring, and timed drill |
@@ -29,9 +30,9 @@ patients, appointments, clinical records, billing, reports, health, backup,
 validation, and password security. It is not a one-to-one execution of the
 40-case Appendix A.
 
-**Passed in the scope actually executed:** current build; 16 Windows CTest
-suites; 16 Linux CTest suites with PostgreSQL integrations; coverage-checker
-unit tests; Qt client startup.
+**Passed in the scope actually executed:** Windows and Ubuntu builds; 16 CTest
+suites on both platforms; 16 CTest suites in the PostgreSQL-enabled coverage
+job; coverage-checker unit tests; Qt client startup.
 
 **Not claimed as passed:** live login/bootstrap administrator; route-level
 system validation; TLS scanner; complete all-role authorization matrix;
