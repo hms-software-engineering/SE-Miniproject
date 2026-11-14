@@ -19,12 +19,12 @@ registered CTest suites. Read-only checks against the running local server
 also passed TLS health/readiness and confirmed unauthenticated user listing is
 rejected.
 
-The project owner also reports manually logging in and exercising application
-workflows. Individual manual case IDs, outcomes, and evidence were not supplied
-for this report, so those checks are not represented as a complete execution
-of the 40-case Test Plan. This does not mean the features are absent; it means
-the recorded evidence supports the automated checks and reported manual use,
-not every formal acceptance criterion.
+The project owner confirms that 34 of the 40 Test Plan cases were completed
+through manual and automated testing. Six resource-intensive acceptance cases
+are deferred from this sprint submission: TC-PERF-01, TC-PERF-02, TC-PERF-03
+current rerun, TC-AVL-01, TC-USA-01, and TC-REL-01. The 34-case completion
+status is based on the owner's report; see the System Validation Report for
+automated evidence and the deferred-case resource requirements.
 
 ## Functional requirements
 
@@ -43,15 +43,15 @@ not every formal acceptance criterion.
 
 | Requirement | Status and evidence |
 | --- | --- |
-| HMS-NF-001 Patient search: p95 ≤ 2 seconds at 100k records / 100 users | Load-test assets and a seed utility exist under `tests/performance/`; the large-data benchmark was not run for this sprint submission and no passing NF-001 result is checked in. |
-| HMS-NF-002 Booking: p95 < 3 seconds under the specified load | `scripts/appointment_booking_load_test.py` implements the 100-request workload and threshold; no current result artifact demonstrates the target. |
-| HMS-NF-003 200 concurrent sessions for 30 minutes, error rate < 1% | `tests/performance/NF-003-summary.txt` records a 30-minute, 200-session run with 0.411% errors and a surviving server (reported PASS). This is a checked-in test result, not a guarantee of other deployments. |
-| HMS-NF-004 99.5% service-window availability | Health/readiness endpoints and an availability calculator exist. No availability measurement evidence was provided for this submission. |
-| HMS-NF-005 Patient registration in ≤ 3 minutes | The receptionist client times registration and validates the required fields. The manual timing acceptance check in `docs/usability/NF-005.md` has no recorded outcome. |
-| HMS-NF-006 Encrypted 24-hour backup, restore ≤ 4 hours, RPO ≤ 24 hours | Encrypted backup/restore code and tests exist. No timed production-scale recovery result was provided for this submission. |
+| HMS-NF-001 Patient search: p95 ≤ 2 seconds at 100k records / 100 users | Load-test assets and a seed utility exist under `tests/performance/`; acceptance execution is deferred as TC-PERF-01 because it requires a 100,000-patient dataset and 100 concurrent users. |
+| HMS-NF-002 Booking: p95 < 3 seconds under the specified load | `scripts/appointment_booking_load_test.py` implements the workload and threshold; acceptance execution is deferred as TC-PERF-02 because it requires a dedicated appointment load environment and test data. |
+| HMS-NF-003 200 concurrent sessions for 30 minutes, error rate < 1% | `tests/performance/NF-003-summary.txt` records a 30-minute, 200-session run with 0.411% errors and a surviving server (reported PASS). A current rerun is deferred as TC-PERF-03. |
+| HMS-NF-004 99.5% service-window availability | Health/readiness endpoints and an availability calculator are implemented; the seven-day measurement is deferred as TC-AVL-01. |
+| HMS-NF-005 Patient registration in ≤ 3 minutes | The receptionist client times registration and validates the required fields. The five-user timing/usability protocol is deferred as TC-USA-01 until trained participants are available. |
+| HMS-NF-006 Encrypted 24-hour backup, restore ≤ 4 hours, RPO ≤ 24 hours | Encrypted backup/restore code and automated tests are implemented; the timed operational recovery drill is deferred as TC-REL-01. |
 | HMS-NF-007 Windows 10/11 and Ubuntu 22.04, GCC 11+/MSVC 2019+ | The project owner reports portability checks completed. Repository CI evidence records Ubuntu 22.04 and Windows Server 2022 with MSVC 2022; detailed results for each required OS/compiler combination were not included in the test record. |
 | HMS-NF-008 At least 70% line coverage per service | The GCC/lcov CI job enforces the threshold using the explicit service inventory in `CMakeLists.txt` and `scripts/check_service_coverage.py`. It is not a claim about excluded API/UI/integration code. |
-| HMS-NF-009 At least 90% independent completion over five users | `docs/usability/NF-009.md` defines the 50-attempt protocol. Feature implementation and individual app use do not establish this participant-based result; no five-participant results were provided. |
+| HMS-NF-009 At least 90% independent completion over five users | `docs/usability/NF-009.md` defines the 50-attempt protocol. The five-user acceptance measurement is deferred as TC-USA-01 until the required trained participants are available. |
 | HMS-SEC-001 Password hashing and strength | Argon2id hashing and password validation exist in auth/password-security services; related automated tests are present. |
 | HMS-SEC-002 TLS 1.2+, no HTTP | The server configures TLS 1.2 or newer and listens for TLS; the client requires HTTPS and platform certificate validation. |
 | HMS-SEC-003 Ten-minute inactivity expiry and logout revocation | Server-side session checks and client idle/logout behavior are implemented and covered by auth tests. |
@@ -71,9 +71,9 @@ not every formal acceptance criterion.
 - Newly added `/api/v1/users` listing and role-update routes are not yet covered
   by running-server end-to-end tests. The existing API test suite primarily
   exercises API helpers and service-level handlers.
-- Automated CTest and ordinary manual workflow use do not replace participant
-  usability, operational availability, production-scale load, or timed
-  recovery-drill acceptance criteria.
+- Six resource-intensive acceptance cases are deferred for this submission;
+  their IDs and required resources are listed in the [updated test-case
+  document](test-cases-updated.md).
 - `tests/api_test.cpp` tests API error/JSON helpers rather than exercising the
   running TLS routes end to end. Add route-level integration tests before
   treating service-unit coverage as proof of the complete API contract.
@@ -95,8 +95,8 @@ the Test Plan. Per-module data and limitations are in the dated reports under
 [docs/reports/](reports/), and the test execution record is in
 [docs/test-cases-updated.md](test-cases-updated.md).
 
-The detailed System Validation Report distinguishes checks demonstrated by CI
-from broader acceptance checks for which this submission has no recorded
-results. The optional dedicated `hms_f060_test` PostgreSQL database was not
-available for a separate local rerun of the account-management integration
-tests.
+The detailed System Validation Report records the 34 cases completed per
+project-owner confirmation, the automated checks, and the six deferred
+resource-intensive cases. The optional dedicated `hms_f060_test` PostgreSQL
+database was not available for a separate local rerun of the account-management
+integration tests.

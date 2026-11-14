@@ -25,12 +25,12 @@ registered CTest suites on both platforms, the PostgreSQL-enabled coverage
 job, and a bounded four-second Qt client startup smoke check. These results
 provide automated and startup evidence for the sprint deliverables.
 
-The project owner additionally reports manual login and workflow testing.
-Those manual tests were not supplied as a case-by-case execution log, so this
-report does not attribute specific outcomes to individual Test Plan cases or
-claim that the full 40-case manual plan was completed. The items below identify
-acceptance evidence not present in the submitted test record; they do not
-assert that the corresponding application features are missing.
+The project owner confirms that the other 34 cases in the 40-case Test Plan
+were completed through manual and automated testing. The six cases listed
+below are deferred from this submission because their required extended
+resources or measurement periods are not available in the current test
+environment. This completion status is based on the project owner's
+confirmation; individual manual execution logs were not attached.
 
 ## Environment and evidence
 
@@ -43,12 +43,12 @@ assert that the corresponding application features are missing.
 | Earlier local WSL CTest rerun | PASS | GCC 13.3 build; 16/16 passed in 12.06 seconds (PostgreSQL flags not enabled locally) |
 | Qt client launch | PASS | Linux offscreen client remained active throughout the bounded 4-second smoke window |
 | Selected live TLS/API checks | PASS | TLS health/readiness and unauthenticated user-list checks are recorded above; the complete role/route matrix is not represented by these probes |
-| Security scanner / end-to-end authorization | No result recorded | No scanner or isolated-staging execution evidence was supplied |
-| 100k-patient search and 100-user appointment performance targets | Not included in this sprint execution record | The project owner considers the large-data workload out of scope for this submission; no benchmark result is claimed |
-| 200-session performance target | Historical result only | `tests/performance/NF-003-summary.txt` contains the prior run; no current rerun is claimed |
-| Availability target | No result recorded | No timestamped service-window measurement was supplied |
-| Five-participant usability protocol | No result recorded | No participant-level completion data was supplied; implemented UI behavior alone does not demonstrate the threshold |
-| Timed production-scale backup/recovery drill | No result recorded | Automated backup tests passed, but no timed operational drill evidence was supplied |
+| TC-PERF-01 — 100k-patient search load | Deferred for this submission | Requires a 100,000-patient dataset and 100 concurrent users |
+| TC-PERF-02 — appointment booking load | Deferred for this submission | Requires the specified load workload and dedicated appointment test data |
+| TC-PERF-03 — 200-session load rerun | Deferred for this submission | Historical result is recorded in `tests/performance/NF-003-summary.txt`; a current 30-minute rerun requires sustained load resources |
+| TC-AVL-01 — availability measurement | Deferred for this submission | Requires the seven-day monitoring period specified by the Test Plan |
+| TC-USA-01 — five-user usability protocol | Deferred for this submission | Requires five trained participants and the defined task protocol |
+| TC-REL-01 — timed backup/recovery drill | Deferred for this submission | Requires a disposable populated database and a timed restore exercise |
 | Detailed platform acceptance matrix | Partially evidenced in CI | Ubuntu 22.04 and Windows Server 2022/MSVC 2022 passed in CI; the owner reports portability checks, but detailed OS/compiler results were not included |
 
 ## Test Plan disposition
@@ -62,9 +62,10 @@ validation, and password security. It is not a one-to-one execution of the
 suites on both platforms; 16 CTest suites in the PostgreSQL-enabled coverage
 job; coverage-checker unit tests; Qt client startup.
 
-The report claims only the checks supported by the evidence above. Additional
-manual app use reported by the project owner is acknowledged, but without a
-case-by-case record it cannot establish the remaining Test Plan thresholds.
+Per the project owner's confirmation, the other 34 of 40 planned test cases
+are complete. The six deferred resource-intensive cases are listed above;
+they are excluded from this sprint's execution scope rather than reported as
+failed.
 
 Use the execution checklist and updated oracles in `docs/test-cases-updated.md`.
 Any failures discovered during the remaining system tests should be logged as

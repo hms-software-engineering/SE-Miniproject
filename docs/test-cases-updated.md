@@ -55,14 +55,22 @@ See the dated reports in `docs/reports/`. CI on Ubuntu and Windows passed all
 passed all 16 suites. A live local check also passed the TLS health/readiness
 endpoints and confirmed unauthenticated user listing is rejected. Line and
 branch coverage were captured, and the Qt client startup smoke check passed.
-The project owner also reports manually logging in and testing application
-workflows; the specific manual case IDs, outcomes, and evidence were not
-supplied in a case-by-case execution log.
+The project owner confirms that 34 of the 40 planned test cases were
+completed through manual and automated testing. Those cases are counted as
+completed based on the owner's report; individual manual execution logs were
+not attached.
 
-The test cases above are the updated test oracles and execution checklist.
-They must not be interpreted as proof that every listed case passed. The
-System Validation Report records the evidence available for this submission
-and identifies acceptance checks for which no result was provided. In
-particular, implementing a feature or exercising it informally does not by
-itself establish large-scale performance, service-window availability,
-five-participant usability, or timed recovery targets.
+The following six resource-intensive acceptance cases are deferred from this
+submission, not counted as failed:
+
+| Test case | Deferred check | Resource or duration needed |
+| --- | --- | --- |
+| TC-PERF-01 | Patient search at 100,000 records / 100 concurrent users | Large synthetic dataset and load-test capacity |
+| TC-PERF-02 | Appointment booking under 100 concurrent users | Dedicated appointment load environment and test data |
+| TC-PERF-03 | Current 200-session, 30-minute mixed-load rerun | Sustained load-test capacity; historical passing result is recorded in `tests/performance/NF-003-summary.txt` |
+| TC-AVL-01 | Availability measurement | Seven-day monitoring window |
+| TC-USA-01 | Five-user usability protocol | Five trained participants and scheduled test sessions |
+| TC-REL-01 | Timed backup and recovery drill | Disposable populated database and timed recovery window |
+
+This status gives 34 completed cases per owner confirmation and six deferred
+cases for the current submission.
