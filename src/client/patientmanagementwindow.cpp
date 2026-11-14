@@ -38,6 +38,7 @@ PatientManagementWindow::PatientManagementWindow(
       genderInput(new QComboBox(this)),
       phoneInput(new QLineEdit(this)),
       addressInput(new QLineEdit(this)),
+      allergiesInput(new QLineEdit(this)),
       statusLabel(new QLabel(this)),
       submitButton(new QPushButton("Register patient", this)),
       newPatientButton(new QPushButton("New patient", this)),
@@ -94,12 +95,16 @@ PatientManagementWindow::PatientManagementWindow(
     phoneInput->setValidator(new QRegularExpressionValidator(
         QRegularExpression("[0-9]{10}"), phoneInput));
     addressInput->setMaxLength(120);
+    allergiesInput->setMaxLength(2000);
+    allergiesInput->setPlaceholderText(
+        "Comma-separated; leave blank if none recorded");
     form->addRow("Patient ID", patientIdLabel);
     form->addRow("Name *", nameInput);
     form->addRow("Date of birth *", dateOfBirthInput);
     form->addRow("Gender *", genderInput);
     form->addRow("Phone *", phoneInput);
     form->addRow("Address *", addressInput);
+    form->addRow("Allergies", allergiesInput);
     QWidget::setTabOrder(nameInput, dateOfBirthInput);
     QWidget::setTabOrder(dateOfBirthInput, genderInput);
     QWidget::setTabOrder(genderInput, phoneInput);
@@ -201,7 +206,8 @@ QJsonObject PatientManagementWindow::patientForm() const
         {"dateOfBirth", dateOfBirthInput->text().trimmed()},
         {"gender", genderInput->currentText()},
         {"phone", phoneInput->text().trimmed()},
-        {"address", addressInput->text().trimmed()}
+        {"address", addressInput->text().trimmed()},
+        {"allergies", allergiesInput->text().trimmed()}
     };
 }
 
@@ -237,6 +243,10 @@ void PatientManagementWindow::submitPatient()
         reject(addressInput, "Enter an address (up to 120 characters).");
         return;
     }
+    if (allergiesInput->text().trimmed().size() > 2000) {
+        reject(allergiesInput, "Enter allergies up to 2000 characters.");
+        return;
+    }
     submitButton->setEnabled(false);
     statusLabel->setStyleSheet("color: #334155;");
     statusLabel->setText("Saving patient...");
@@ -262,6 +272,8 @@ void PatientManagementWindow::showSearchResult(int row, int)
         results->item(row, 1)->data(Qt::UserRole).toString());
     addressInput->setText(
         results->item(row, 1)->data(Qt::UserRole + 1).toString());
+    allergiesInput->setText(
+        results->item(row, 1)->data(Qt::UserRole + 2).toString());
     submitButton->setText("Save patient changes");
 }
 
@@ -320,6 +332,9 @@ void PatientManagementWindow::handlePatientSuccess(
                     item->setData(
                         Qt::UserRole + 1,
                         patient.value("address").toString());
+                    item->setData(
+                        Qt::UserRole + 2,
+                        patient.value("allergies").toString());
                 }
                 results->setItem(row, column, item);
             }
@@ -391,6 +406,7 @@ void PatientManagementWindow::clearForm()
     genderInput->setCurrentIndex(0);
     phoneInput->clear();
     addressInput->clear();
+    allergiesInput->clear();
     submitButton->setText("Register patient");
     statusLabel->clear();
     nameInput->setFocus();

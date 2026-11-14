@@ -211,6 +211,22 @@ void ApiClient::getPatientHistory(const QString &patientId)
         "history");
 }
 
+void ApiClient::getPatientDetails(const QString &patientId)
+{
+    sendWorkflowRequest(
+        QNetworkAccessManager::GetOperation,
+        endpoint("/api/v1/patients/" + patientId), {}, "patientDetails");
+}
+
+void ApiClient::getMyRecords(const QString &kind)
+{
+    const QString suffix = kind == "bills" ? "bills" : "history";
+    sendWorkflowRequest(
+        QNetworkAccessManager::GetOperation,
+        endpoint("/api/v1/patients/me/" + suffix), {},
+        suffix == "bills" ? "myBills" : "myHistory");
+}
+
 void ApiClient::getFreeSlots(const QString &doctorId, const QString &date)
 {
     QUrl url = endpoint("/api/v1/appointments/free-slots");
@@ -220,6 +236,16 @@ void ApiClient::getFreeSlots(const QString &doctorId, const QString &date)
     url.setQuery(parameters);
     sendWorkflowRequest(QNetworkAccessManager::GetOperation, url, {},
                         "freeSlots");
+}
+
+void ApiClient::getMySchedule(const QString &date)
+{
+    QUrl url = endpoint("/api/v1/doctors/me/schedule");
+    QUrlQuery parameters;
+    parameters.addQueryItem("date", date);
+    url.setQuery(parameters);
+    sendWorkflowRequest(QNetworkAccessManager::GetOperation, url, {},
+                        "mySchedule");
 }
 
 void ApiClient::bookAppointment(const QString &patientId,
@@ -251,13 +277,20 @@ void ApiClient::addPrescription(const QString &visitId,
                                 const QString &item,
                                 const QString &dosage,
                                 const QString &frequency,
-                                const QString &days)
+                                const QString &days,
+                                const QString &overrideReason)
 {
+    QJsonObject body{
+        {"item", item}, {"dosage", dosage}, {"frequency", frequency},
+        {"days", days}
+    };
+    if (!overrideReason.trimmed().isEmpty()) {
+        body.insert("overrideReason", overrideReason.trimmed());
+    }
     sendWorkflowRequest(
         QNetworkAccessManager::PostOperation,
         endpoint("/api/v1/visits/" + visitId + "/prescriptions"),
-        {{"item", item}, {"dosage", dosage}, {"frequency", frequency},
-         {"days", days}},
+        body,
         "addPrescription");
 }
 
@@ -269,6 +302,79 @@ void ApiClient::createUser(const QString &username,
         QNetworkAccessManager::PostOperation, endpoint("/api/v1/users"),
         {{"username", username}, {"password", password}, {"role", role}},
         "createUser");
+}
+
+void ApiClient::deactivateUser(const QString &userId)
+{
+    sendWorkflowRequest(
+        QNetworkAccessManager::PostOperation,
+        endpoint("/api/v1/users/" + userId),
+        {{"action", "deactivate"}}, "deactivateUser", "PATCH");
+}
+
+void ApiClient::getUsers()
+{
+    sendWorkflowRequest(QNetworkAccessManager::GetOperation,
+                        endpoint("/api/v1/users"), {}, "userList");
+}
+
+void ApiClient::changeUserRole(const QString &userId, const QString &role)
+{
+    sendWorkflowRequest(
+        QNetworkAccessManager::PostOperation,
+        endpoint("/api/v1/users/" + userId),
+        {{"action", "changeRole"}, {"role", role}},
+        "changeUserRole", "PATCH");
+}
+
+void ApiClient::createBill(const QString &visitId, const QJsonArray &items)
+{
+    sendWorkflowRequest(
+        QNetworkAccessManager::PostOperation, endpoint("/api/v1/bills"),
+        {{"visitId", visitId}, {"items", items}}, "createBill");
+}
+
+void ApiClient::recordPayment(const QString &billId, const QString &amount,
+                              const QString &mode)
+{
+    sendWorkflowRequest(
+        QNetworkAccessManager::PostOperation,
+        endpoint("/api/v1/bills/" + billId + "/payments"),
+        {{"amount", amount}, {"mode", mode}},
+        "recordPayment");
+}
+
+void ApiClient::getReceipt(const QString &paymentId)
+{
+    sendWorkflowDownload(
+        endpoint("/api/v1/payments/" + paymentId + "/receipt"),
+        "receipt");
+}
+
+void ApiClient::getReport(const QString &startDate, const QString &endDate,
+                          const QString &format)
+{
+    QUrl url = endpoint("/api/v1/reports");
+    QUrlQuery parameters;
+    parameters.addQueryItem("startDate", startDate);
+    parameters.addQueryItem("endDate", endDate);
+    parameters.addQueryItem("format", format);
+    url.setQuery(parameters);
+    sendWorkflowDownload(url, "report");
+}
+
+void ApiClient::getAuditLog(const QString &username, const QString &action,
+                            const QString &fromDate, const QString &toDate)
+{
+    QUrl url = endpoint("/api/v1/audit");
+    QUrlQuery parameters;
+    if (!username.isEmpty()) parameters.addQueryItem("user", username);
+    if (!action.isEmpty()) parameters.addQueryItem("action", action);
+    if (!fromDate.isEmpty()) parameters.addQueryItem("from", fromDate);
+    if (!toDate.isEmpty()) parameters.addQueryItem("to", toDate);
+    url.setQuery(parameters);
+    sendWorkflowRequest(QNetworkAccessManager::GetOperation, url, {},
+                        "auditLog");
 }
 
 void ApiClient::createMyPatientProfile(const QJsonObject &profile)
@@ -283,7 +389,8 @@ void ApiClient::sendWorkflowRequest(
     QNetworkAccessManager::Operation operation,
     const QUrl &url,
     const QJsonObject &body,
-    const QString &action)
+    const QString &action,
+    const QByteArray &method)
 {
     if (url.isEmpty()) {
         emit workflowOperationFailed(
@@ -302,6 +409,9 @@ void ApiClient::sendWorkflowRequest(
     QNetworkReply *reply = nullptr;
     if (operation == QNetworkAccessManager::GetOperation) {
         reply = networkManager.get(request);
+    } else if (method == "PATCH") {
+        reply = networkManager.sendCustomRequest(
+            request, method, QJsonDocument(body).toJson(QJsonDocument::Compact));
     } else {
         reply = networkManager.post(
             request, QJsonDocument(body).toJson(QJsonDocument::Compact));
@@ -309,14 +419,24 @@ void ApiClient::sendWorkflowRequest(
     connect(reply, &QNetworkReply::finished, this, [this, reply, action]() {
         const int status = reply->attribute(
             QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QJsonObject response =
-            QJsonDocument::fromJson(reply->readAll()).object();
+        const QJsonDocument document = QJsonDocument::fromJson(reply->readAll());
+        const QJsonObject response = document.object();
         if (status >= 200 && status < 300 &&
             reply->error() == QNetworkReply::NoError) {
-            emit workflowOperationSucceeded(action, response);
+            if (document.isArray()) {
+                emit workflowArraySucceeded(action, document.array());
+            } else {
+                emit workflowOperationSucceeded(action, response);
+            }
         } else {
-            QString message = response.value("error").toObject()
-                                  .value("message").toString();
+            const QJsonObject error = response.value("error").toObject();
+            QString message = error.value("message").toString();
+            if (action == "addPrescription" &&
+                error.value("code").toString() == "ALLERGY_WARNING") {
+                emit prescriptionAllergyWarning(message);
+                reply->deleteLater();
+                return;
+            }
             const QJsonArray suggestions =
                 response.value("suggestedSlots").toArray();
             if (!suggestions.isEmpty()) {
@@ -327,6 +447,46 @@ void ApiClient::sendWorkflowRequest(
                 message += "\nSuggested alternatives: " +
                            values.join(", ");
             }
+            if (message.isEmpty()) {
+                message = status == 0
+                    ? "Cannot connect securely to the HMS server."
+                    : QString("Request failed (HTTP %1).").arg(status);
+            }
+            emit workflowOperationFailed(action, message);
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::sendWorkflowDownload(const QUrl &url, const QString &action)
+{
+    if (url.isEmpty()) {
+        emit workflowOperationFailed(
+            action, "HMS_API_BASE_URL must be a valid HTTPS URL.");
+        return;
+    }
+    QNetworkRequest request(url);
+    QSslConfiguration ssl = QSslConfiguration::defaultConfiguration();
+    ssl.setProtocol(QSsl::TlsV1_2OrLater);
+    request.setSslConfiguration(ssl);
+    request.setRawHeader("Authorization",
+                         "Bearer " + authToken.toUtf8());
+    QNetworkReply *reply = networkManager.get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, action]() {
+        const int status = reply->attribute(
+            QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QByteArray data = reply->readAll();
+        if (status >= 200 && status < 300 &&
+            reply->error() == QNetworkReply::NoError) {
+            emit workflowDownloadSucceeded(
+                action, data,
+                reply->header(QNetworkRequest::ContentTypeHeader).toString());
+        } else {
+            QString message;
+            const QJsonObject response =
+                QJsonDocument::fromJson(data).object();
+            message = response.value("error").toObject()
+                          .value("message").toString();
             if (message.isEmpty()) {
                 message = status == 0
                     ? "Cannot connect securely to the HMS server."

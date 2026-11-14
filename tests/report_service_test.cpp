@@ -39,6 +39,28 @@ int main()
     CHECK(pdf.find("xref\n") != std::string::npos);
     CHECK(pdf.find("%%EOF\n") != std::string::npos);
 
+    const std::vector<hms::reports::DailyReportRow> escaped_row{
+        {"2026-10-28,\"review\"\n", 1, 1, 0, 0, 0, "12,50\""}
+    };
+    const std::string escaped_csv = hms::reports::to_csv(escaped_row);
+    CHECK(escaped_csv.find("\"2026-10-28,\"\"review\"\"\n\"") !=
+          std::string::npos);
+    CHECK(escaped_csv.find("\"12,50\"\"\"") != std::string::npos);
+
+    const std::string escaped_pdf = hms::reports::to_pdf(
+        {{"2026-10-28 (revised)\\final", 1, 1, 0, 0, 0, "12.50"},
+         {"2026-10-29", 0, 0, 0, 0, 0, "0.00"}},
+        "2026-10-28 (start)", "2026-10-29\\end");
+    CHECK(escaped_pdf.find("2026-10-28 \\(start\\)") != std::string::npos);
+    CHECK(escaped_pdf.find("2026-10-29\\\\end") != std::string::npos);
+    CHECK(escaped_pdf.find("2026-10-28 \\(revised\\)\\\\final") !=
+          std::string::npos);
+
+    const std::string empty_pdf =
+        hms::reports::to_pdf({}, "2026-10-30", "2026-10-30");
+    CHECK(empty_pdf.find("/Count 1") != std::string::npos);
+    CHECK(empty_pdf.find("/Type /Page ") != std::string::npos);
+
     std::vector<hms::reports::DailyReportRow> multi_page(43);
     for (std::size_t i = 0; i < multi_page.size(); ++i) {
         multi_page[i].date = "2026-10-26";

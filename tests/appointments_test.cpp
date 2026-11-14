@@ -42,7 +42,11 @@ static int weekday(const std::string& date) {
 }
 
 static std::string integration_test_date() {
-    return test_support::integration_test_date();
+    const auto half_hour_bucket =
+        std::chrono::duration_cast<std::chrono::minutes>(
+            std::chrono::system_clock::now().time_since_epoch())
+            .count() / 30;
+    return test_support::date_from_half_hour_bucket(half_hour_bucket + 48);
 }
 
 static void test_postgres_repository_when_enabled() {
@@ -62,7 +66,25 @@ static void test_postgres_repository_when_enabled() {
 
     const auto duplicate = repository.insert(appointment);
     CHECK(duplicate.status == hms::SaveStatus::SlotTaken);
-    CHECK(repository.booked_times(1, date).size() == 1);
+    hms::Appointment second_appointment{
+        0, "PID-00000002", 1, date + " 10:00", {}};
+    const auto second_saved = repository.insert(second_appointment);
+    CHECK(second_saved.status == hms::SaveStatus::Ok);
+
+    hms::Appointment loaded;
+    CHECK(repository.find_by_id(saved.appointment.id, loaded));
+    CHECK(loaded.status == "Confirmed");
+    CHECK(!repository.find_by_id(-1, loaded));
+    CHECK(repository.reschedule(
+        saved.appointment.id, date + " 10:00") == hms::SaveStatus::SlotTaken);
+    CHECK(repository.reschedule(
+        saved.appointment.id, date + " 09:30") == hms::SaveStatus::Ok);
+    CHECK(repository.reschedule(
+        -1, date + " 11:00") == hms::SaveStatus::SlotTaken);
+    CHECK(repository.booked_times(1, date).size() == 2);
+
+    CHECK(repository.update_status(second_saved.appointment.id, "Cancelled"));
+    CHECK(!repository.update_status(second_saved.appointment.id, "Cancelled"));
     const auto scheduled = repository.appointments_for_doctor_on(1, date);
     CHECK(scheduled.size() == 1);
     CHECK(scheduled.front().id == saved.appointment.id);
@@ -72,7 +94,17 @@ static void test_postgres_repository_when_enabled() {
     CHECK(repository.doctor_id_for_user("999999").empty());
     const auto report = repository.daily_report(date, date);
     CHECK(report.size() == 1);
-    CHECK(report.front().appointment_count == 1);
+    CHECK(report.front().appointment_count == 2);
+    CHECK(report.front().confirmed_count == 1);
+    CHECK(report.front().cancelled_count == 1);
+    CHECK([&] {
+        try {
+            (void)repository.booked_times(1, "not-a-date");
+        } catch (const std::runtime_error&) {
+            return true;
+        }
+        return false;
+    }());
 }
 
 namespace {
@@ -163,6 +195,50 @@ int main() {
     CHECK(weekday("2026-10-26") == 1);
     CHECK(hms::free_slots(repo, 1, "2026-10-27").empty());
     CHECK(hms::free_slots(repo, 1, "2026-10-30").size() == 6);
+    CHECK(hms::free_slots(repo, 99, "2026-10-26").empty());
+
+    CHECK(hms::slots_for_date("", "2026-10-26").empty());
+    CHECK(hms::slots_for_date("{}", "2026-10-26").empty());
+    CHECK(hms::slots_for_date("{\"monday\"}", "2026-10-26").empty());
+    CHECK(hms::slots_for_date("{\"monday\": }", "2026-10-26").empty());
+    CHECK(hms::slots_for_date("{\"monday\":\"09:00-13:00}", "2026-10-26")
+              .empty());
+    CHECK(hms::slots_for_date("{\"monday\":\"bad\"}", "2026-10-26")
+              .empty());
+    CHECK(hms::slots_for_date("{\"monday\":\"9:00-13:00\"}", "2026-10-26")
+              .empty());
+    CHECK(hms::slots_for_date("{\"monday\":\"09-13:00\"}", "2026-10-26")
+              .empty());
+    CHECK(hms::slots_for_date("{\"monday\":\"24:00-25:00\"}", "2026-10-26")
+              .empty());
+    CHECK(hms::slots_for_date("{\"monday\":\"09:60-10:00\"}", "2026-10-26")
+              .empty());
+    CHECK(hms::slots_for_date("{\"monday\":\"10:00-09:00\"}", "2026-10-26")
+              .empty());
+    CHECK(hms::slots_for_date("{\"monday\":\"09:00-09:29\"}", "2026-10-26")
+              .empty());
+    CHECK(hms::slots_for_date("{\"monday\":\"09:00-10:00\"}", "2026-10-26")
+              == std::vector<std::string>({"09:00", "09:30"}));
+
+    CHECK(hms::next_free_slots(repo, 1, "2026-10-26", "09:00", 0).empty());
+
+    const auto missing_patient = repo.insert({
+        0, "PID-99999999", 1, "2026-10-26 09:00", "Confirmed"
+    });
+    CHECK(missing_patient.status == hms::SaveStatus::PatientMissing);
+    const auto missing_doctor = repo.insert({
+        0, "PID-00000001", 99, "2026-10-26 09:00", "Confirmed"
+    });
+    CHECK(missing_doctor.status == hms::SaveStatus::DoctorMissing);
+
+    CHECK(!hms::book_appointment(
+        repo, "PID-00000001", 0, "2026-10-26", "09:00", test_now()).ok);
+    CHECK(hms::book_appointment(
+        repo, "PID-00000001", 1, "2026-10-26", "not-a-time", test_now())
+              .field == "time");
+    CHECK(hms::book_appointment(
+        repo, "PID-00000001", 99, "2026-10-26", "09:00", test_now())
+              .code == "NOT_FOUND");
 
     // Find a future Monday for successful booking tests.
     std::string monday;
