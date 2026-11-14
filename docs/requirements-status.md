@@ -14,7 +14,10 @@ Coverage) are in `docs/reports/`. Automated evidence includes 16 CTest suites
 passing on Ubuntu and Windows CI, a PostgreSQL-enabled coverage run, and a
 four-second Qt startup smoke check. Service line coverage measured 91.66% and
 branch coverage measured 54.69%; the Test Plan sets no branch-coverage
-threshold.
+threshold. On 2026-11-15, local Windows and WSL reruns again passed all 16
+registered CTest suites. Read-only checks against the running local server
+also passed TLS health/readiness and confirmed unauthenticated user listing is
+rejected.
 
 The project owner also reports manually logging in and exercising application
 workflows. Individual manual case IDs, outcomes, and evidence were not supplied

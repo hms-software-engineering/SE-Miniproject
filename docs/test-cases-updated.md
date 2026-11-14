@@ -49,12 +49,15 @@ automatically pass the full manual or system-level test case.
 
 ## Execution record and scope
 
-See the dated reports in `docs/reports/`. As of 2026-11-14, all 16 CTest
-suites passed on Windows and Ubuntu, the PostgreSQL-enabled coverage-job tests
-passed, line and branch coverage were captured, and the Qt client startup
-smoke check passed. The project owner also reports manually logging in and
-testing application workflows; the specific manual case IDs, outcomes, and
-evidence were not supplied in a case-by-case execution log.
+See the dated reports in `docs/reports/`. CI on Ubuntu and Windows passed all
+16 CTest suites, and the PostgreSQL-enabled coverage-job tests passed. On
+2026-11-15, the existing Windows and WSL builds were rerun locally and again
+passed all 16 suites. A live local check also passed the TLS health/readiness
+endpoints and confirmed unauthenticated user listing is rejected. Line and
+branch coverage were captured, and the Qt client startup smoke check passed.
+The project owner also reports manually logging in and testing application
+workflows; the specific manual case IDs, outcomes, and evidence were not
+supplied in a case-by-case execution log.
 
 The test cases above are the updated test oracles and execution checklist.
 They must not be interpreted as proof that every listed case passed. The
