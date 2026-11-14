@@ -42,6 +42,7 @@ private:
     QComboBox *genderInput;
     QLineEdit *phoneInput;
     QLineEdit *addressInput;
+    QLineEdit *allergiesInput;
     QLabel *statusLabel;
     QPushButton *submitButton;
     QPushButton *newPatientButton;

@@ -205,17 +205,17 @@ void LoginWindow::showRoleMenu(const QString &role)
     navigation->clear();
     QStringList options;
     if (role.compare("Patient", Qt::CaseInsensitive) == 0) {
-        options << "My Profile" << "Appointments";
+        options << "My Profile" << "Appointments" << "My Records";
     } else if (role.compare("Receptionist", Qt::CaseInsensitive) == 0) {
         options << "Patient Management" << "Appointments";
     } else if (role.compare("Doctor", Qt::CaseInsensitive) == 0) {
         options << "Patient Search" << "Consultations";
     } else if (role.compare("Administrator", Qt::CaseInsensitive) == 0 ||
                role.compare("Admin", Qt::CaseInsensitive) == 0) {
-        options << "User Management";
+        options << "User Management" << "Audit Log" << "Reports";
     } else if (role.compare("Billing Officer", Qt::CaseInsensitive) == 0 ||
                role.compare("BillingOfficer", Qt::CaseInsensitive) == 0) {
-        options.clear();
+        options << "Billing" << "Reports";
     } else {
         showLoginError("The server returned an unrecognized user role.");
         apiClient->logout();
@@ -228,10 +228,9 @@ void LoginWindow::showRoleMenu(const QString &role)
         QString("%1 | %2").arg(activeUsername, activeRole));
     workAreaLabel->setText(
         options.isEmpty()
-            ? "No Sprint 1 desktop workflows are assigned to this role."
-            : "Choose a Sprint 1 workflow from the menu. "
-              "This build includes working patient, appointment, "
-              "consultation, and account-management screens.");
+            ? "No desktop workflows are currently available for this role."
+            : "Choose an available workflow from the menu. "
+              "Your account permissions are enforced by the HMS server.");
     pages->setCurrentWidget(dashboardPage);
 }
 
@@ -276,8 +275,24 @@ void LoginWindow::handleMenuSelection(int row)
         showWorkflow(WorkflowWindow::Workflow::PatientProfile);
         return;
     }
+    if (option == "My Records") {
+        showWorkflow(WorkflowWindow::Workflow::PatientRecords);
+        return;
+    }
+    if (option == "Billing") {
+        showWorkflow(WorkflowWindow::Workflow::Billing);
+        return;
+    }
+    if (option == "Reports") {
+        showWorkflow(WorkflowWindow::Workflow::Reports);
+        return;
+    }
+    if (option == "Audit Log") {
+        showWorkflow(WorkflowWindow::Workflow::AuditLog);
+        return;
+    }
     statusBar()->showMessage(
-        QString("No Sprint 1 workflow is available for \"%1\".").arg(option),
+        QString("No workflow is available for \"%1\".").arg(option),
         5000);
 }
 

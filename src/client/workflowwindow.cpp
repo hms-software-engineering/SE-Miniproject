@@ -5,6 +5,8 @@
 #include <QComboBox>
 #include <QDate>
 #include <QDateEdit>
+#include <QFile>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -12,7 +14,10 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QInputDialog>
+#include <QJsonDocument>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QTextEdit>
@@ -48,7 +53,28 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
       profileDateOfBirthInput(new QLineEdit(this)),
       profileGenderInput(new QComboBox(this)),
       profilePhoneInput(new QLineEdit(this)),
-      profileAddressInput(new QLineEdit(this))
+      profileAddressInput(new QLineEdit(this)),
+      scheduleDateInput(new QDateEdit(this)),
+      scheduleRow(new QWidget(this)),
+      scheduledAppointmentInput(new QComboBox(this)),
+      patientContextLabel(new QLabel(this)),
+      billVisitIdInput(new QLineEdit(this)),
+      billItemsInput(new QTextEdit(this)),
+      billIdInput(new QLineEdit(this)),
+      paymentAmountInput(new QLineEdit(this)),
+      paymentModeInput(new QComboBox(this)),
+      receiptPaymentIdInput(new QLineEdit(this)),
+      reportStartDateInput(new QDateEdit(this)),
+      reportEndDateInput(new QDateEdit(this)),
+      reportFormatInput(new QComboBox(this)),
+      auditUsernameInput(new QLineEdit(this)),
+      auditFromInput(new QLineEdit(this)),
+      auditToInput(new QLineEdit(this)),
+      auditActionInput(new QComboBox(this)),
+      resultOutput(new QTextEdit(this)),
+      targetUserIdInput(new QLineEdit(this)),
+      managedUsersInput(new QComboBox(this)),
+      managedRoleInput(new QComboBox(this))
 {
     setModal(true);
     auto *root = new QVBoxLayout(this);
@@ -126,12 +152,26 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
             "consultation.";
         resize(620, 560);
         appointmentIdInput->setPlaceholderText("Confirmed appointment ID");
+        scheduleDateInput->setCalendarPopup(true);
+        scheduleDateInput->setDisplayFormat("yyyy-MM-dd");
+        scheduleDateInput->setDate(QDate::currentDate());
+        auto *loadScheduleButton = new QPushButton("Load my appointments", this);
+        auto *scheduleLayout = new QHBoxLayout(scheduleRow);
+        scheduleLayout->setContentsMargins(0, 0, 0, 0);
+        scheduleLayout->addWidget(scheduleDateInput);
+        scheduleLayout->addWidget(loadScheduleButton);
+        patientContextLabel->setWordWrap(true);
+        patientContextLabel->setText(
+            "Select an appointment to load patient identity and allergy details.");
         symptomsInput->setPlaceholderText("Symptoms");
         symptomsInput->setMaximumHeight(90);
         diagnosisInput->setPlaceholderText("Diagnosis");
         notesInput->setPlaceholderText("Notes (optional)");
         notesInput->setMaximumHeight(90);
+        form->addRow("My schedule *", scheduleRow);
+        form->addRow("Select appointment", scheduledAppointmentInput);
         form->addRow("Appointment ID *", appointmentIdInput);
+        form->addRow("Patient context", patientContextLabel);
         form->addRow("Symptoms *", symptomsInput);
         form->addRow("Diagnosis *", diagnosisInput);
         form->addRow("Notes", notesInput);
@@ -163,12 +203,17 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
         root->addWidget(prescriptionPanel);
         connect(primaryButton, &QPushButton::clicked,
                 this, &WorkflowWindow::recordVisit);
+        connect(loadScheduleButton, &QPushButton::clicked,
+                this, &WorkflowWindow::loadMySchedule);
+        connect(scheduledAppointmentInput,
+                qOverload<int>(&QComboBox::currentIndexChanged),
+                this, &WorkflowWindow::selectScheduledAppointment);
         connect(addPrescriptionButton, &QPushButton::clicked,
                 this, &WorkflowWindow::addPrescription);
         break;
     }
     case Workflow::UserManagement: {
-        setWindowTitle("Create user account");
+        setWindowTitle("User management");
         helpText =
             "1. Enter a username.\n"
             "2. Enter a password with at least 8 characters, including an "
@@ -177,7 +222,7 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
             "3. Choose the account role and select Create account.\n\n"
             "For a Doctor account, note the doctor ID shown in the "
             "confirmation.";
-        resize(520, 360);
+        resize(560, 440);
         usernameInput->setPlaceholderText("Username");
         passwordInput->setPlaceholderText("Password");
         passwordInput->setEchoMode(QLineEdit::Password);
@@ -196,6 +241,66 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
         root->addLayout(form);
         root->addWidget(statusLabel);
         root->addWidget(primaryButton);
+        auto *refreshUsersButton = new QPushButton("Refresh user list", this);
+        managedRoleInput->addItems({"Receptionist", "Patient",
+                                    "Billing Officer", "Administrator"});
+        auto *roleUpdateButton = new QPushButton("Update selected role", this);
+        auto *roleRow = new QHBoxLayout;
+        roleRow->addWidget(managedUsersInput, 2);
+        roleRow->addWidget(managedRoleInput, 1);
+        root->addLayout(roleRow);
+        auto *accountActions = new QHBoxLayout;
+        accountActions->addWidget(refreshUsersButton);
+        accountActions->addWidget(roleUpdateButton);
+        root->addLayout(accountActions);
+        targetUserIdInput->setPlaceholderText("Target user ID");
+        auto *deactivateButton = new QPushButton("Deactivate account", this);
+        auto *deactivateRow = new QHBoxLayout;
+        deactivateRow->addWidget(targetUserIdInput);
+        deactivateRow->addWidget(deactivateButton);
+        root->addLayout(deactivateRow);
+        connect(deactivateButton, &QPushButton::clicked,
+                this, &WorkflowWindow::deactivateUser);
+        connect(refreshUsersButton, &QPushButton::clicked, this, [this]() {
+            showStatus("Loading user accounts...");
+            apiClient->getUsers();
+        });
+        connect(managedUsersInput,
+                qOverload<int>(&QComboBox::currentIndexChanged),
+                this, [this, roleUpdateButton](int index) {
+            if (index < 0) return;
+            targetUserIdInput->setText(
+                managedUsersInput->currentData().toString());
+            const QString selectedRole =
+                managedUsersInput->itemData(index, Qt::UserRole + 1).toString();
+            const int roleIndex = managedRoleInput->findText(selectedRole);
+            if (roleIndex >= 0) managedRoleInput->setCurrentIndex(roleIndex);
+            const bool doctorAccount = selectedRole == "Doctor";
+            roleUpdateButton->setEnabled(!doctorAccount);
+            if (doctorAccount) {
+                showStatus(
+                    "Doctor role changes require doctor-profile management.");
+            }
+        });
+        connect(roleUpdateButton, &QPushButton::clicked, this, [this]() {
+            const QString userId =
+                managedUsersInput->currentData().toString();
+            if (userId.isEmpty()) {
+                showStatus("Refresh the user list and select an account.");
+                return;
+            }
+            if (QMessageBox::question(
+                    this, "Confirm role change",
+                    QString("Change user %1 to %2?")
+                        .arg(userId, managedRoleInput->currentText())) !=
+                QMessageBox::Yes) {
+                showStatus("Role change cancelled.");
+                return;
+            }
+            showStatus("Updating account role...");
+            apiClient->changeUserRole(
+                userId, managedRoleInput->currentText());
+        });
         connect(primaryButton, &QPushButton::clicked,
                 this, &WorkflowWindow::createUser);
         break;
@@ -246,6 +351,153 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
         });
         break;
     }
+    case Workflow::PatientRecords: {
+        setWindowTitle("My health records");
+        helpText =
+            "Choose whether to load your own clinical history or bills. "
+            "The server restricts these endpoints to the signed-in patient's "
+            "linked records.";
+        resize(700, 520);
+        auto *historyButton = new QPushButton("Load my clinical history", this);
+        auto *billsButton = new QPushButton("Load my bills", this);
+        resultOutput->setReadOnly(true);
+        resultOutput->setPlaceholderText("Your records appear here.");
+        root->addWidget(new QLabel(
+            "Only records linked to your signed-in patient account are shown.",
+            this));
+        root->addWidget(resultOutput, 1);
+        root->addWidget(statusLabel);
+        auto *recordActions = new QHBoxLayout;
+        recordActions->addWidget(historyButton);
+        recordActions->addWidget(billsButton);
+        root->addLayout(recordActions);
+        primaryButton->hide();
+        connect(historyButton, &QPushButton::clicked, this, [this]() {
+            showStatus("Loading your clinical history...");
+            apiClient->getMyRecords("history");
+        });
+        connect(billsButton, &QPushButton::clicked, this, [this]() {
+            showStatus("Loading your bills...");
+            apiClient->getMyRecords("bills");
+        });
+        break;
+    }
+    case Workflow::Billing: {
+        setWindowTitle("Billing and payments");
+        helpText =
+            "Create one itemized bill for a visit, record payments against "
+            "its bill ID, and download a receipt using the returned payment ID.";
+        resize(680, 720);
+        billVisitIdInput->setPlaceholderText("Visit ID");
+        billItemsInput->setPlaceholderText(
+            "One item per line: description | amount (e.g. Consultation | 500.00)");
+        billItemsInput->setMaximumHeight(100);
+        auto *createBillButton = new QPushButton("Create itemized bill", this);
+        auto *billForm = new QFormLayout;
+        billForm->addRow("Visit ID *", billVisitIdInput);
+        billForm->addRow("Items *", billItemsInput);
+        root->addWidget(new QLabel(
+            "Create bills from completed visits. Tax is applied by the server.",
+            this));
+        root->addLayout(billForm);
+        root->addWidget(createBillButton);
+
+        billIdInput->setPlaceholderText("Bill ID");
+        paymentAmountInput->setPlaceholderText("Amount, e.g. 100.00");
+        paymentModeInput->addItems({"Cash", "Card", "UPI"});
+        auto *paymentButton = new QPushButton("Record payment", this);
+        auto *paymentForm = new QFormLayout;
+        paymentForm->addRow("Bill ID *", billIdInput);
+        paymentForm->addRow("Amount *", paymentAmountInput);
+        paymentForm->addRow("Mode *", paymentModeInput);
+        root->addWidget(new QLabel("Record a payment", this));
+        root->addLayout(paymentForm);
+        root->addWidget(paymentButton);
+
+        receiptPaymentIdInput->setPlaceholderText("Payment ID");
+        auto *receiptButton = new QPushButton("Download receipt", this);
+        auto *receiptForm = new QFormLayout;
+        receiptForm->addRow("Payment ID *", receiptPaymentIdInput);
+        root->addWidget(new QLabel("Retrieve a payment receipt", this));
+        root->addLayout(receiptForm);
+        root->addWidget(receiptButton);
+        resultOutput->setReadOnly(true);
+        resultOutput->setMaximumHeight(130);
+        root->addWidget(resultOutput);
+        root->addWidget(statusLabel);
+        primaryButton->hide();
+        connect(createBillButton, &QPushButton::clicked,
+                this, &WorkflowWindow::createBill);
+        connect(paymentButton, &QPushButton::clicked,
+                this, &WorkflowWindow::recordPayment);
+        connect(receiptButton, &QPushButton::clicked,
+                this, &WorkflowWindow::loadReceipt);
+        break;
+    }
+    case Workflow::Reports: {
+        setWindowTitle("Appointment and revenue reports");
+        helpText =
+            "Choose an inclusive date range and CSV or PDF. The report is "
+            "generated by the server and saved to a file you select.";
+        resize(620, 380);
+        for (auto *date : {reportStartDateInput, reportEndDateInput}) {
+            date->setCalendarPopup(true);
+            date->setDisplayFormat("yyyy-MM-dd");
+            date->setDate(QDate::currentDate());
+        }
+        reportStartDateInput->setDate(
+            QDate::currentDate().addDays(-7));
+        reportFormatInput->addItems({"CSV", "PDF"});
+        form->addRow("Start date *", reportStartDateInput);
+        form->addRow("End date *", reportEndDateInput);
+        form->addRow("Format *", reportFormatInput);
+        primaryButton->setText("Generate and save report");
+        root->addLayout(form);
+        root->addWidget(statusLabel);
+        root->addWidget(primaryButton);
+        connect(primaryButton, &QPushButton::clicked,
+                this, &WorkflowWindow::generateReport);
+        break;
+    }
+    case Workflow::AuditLog: {
+        setWindowTitle("Administrator audit log");
+        helpText =
+            "Optionally filter the audit log by username, action, and inclusive "
+            "date range. Audit entries exclude passwords and clinical payloads.";
+        resize(780, 600);
+        auditUsernameInput->setPlaceholderText("Username (optional)");
+        auditFromInput->setPlaceholderText("From date YYYY-MM-DD (optional)");
+        auditToInput->setPlaceholderText("To date YYYY-MM-DD (optional)");
+        auditActionInput->addItem("All actions", "");
+        for (const QString &action : {
+                 "LOGIN", "LOGIN_FAILED", "LOGOUT", "VIEW_ACCOUNT",
+                 "VIEW_AUDIT_LOG", "GENERATE_DAILY_REPORT",
+                 "VIEW_PATIENT_HISTORY", "VIEW_PATIENT",
+                 "CREATE_PATIENT_PROFILE", "VIEW_OWN_SCHEDULE",
+                 "VIEW_FREE_SLOTS", "CREATE_PATIENT", "UPDATE_PATIENT",
+                 "DEACTIVATE_USER", "UPDATE_USER_ROLE", "CREATE_USER",
+                 "CREATE_APPOINTMENT", "CANCEL_APPOINTMENT",
+                 "RESCHEDULE_APPOINTMENT", "CREATE_VISIT",
+                 "CREATE_PRESCRIPTION", "CREATE_BILL", "RECORD_PAYMENT",
+                 "VIEW_RECEIPT", "UPDATE_PATIENT_ALLERGIES",
+                 "OVERRIDE_ALLERGY_WARNING", "VIEW_VISIT_HISTORY",
+                 "VIEW_OWN_HISTORY", "VIEW_OWN_BILLS"})
+            auditActionInput->addItem(action, action);
+        form->addRow("Username", auditUsernameInput);
+        form->addRow("Action", auditActionInput);
+        form->addRow("From", auditFromInput);
+        form->addRow("To", auditToInput);
+        resultOutput->setReadOnly(true);
+        auto *loadAuditButton = new QPushButton("Load audit entries", this);
+        root->addLayout(form);
+        root->addWidget(loadAuditButton);
+        root->addWidget(resultOutput, 1);
+        root->addWidget(statusLabel);
+        primaryButton->hide();
+        connect(loadAuditButton, &QPushButton::clicked,
+                this, &WorkflowWindow::loadAuditLog);
+        break;
+    }
     }
 
     connect(helpButton, &QPushButton::clicked, this, [this, helpText]() {
@@ -283,6 +535,10 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
         hideField(symptomsInput);
         hideField(diagnosisInput);
         hideField(notesInput);
+        hideField(scheduleDateInput);
+        hideField(scheduleRow);
+        hideField(scheduledAppointmentInput);
+        hideField(patientContextLabel);
         prescriptionPanel->hide();
     }
     if (workflow != Workflow::UserManagement) {
@@ -297,11 +553,84 @@ WorkflowWindow::WorkflowWindow(ApiClient *client, Workflow selectedWorkflow,
         hideField(profilePhoneInput);
         hideField(profileAddressInput);
     }
+    if (workflow != Workflow::AuditLog) {
+        hideField(auditUsernameInput);
+        hideField(auditActionInput);
+        hideField(auditFromInput);
+        hideField(auditToInput);
+    }
 
     connect(apiClient, &ApiClient::workflowOperationSucceeded,
             this, &WorkflowWindow::handleSuccess);
     connect(apiClient, &ApiClient::workflowOperationFailed,
             this, &WorkflowWindow::handleFailure);
+    connect(apiClient, &ApiClient::workflowArraySucceeded,
+            this, &WorkflowWindow::handleArraySuccess);
+    connect(apiClient, &ApiClient::prescriptionAllergyWarning,
+            this, [this](const QString &message) {
+        if (workflow != Workflow::Consultation) {
+            return;
+        }
+        bool accepted = false;
+        const QString reason = QInputDialog::getText(
+            this, "Allergy warning",
+            message + "\n\nEnter a reason to override this warning:",
+            QLineEdit::Normal, QString(), &accepted).trimmed();
+        if (!accepted) {
+            showStatus("Prescription was not saved; the allergy warning "
+                       "was not overridden.");
+            return;
+        }
+        if (reason.isEmpty()) {
+            showStatus("An override reason is required. The prescription "
+                       "was not saved.");
+            return;
+        }
+        setBusy(true);
+        showStatus("Submitting the prescription with the override reason...");
+        apiClient->addPrescription(
+            visitIdInput->text(), medicineInput->text().trimmed(),
+            dosageInput->text().trimmed(), frequencyInput->text().trimmed(),
+            QString::number(durationInput->value()), reason);
+    });
+    connect(apiClient, &ApiClient::workflowDownloadSucceeded,
+            this, [this](const QString &operation, const QByteArray &data,
+                         const QString &contentType) {
+        if ((operation != "report" && operation != "receipt") ||
+            data.isEmpty()) {
+            if (data.isEmpty()) showStatus("The server returned an empty file.");
+            return;
+        }
+        setBusy(false);
+        QString suggestedName;
+        if (operation == "receipt") {
+            suggestedName = QString("receipt-%1.html")
+                                .arg(receiptPaymentIdInput->text());
+        } else {
+            suggestedName = QString("daily-report-%1.%2")
+                .arg(QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss"),
+                     reportFormatInput->currentText().toLower());
+        }
+        const QString filter = operation == "receipt"
+            ? "HTML files (*.html)" : "Report files (*." +
+                reportFormatInput->currentText().toLower() + ")";
+        const QString fileName = QFileDialog::getSaveFileName(
+            this, "Save " + operation, suggestedName, filter);
+        if (fileName.isEmpty()) {
+            showStatus("Download cancelled; no file was written.");
+            return;
+        }
+        QFile file(fileName);
+        if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size()) {
+            const QString error = file.errorString();
+            file.close();
+            showStatus("Could not save the downloaded file: " + error);
+            return;
+        }
+        file.close();
+        showStatus(QString("%1 saved (%2).")
+                       .arg(fileName, contentType), true);
+    });
 }
 
 void WorkflowWindow::loadFreeSlots()
@@ -415,6 +744,138 @@ void WorkflowWindow::createUser()
                           passwordInput->text(), roleInput->currentText());
 }
 
+void WorkflowWindow::deactivateUser()
+{
+    bool valid = false;
+    const qlonglong userId = targetUserIdInput->text().trimmed()
+                                 .toLongLong(&valid);
+    if (!valid || userId <= 0) {
+        showStatus("Enter a positive target user ID.");
+        return;
+    }
+    if (QMessageBox::question(
+            this, "Confirm account deactivation",
+            QString("Deactivate user %1? They will no longer be able to sign in.")
+                .arg(userId)) != QMessageBox::Yes) {
+        showStatus("Account deactivation cancelled.");
+        return;
+    }
+    showStatus("Deactivating account...");
+    apiClient->deactivateUser(QString::number(userId));
+}
+
+void WorkflowWindow::createBill()
+{
+    bool validVisitId = false;
+    const qlonglong visitId = billVisitIdInput->text().trimmed()
+                                  .toLongLong(&validVisitId);
+    const QStringList lines = billItemsInput->toPlainText()
+                                  .split('\n', Qt::SkipEmptyParts);
+    if (!validVisitId || visitId <= 0 || lines.isEmpty() || lines.size() > 100) {
+        showStatus("Enter a valid visit ID and between 1 and 100 bill items.");
+        return;
+    }
+    QJsonArray items;
+    for (const QString &line : lines) {
+        const QStringList fields = line.split('|');
+        if (fields.size() != 2 || fields[0].trimmed().isEmpty() ||
+            fields[1].trimmed().isEmpty()) {
+            showStatus("Each bill item must be entered as description | amount.");
+            return;
+        }
+        items.append(QJsonObject{
+            {"description", fields[0].trimmed()},
+            {"amount", fields[1].trimmed()}
+        });
+    }
+    showStatus("Creating itemized bill...");
+    apiClient->createBill(QString::number(visitId), items);
+}
+
+void WorkflowWindow::recordPayment()
+{
+    bool validBillId = false;
+    const qlonglong billId = billIdInput->text().trimmed()
+                                 .toLongLong(&validBillId);
+    const QString amount = paymentAmountInput->text().trimmed();
+    if (!validBillId || billId <= 0 || amount.isEmpty()) {
+        showStatus("Enter a positive bill ID and payment amount.");
+        return;
+    }
+    showStatus("Recording payment...");
+    apiClient->recordPayment(QString::number(billId), amount,
+                             paymentModeInput->currentText());
+}
+
+void WorkflowWindow::loadReceipt()
+{
+    bool validPaymentId = false;
+    const qlonglong paymentId = receiptPaymentIdInput->text().trimmed()
+                                    .toLongLong(&validPaymentId);
+    if (!validPaymentId || paymentId <= 0) {
+        showStatus("Enter a positive payment ID.");
+        return;
+    }
+    showStatus("Retrieving receipt...");
+    apiClient->getReceipt(QString::number(paymentId));
+}
+
+void WorkflowWindow::generateReport()
+{
+    const QDate start = reportStartDateInput->date();
+    const QDate end = reportEndDateInput->date();
+    if (start > end) {
+        showStatus("The report start date must not follow its end date.");
+        return;
+    }
+    setBusy(true);
+    showStatus("Generating report...");
+    apiClient->getReport(start.toString("yyyy-MM-dd"),
+                         end.toString("yyyy-MM-dd"),
+                         reportFormatInput->currentText().toLower());
+}
+
+void WorkflowWindow::loadAuditLog()
+{
+    const QString from = auditFromInput->text().trimmed();
+    const QString to = auditToInput->text().trimmed();
+    const auto validDate = [](const QString &value) {
+        if (value.isEmpty()) return true;
+        const QDate parsed = QDate::fromString(value, "yyyy-MM-dd");
+        return parsed.isValid() && parsed.toString("yyyy-MM-dd") == value;
+    };
+    if (!validDate(from) || !validDate(to) ||
+        (!from.isEmpty() && !to.isEmpty() && from > to)) {
+        showStatus("Enter valid ISO dates and ensure From does not follow To.");
+        return;
+    }
+    resultOutput->clear();
+    showStatus("Loading audit entries...");
+    apiClient->getAuditLog(
+        auditUsernameInput->text().trimmed(),
+        auditActionInput->currentData().toString(), from, to);
+}
+
+void WorkflowWindow::loadMySchedule()
+{
+    scheduledAppointmentInput->clear();
+    patientContextLabel->setText("Loading your appointments...");
+    apiClient->getMySchedule(scheduleDateInput->date().toString("yyyy-MM-dd"));
+}
+
+void WorkflowWindow::selectScheduledAppointment(int index)
+{
+    if (index < 0) return;
+    const QString appointmentId =
+        scheduledAppointmentInput->itemData(index).toString();
+    const QString patientId =
+        scheduledAppointmentInput->itemData(index, Qt::UserRole + 1).toString();
+    if (appointmentId.isEmpty() || patientId.isEmpty()) return;
+    appointmentIdInput->setText(appointmentId);
+    patientContextLabel->setText("Loading patient details...");
+    apiClient->getPatientDetails(patientId);
+}
+
 void WorkflowWindow::handleSuccess(const QString &operation,
                                    const QJsonObject &response)
 {
@@ -432,6 +893,29 @@ void WorkflowWindow::handleSuccess(const QString &operation,
             showStatus(
                 QString("%1 available time(s).").arg(availableSlots.size()),
                 true);
+        }
+        return;
+    }
+    if (operation == "myHistory" || operation == "myBills" ||
+        operation == "patientDetails") {
+        const QJsonObject display =
+            operation == "patientDetails"
+                ? response.value("patient").toObject()
+                : response;
+        if (operation == "patientDetails") {
+            const QString name = display.value("name").toString();
+            const QString allergies = display.value("allergies").toString();
+            patientContextLabel->setText(
+                QString("Patient: %1 (%2)\nAllergies: %3")
+                    .arg(name.isEmpty() ? "Name unavailable" : name,
+                         display.value("patientId").toString(),
+                         allergies.isEmpty()
+                             ? "No allergy information recorded"
+                             : allergies));
+        } else {
+            resultOutput->setPlainText(
+                QJsonDocument(display).toJson(QJsonDocument::Indented));
+            showStatus("Records loaded.", true);
         }
         return;
     }
@@ -479,6 +963,38 @@ void WorkflowWindow::handleSuccess(const QString &operation,
         showStatus(details, true);
         usernameInput->clear();
         passwordInput->clear();
+        if (!userId.isEmpty()) targetUserIdInput->setText(userId);
+    } else if (operation == "deactivateUser") {
+        showStatus(response.value("message").toString(
+                       "Account deactivated."),
+                   true);
+        targetUserIdInput->clear();
+        showStatus("Account deactivated. Refresh the user list to update it.",
+                   true);
+    } else if (operation == "changeUserRole") {
+        showStatus(response.value("message").toString(
+                       "User role updated. Refresh the list to verify."),
+                   true);
+        apiClient->getUsers();
+    } else if (operation == "createBill") {
+        const QJsonObject bill = response.value("bill").toObject();
+        const QString billId = bill.value("billId").toVariant().toString();
+        if (!billId.isEmpty()) billIdInput->setText(billId);
+        resultOutput->setPlainText(
+            QJsonDocument(bill).toJson(QJsonDocument::Indented));
+        showStatus(QString("Bill %1 created. Total: %2.")
+                       .arg(billId, bill.value("total").toString()),
+                   true);
+    } else if (operation == "recordPayment") {
+        const QJsonObject payment = response.value("payment").toObject();
+        const QString paymentId =
+            payment.value("paymentId").toVariant().toString();
+        if (!paymentId.isEmpty()) receiptPaymentIdInput->setText(paymentId);
+        resultOutput->setPlainText(
+            QJsonDocument(payment).toJson(QJsonDocument::Indented));
+        showStatus(QString("Payment recorded. Outstanding balance: %1.")
+                       .arg(payment.value("balance").toString()),
+                   true);
     } else if (operation == "createMyProfile") {
         const QJsonObject patient = response.value("patient").toObject();
         showStatus(
@@ -486,7 +1002,83 @@ void WorkflowWindow::handleSuccess(const QString &operation,
                 .arg(patient.value("patientId").toString()),
             true);
         primaryButton->setEnabled(false);
+    } else if (operation == "mySchedule") {
+        showStatus("Schedule loaded.", true);
     }
+}
+
+void WorkflowWindow::handleArraySuccess(const QString &operation,
+                                        const QJsonArray &response)
+{
+    if (operation == "userList") {
+        {
+            const QSignalBlocker blocker(managedUsersInput);
+            managedUsersInput->clear();
+            for (const QJsonValue &value : response) {
+                const QJsonObject user = value.toObject();
+                const QString userId = user.value("userId").toString();
+                const QString username = user.value("username").toString();
+                const QString role = user.value("role").toString();
+                if (userId.isEmpty() || username.isEmpty()) continue;
+                const QString doctorId =
+                    user.value("doctorId").isString()
+                        ? QString("; doctor ID %1")
+                              .arg(user.value("doctorId").toString())
+                        : QString();
+                managedUsersInput->addItem(
+                    QString("%1 — %2 — %3%4")
+                        .arg(userId, username, role, doctorId)
+                        .append(user.value("active").toBool()
+                                    ? QString()
+                                    : " — inactive"),
+                    userId);
+                managedUsersInput->setItemData(
+                    managedUsersInput->count() - 1, role, Qt::UserRole + 1);
+            }
+        }
+        if (managedUsersInput->count() > 0) {
+            managedUsersInput->setCurrentIndex(0);
+        } else {
+            targetUserIdInput->clear();
+        }
+        showStatus(QString("%1 account(s) loaded.")
+                       .arg(managedUsersInput->count()),
+                   true);
+        return;
+    }
+    if (operation == "auditLog") {
+        resultOutput->setPlainText(
+            QJsonDocument(response).toJson(QJsonDocument::Indented));
+        showStatus("Audit entries loaded.", true);
+        return;
+    }
+    if (operation != "mySchedule") return;
+    scheduledAppointmentInput->clear();
+    for (const QJsonValue &value : response) {
+        const QJsonObject appointment = value.toObject();
+        const QString id =
+            appointment.value("appointmentId").toVariant().toString();
+        const QString patientId = appointment.value("patientId").toString();
+        const QString slot = appointment.value("slotStart").toString();
+        if (id.isEmpty() || patientId.isEmpty()) continue;
+        scheduledAppointmentInput->addItem(
+            QString("%1 — patient %2 — %3")
+                .arg(id, patientId, slot),
+            id);
+        scheduledAppointmentInput->setItemData(
+            scheduledAppointmentInput->count() - 1, patientId,
+            Qt::UserRole + 1);
+    }
+    if (scheduledAppointmentInput->count() == 0) {
+        patientContextLabel->setText(
+            "No appointments were found for this date.");
+        showStatus("No appointments found for the selected date.");
+        return;
+    }
+    showStatus(QString("%1 appointment(s) loaded.")
+                   .arg(scheduledAppointmentInput->count()),
+               true);
+    selectScheduledAppointment(scheduledAppointmentInput->currentIndex());
 }
 
 void WorkflowWindow::handleFailure(const QString &operation,

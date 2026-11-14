@@ -30,11 +30,49 @@ int main() {
     hms::backup::decrypt_file(encrypted,restored,key);
     std::ifstream rf(restored,std::ios::binary);CHECK(std::string((std::istreambuf_iterator<char>(rf)),{})==sample);
 
+    const auto throws = [](const auto& operation) {
+        try {
+            operation();
+        } catch (const std::exception&) {
+            return true;
+        }
+        return false;
+    };
     auto reject=[&](const fs::path& input,const std::string& candidate_key){bool failed=false;try{hms::backup::decrypt_file(input,dir/"must-not-exist.dump",candidate_key);}catch(...){failed=true;}CHECK(failed);CHECK(!fs::exists(dir/"must-not-exist.dump"));};
     reject(encrypted,wrong);
     auto corrupt=dir/"corrupt.hmsbak";bytes[bytes.size()/2]^=1;{std::ofstream f(corrupt,std::ios::binary);f.write(bytes.data(),bytes.size());}reject(corrupt,key);
     auto truncated=dir/"truncated.hmsbak";{std::ofstream f(truncated,std::ios::binary);f.write(bytes.data(),10);}reject(truncated,key);
+    auto unknown_format=dir/"unknown-format.hmsbak";{std::ofstream f(unknown_format,std::ios::binary);f<<"not-an-HMS-backup";}reject(unknown_format,key);
+    auto empty_archive=dir/"empty-archive.hmsbak";{std::ofstream f(empty_archive,std::ios::binary);}
+    CHECK(throws([&]{hms::backup::decrypt_file(empty_archive,dir/"empty-output",key);}));
+    auto trailing_data=dir/"trailing-data.hmsbak";
+    {std::ifstream in(encrypted,std::ios::binary);std::ofstream out(trailing_data,std::ios::binary);out<<in.rdbuf();out.put('x');}
+    reject(trailing_data,key);
     bool bad_key=false;try{hms::backup::encrypt_file(source,dir/"bad", "short");}catch(...){bad_key=true;}CHECK(bad_key);
+    CHECK(throws([&]{hms::backup::encrypt_file(source,dir/"bad-hex",std::string(64,'g'));}));
+    CHECK(throws([&]{hms::backup::encrypt_file(dir/"missing-input",dir/"missing-output",key);}));
+    CHECK(throws([&]{hms::backup::encrypt_file(source,dir/"missing-parent"/"output",key);}));
+    const auto rename_target=dir/"rename-target";
+    fs::create_directory(rename_target);
+    CHECK(throws([&]{hms::backup::encrypt_file(source,rename_target,key);}));
+    CHECK(fs::is_directory(rename_target));
+
+    auto empty_source=dir/"empty.dump",empty_encrypted=dir/"empty.hmsbak",empty_restored=dir/"empty-restored.dump";
+    {std::ofstream f(empty_source,std::ios::binary);}
+    hms::backup::encrypt_file(empty_source,empty_encrypted,key);
+    hms::backup::decrypt_file(empty_encrypted,empty_restored,key);
+    CHECK(fs::file_size(empty_restored)==0);
+
+    CHECK(throws([&]{hms::backup::restore_backup(
+        encrypted,"invalid;database","invalid;database",dir/"invalid-target",key);}));
+    CHECK(throws([&]{hms::backup::restore_backup(
+        encrypted,"valid_database","different_database",dir/"wrong-confirmation",key);}));
+
+    CHECK(hms::backup::is_backup_due(dir,24));
+    CHECK(hms::backup::status(dir,24).find("current=NEVER")!=std::string::npos);
+    {std::ofstream f(dir/"backup-last-success.txt");f<<"INVALID timestamp\n";}
+    CHECK(hms::backup::is_backup_due(dir,24));
+    {std::ofstream f(dir/"backup-last-success.txt");f<<"SUCCESS not-a-timestamp\n";}
     CHECK(hms::backup::is_backup_due(dir,24));
     {std::ofstream f(dir/"backup-last-success.txt");f<<"SUCCESS "<<std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())<<" hms-recent.hmsbak\n";}
     CHECK(!hms::backup::is_backup_due(dir,24));
@@ -43,6 +81,26 @@ int main() {
     {std::ofstream f(dir/"backup-last-success.txt");f<<"SUCCESS "<<std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()-std::chrono::hours(25))<<" hms-old.hmsbak\n";}
     CHECK(hms::backup::is_backup_due(dir,24));
     bool bad_interval=false;try{(void)hms::backup::is_backup_due(dir,0);}catch(...){bad_interval=true;}CHECK(bad_interval);
+
+    const char* previous_timeout=std::getenv("HMS_BACKUP_PROCESS_TIMEOUT_SECONDS");
+    const bool had_previous_timeout=previous_timeout!=nullptr;
+    const std::string saved_timeout=had_previous_timeout?previous_timeout:"";
+    for(const std::string invalid_timeout:{"0","604801","not-a-number"}) {
+#ifdef _WIN32
+        CHECK(_putenv_s("HMS_BACKUP_PROCESS_TIMEOUT_SECONDS",invalid_timeout.c_str())==0);
+#else
+        CHECK(setenv("HMS_BACKUP_PROCESS_TIMEOUT_SECONDS",invalid_timeout.c_str(),1)==0);
+#endif
+        CHECK(throws([&]{hms::backup::run_backup(dir/"invalid-timeout",key,30);}));
+    }
+#ifdef _WIN32
+    if(had_previous_timeout) CHECK(_putenv_s("HMS_BACKUP_PROCESS_TIMEOUT_SECONDS",saved_timeout.c_str())==0);
+    else CHECK(_putenv_s("HMS_BACKUP_PROCESS_TIMEOUT_SECONDS","")==0);
+#else
+    if(had_previous_timeout) CHECK(setenv("HMS_BACKUP_PROCESS_TIMEOUT_SECONDS",saved_timeout.c_str(),1)==0);
+    else CHECK(unsetenv("HMS_BACKUP_PROCESS_TIMEOUT_SECONDS")==0);
+#endif
+    CHECK(throws([&]{hms::backup::run_backup(dir/"invalid-retention",key,0);}));
 
     const char* postgres_test = std::getenv("HMS_BACKUP_TEST_POSTGRES");
     if (postgres_test != nullptr && std::string(postgres_test) == "1") {
