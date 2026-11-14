@@ -1,6 +1,6 @@
 # HMS Test Cases — Sprint Update
 
-**Revision date:** 2026-11-14
+**Revision date:** 2026-11-15
 **Baseline:** HMS Test Plan v1.0, Appendix A and its traceability matrix
 **Purpose:** Add the sprint-era API, security, encryption, and acceptance details
 to the approved 40-case baseline without changing its stable test-case IDs.
@@ -37,7 +37,7 @@ automatically pass the full manual or system-level test case.
 | TC-AVL-01 | Poll readiness at one-minute intervals for the complete agreed measurement period, retain timestamped successes/failures/missing intervals, and calculate service-window availability. Unit tests for a calculator do not prove calendar-period availability. |
 | TC-USA-01 | Follow `docs/usability/NF-005.md` and `docs/usability/NF-009.md`: synthetic data, five participants, 50 attempts, independent completion numerator/denominator, help usage, timing, and blocked tasks. Do not derive participant results from automated tests. |
 | TC-REL-01 | On a disposable database, run encrypted backup and restore, validate restored data, and time the full authorized drill. The unit test covers cryptographic handling; the four-hour operational RTO has not been demonstrated by that test. |
-| TC-PORT-01 | Build and smoke-test the GUI on Windows 10/11 with MSVC and Ubuntu 22.04 with GCC. The current recorded Windows environment is Windows Server/Visual Studio 2022 CI; MSVC 2019 and interactive desktop acceptance remain separate checks. |
+| TC-PORT-01 | Build and smoke-test the GUI on Windows 10/11 with MSVC and Ubuntu 22.04 with GCC. The project owner reports portability checks completed; repository CI records Ubuntu 22.04 and Windows Server/Visual Studio 2022, but the case-by-case platform matrix was not attached to this execution record. |
 | TC-MNT-01 | Measure executable service-module line coverage per module using GCC/gcov/lcov and enforce the 70% threshold. Verify the LCOV artifact contains branch records as well as line records; do not infer branch coverage from line statistics. |
 | TC-SEC-01 | Verify password-strength rejection and Argon2id salted-hash storage; ensure login output and logs contain no plaintext password. |
 | TC-SEC-02 | Verify plain HTTP is refused and TLS 1.2+ is negotiated using the intended trust chain. A locally trusted development certificate is suitable only for local testing. |
@@ -47,11 +47,19 @@ automatically pass the full manual or system-level test case.
 | TC-SEC-06 | Inspect patient and clinical database columns for ciphertext; verify field encryption, distinct keys, wrong-key failure, and blind-index search behavior. |
 | TC-SEC-07 | Call restricted endpoints directly with roles that lack permission and with another patient's ID. Verify server-side 403/401 regardless of visible UI controls. |
 
-## Execution record for this recovery run
+## Execution record and scope
 
 See the dated reports in `docs/reports/`. As of 2026-11-14, all 16 CTest
 suites passed on Windows and Ubuntu, the PostgreSQL-enabled coverage-job tests
 passed, line and branch coverage were captured, and the Qt client startup
-smoke check passed. Manual API/security, performance, usability, availability,
-and recovery cases are not marked passed without their specified environment
-and evidence.
+smoke check passed. The project owner also reports manually logging in and
+testing application workflows; the specific manual case IDs, outcomes, and
+evidence were not supplied in a case-by-case execution log.
+
+The test cases above are the updated test oracles and execution checklist.
+They must not be interpreted as proof that every listed case passed. The
+System Validation Report records the evidence available for this submission
+and identifies acceptance checks for which no result was provided. In
+particular, implementing a feature or exercising it informally does not by
+itself establish large-scale performance, service-window availability,
+five-participant usability, or timed recovery targets.

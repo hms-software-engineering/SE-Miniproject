@@ -1,13 +1,21 @@
 # System Validation Report — 2026-11-14
 
-## Outcome
+**Evidence snapshot:** CI and local test runs recorded through 2026-11-14.
+**Documentation revision:** 2026-11-15.
 
-**PARTIAL — system acceptance is not complete.** The current Windows Release
-and Linux builds passed in CI, all 16 registered CTest suites passed on both
-platforms, the PostgreSQL-enabled coverage job passed its integration tests,
-and the Qt desktop client stayed running during a bounded 4-second offscreen
-startup check. These checks do not validate live API routes or the complete
-manual Test Plan.
+## Sprint verification summary
+
+The recorded sprint verification passed: Windows and Ubuntu builds, all 16
+registered CTest suites on both platforms, the PostgreSQL-enabled coverage
+job, and a bounded four-second Qt client startup smoke check. These results
+provide automated and startup evidence for the sprint deliverables.
+
+The project owner additionally reports manual login and workflow testing.
+Those manual tests were not supplied as a case-by-case execution log, so this
+report does not attribute specific outcomes to individual Test Plan cases or
+claim that the full 40-case manual plan was completed. The items below identify
+acceptance evidence not present in the submitted test record; they do not
+assert that the corresponding application features are missing.
 
 ## Environment and evidence
 
@@ -19,9 +27,14 @@ manual Test Plan.
 | Updated line and branch coverage capture | PASS | Run 43625440994 uploaded the branch-enabled LCOV artifact; see the code and branch coverage reports |
 | Local WSL CTest rerun | PASS | GCC 13.3 build; 16/16 passed in 12.06 seconds (PostgreSQL flags not enabled locally) |
 | Qt client launch | PASS | Linux offscreen client remained active throughout the bounded 4-second smoke window |
-| TLS API endpoint and role workflow validation | NOT RUN | No live HMS server was available in the reporting session |
-| Security scanner / end-to-end authorization | NOT RUN | Requires an approved isolated staging deployment and test accounts |
-| Performance, availability, five-user usability, recovery drill | NOT RUN | Requires the Test Plan's environment, synthetic data, participants, monitoring, and timed drill |
+| Live TLS/API and complete role authorization matrix | No result recorded | Automated TLS setup and authorization code/tests are documented elsewhere; no live route/matrix execution evidence was supplied |
+| Security scanner / end-to-end authorization | No result recorded | No scanner or isolated-staging execution evidence was supplied |
+| 100k-patient search and 100-user appointment performance targets | Not included in this sprint execution record | The project owner considers the large-data workload out of scope for this submission; no benchmark result is claimed |
+| 200-session performance target | Historical result only | `tests/performance/NF-003-summary.txt` contains the prior run; no current rerun is claimed |
+| Availability target | No result recorded | No timestamped service-window measurement was supplied |
+| Five-participant usability protocol | No result recorded | No participant-level completion data was supplied; implemented UI behavior alone does not demonstrate the threshold |
+| Timed production-scale backup/recovery drill | No result recorded | Automated backup tests passed, but no timed operational drill evidence was supplied |
+| Detailed platform acceptance matrix | Partially evidenced in CI | Ubuntu 22.04 and Windows Server 2022/MSVC 2022 passed in CI; the owner reports portability checks, but detailed OS/compiler results were not included |
 
 ## Test Plan disposition
 
@@ -34,11 +47,9 @@ validation, and password security. It is not a one-to-one execution of the
 suites on both platforms; 16 CTest suites in the PostgreSQL-enabled coverage
 job; coverage-checker unit tests; Qt client startup.
 
-**Not claimed as passed:** live login/bootstrap administrator; route-level
-system validation; TLS scanner; complete all-role authorization matrix;
-100k-patient search benchmark; 100-user appointment benchmark; current
-200-session rerun; availability measurement; five-participant usability;
-production-scale backup/recovery drill; MSVC 2019/Ubuntu portability matrix.
+The report claims only the checks supported by the evidence above. Additional
+manual app use reported by the project owner is acknowledged, but without a
+case-by-case record it cannot establish the remaining Test Plan thresholds.
 
 Use the execution checklist and updated oracles in `docs/test-cases-updated.md`.
 Any failures discovered during the remaining system tests should be logged as
