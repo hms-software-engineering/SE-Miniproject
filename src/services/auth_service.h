@@ -19,6 +19,21 @@ struct AuthUser {
     bool account_locked = false;
 };
 
+enum class ChangeUserRoleStatus {
+    Updated,
+    NotFound,
+    LastAdministrator,
+    DoctorProfileRequired
+};
+
+struct ManagedUser {
+    std::string user_id;
+    std::string username;
+    Role role = Role::Patient;
+    bool active = true;
+    std::string doctor_id;
+};
+
 struct SessionPrincipal {
     std::string user_id;
     Role role = Role::Patient;
@@ -61,7 +76,8 @@ enum class AuditAction {
     OverrideAllergyWarning,
     ViewVisitHistory,
     ViewOwnHistory,
-    ViewOwnBills
+    ViewOwnBills,
+    UpdateUserRole
 };
 
 class AuditRecordId {
@@ -246,6 +262,10 @@ public:
     void delete_session(const std::string& token_hash) override;
     void record_audit_event(const AuditEvent& event) override;
     bool health_check() const noexcept;
+    std::vector<ManagedUser> list_users() const;
+    ChangeUserRoleStatus change_user_role(
+        const std::string& user_id, Role role,
+        const AuditEvent& audit_event);
 
 private:
     std::vector<AuditRecord> read_audit_events(

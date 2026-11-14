@@ -6,11 +6,11 @@
 class ApiClient;
 class QComboBox;
 class QDateEdit;
+class QJsonArray;
 class QLabel;
 class QLineEdit;
 class QPushButton;
 class QSpinBox;
-class QStackedWidget;
 class QTextEdit;
 class QWidget;
 
@@ -23,7 +23,11 @@ public:
         AppointmentBooking,
         Consultation,
         UserManagement,
-        PatientProfile
+        PatientProfile,
+        PatientRecords,
+        Billing,
+        Reports,
+        AuditLog
     };
 
     WorkflowWindow(ApiClient *apiClient, Workflow workflow,
@@ -35,8 +39,18 @@ private slots:
     void recordVisit();
     void addPrescription();
     void createUser();
+    void deactivateUser();
+    void createBill();
+    void recordPayment();
+    void loadReceipt();
+    void generateReport();
+    void loadAuditLog();
+    void loadMySchedule();
+    void selectScheduledAppointment(int index);
     void handleSuccess(const QString &operation,
                        const QJsonObject &response);
+    void handleArraySuccess(const QString &operation,
+                            const QJsonArray &response);
     void handleFailure(const QString &operation,
                        const QString &message);
 
@@ -70,4 +84,25 @@ private:
     QComboBox *profileGenderInput;
     QLineEdit *profilePhoneInput;
     QLineEdit *profileAddressInput;
+    QDateEdit *scheduleDateInput;
+    QWidget *scheduleRow;
+    QComboBox *scheduledAppointmentInput;
+    QLabel *patientContextLabel;
+    QLineEdit *billVisitIdInput;
+    QTextEdit *billItemsInput;
+    QLineEdit *billIdInput;
+    QLineEdit *paymentAmountInput;
+    QComboBox *paymentModeInput;
+    QLineEdit *receiptPaymentIdInput;
+    QDateEdit *reportStartDateInput;
+    QDateEdit *reportEndDateInput;
+    QComboBox *reportFormatInput;
+    QLineEdit *auditUsernameInput;
+    QLineEdit *auditFromInput;
+    QLineEdit *auditToInput;
+    QComboBox *auditActionInput;
+    QTextEdit *resultOutput;
+    QLineEdit *targetUserIdInput;
+    QComboBox *managedUsersInput;
+    QComboBox *managedRoleInput;
 };

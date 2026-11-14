@@ -623,6 +623,7 @@ const char* audit_action_name(AuditAction action) noexcept
     case AuditAction::ViewVisitHistory: return "VIEW_VISIT_HISTORY";
     case AuditAction::ViewOwnHistory: return "VIEW_OWN_HISTORY";
     case AuditAction::ViewOwnBills: return "VIEW_OWN_BILLS";
+    case AuditAction::UpdateUserRole: return "UPDATE_USER_ROLE";
     }
     return "";
 }
@@ -657,7 +658,8 @@ std::optional<AuditAction> parse_audit_action(const std::string& value)
              AuditAction::OverrideAllergyWarning,
              AuditAction::ViewVisitHistory,
              AuditAction::ViewOwnHistory,
-             AuditAction::ViewOwnBills}) {
+             AuditAction::ViewOwnBills,
+             AuditAction::UpdateUserRole}) {
         if (value == audit_action_name(action)) return action;
     }
     return std::nullopt;
@@ -1055,6 +1057,105 @@ DeactivateUserStatus PostgresAuthRepository::deactivate_user(
         insert_audit_event(connection, audit_event);
         execute_command(connection, "COMMIT", "Could not commit deactivation");
         return DeactivateUserStatus::Deactivated;
+    } catch (...) {
+        rollback_transaction(connection);
+        throw;
+    }
+}
+
+std::vector<ManagedUser> PostgresAuthRepository::list_users() const
+{
+    PGresult* raw = pg_exec_params(
+        connection_->value,
+        "SELECT u.user_id::text, u.username, u.role, u.active::text, "
+        "COALESCE(d.doctor_id::text, '') "
+        "FROM users u LEFT JOIN doctors d ON d.user_id = u.user_id "
+        "ORDER BY u.user_id",
+        0, nullptr, nullptr, nullptr, nullptr, 0);
+    require_status(connection_->value, raw, PGRES_TUPLES_OK,
+                   "Could not list user accounts");
+    Result result(raw);
+    std::vector<ManagedUser> users;
+    users.reserve(static_cast<std::size_t>(pg_tuples(result.get())));
+    for (int row = 0; row < pg_tuples(result.get()); ++row) {
+        Role role = Role::Patient;
+        if (!parse_role(pg_value(result.get(), row, 2), role)) {
+            throw std::runtime_error(
+                "Database contains an unrecognized account role.");
+        }
+        users.push_back({
+            pg_value(result.get(), row, 0),
+            pg_value(result.get(), row, 1),
+            role,
+            std::string(pg_value(result.get(), row, 3)) == "t",
+            pg_value(result.get(), row, 4)
+        });
+    }
+    return users;
+}
+
+ChangeUserRoleStatus PostgresAuthRepository::change_user_role(
+    const std::string& user_id, Role role, const AuditEvent& audit_event)
+{
+    PGconn* connection = connection_->value;
+    execute_command(connection, "BEGIN", "Could not begin role update");
+    try {
+        execute_command(connection,
+                        "LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE",
+                        "Could not lock user accounts");
+        const char* target_values[] = {user_id.c_str()};
+        PGresult* target_raw = pg_exec_params(
+            connection,
+            "SELECT role, active::text FROM users WHERE user_id = $1::bigint",
+            1, nullptr, target_values, nullptr, nullptr, 0);
+        require_status(connection, target_raw, PGRES_TUPLES_OK,
+                       "Could not find account to update");
+        Result target(target_raw);
+        if (pg_tuples(target.get()) != 1) {
+            rollback_transaction(connection);
+            return ChangeUserRoleStatus::NotFound;
+        }
+        const std::string current_role = pg_value(target.get(), 0, 0);
+        const bool doctor_profile_change =
+            (current_role == "Doctor") != (role == Role::Doctor);
+        if (doctor_profile_change) {
+            rollback_transaction(connection);
+            return ChangeUserRoleStatus::DoctorProfileRequired;
+        }
+        const bool active_administrator =
+            current_role == "Administrator" &&
+            std::string(pg_value(target.get(), 0, 1)) == "t";
+        if (active_administrator && role != Role::Administrator) {
+            PGresult* count_raw = pg_exec_params(
+                connection,
+                "SELECT COUNT(*) FROM users "
+                "WHERE role = 'Administrator' AND active = TRUE",
+                0, nullptr, nullptr, nullptr, nullptr, 0);
+            require_status(connection, count_raw, PGRES_TUPLES_OK,
+                           "Could not count active administrators");
+            Result count(count_raw);
+            if (std::stoll(pg_value(count.get(), 0, 0)) <= 1) {
+                rollback_transaction(connection);
+                return ChangeUserRoleStatus::LastAdministrator;
+            }
+        }
+        const std::string role_text(role_name(role));
+        const char* update_values[] = {user_id.c_str(), role_text.c_str()};
+        PGresult* update_raw = pg_exec_params(
+            connection,
+            "UPDATE users SET role = $2, updated_at = CURRENT_TIMESTAMP "
+            "WHERE user_id = $1::bigint RETURNING user_id",
+            2, nullptr, update_values, nullptr, nullptr, 0);
+        require_status(connection, update_raw, PGRES_TUPLES_OK,
+                       "Could not update account role");
+        Result updated(update_raw);
+        if (pg_tuples(updated.get()) != 1) {
+            rollback_transaction(connection);
+            return ChangeUserRoleStatus::NotFound;
+        }
+        insert_audit_event(connection, audit_event);
+        execute_command(connection, "COMMIT", "Could not commit role update");
+        return ChangeUserRoleStatus::Updated;
     } catch (...) {
         rollback_transaction(connection);
         throw;
