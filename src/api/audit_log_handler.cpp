@@ -129,7 +129,7 @@ nlohmann::json serialize_records(const std::vector<AuditRecord>& records)
             {"sourceIp", record.source_ip}
         });
     }
-    return {{"entries", std::move(entries)}};
+    return entries;
 }
 
 } // namespace

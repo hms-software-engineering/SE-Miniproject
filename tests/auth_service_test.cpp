@@ -3,6 +3,7 @@
 #include "api/user_management_handler.h"
 #include "validator.h"   
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdlib>
@@ -654,6 +655,31 @@ void test_postgres_authentication_when_enabled()
     const auto second_admin_login = service.authenticate_user(
         username + "_admin2", "GoodPass1!");
     CHECK(first_admin_login.success && second_admin_login.success);
+    const auto listed_users = repository.list_users();
+    CHECK(std::any_of(
+        listed_users.begin(), listed_users.end(),
+        [&](const hms::ManagedUser& user) {
+            return user.user_id == registered.user_id &&
+                   user.username == username &&
+                   user.role == hms::Role::Patient && !user.active;
+        }));
+    const auto role_change_event = hms::make_audit_event(
+        first_admin_login.user_id,
+        hms::audit_role(hms::Role::Administrator),
+        hms::AuditAction::UpdateUserRole, registered.user_id, "127.0.0.1");
+    CHECK(repository.change_user_role(
+              registered.user_id, hms::Role::Doctor, role_change_event) ==
+          hms::ChangeUserRoleStatus::DoctorProfileRequired);
+    CHECK(repository.change_user_role(
+              registered.user_id, hms::Role::Receptionist, role_change_event) ==
+          hms::ChangeUserRoleStatus::Updated);
+    const auto changed_users = repository.list_users();
+    CHECK(std::any_of(
+        changed_users.begin(), changed_users.end(),
+        [&](const hms::ManagedUser& user) {
+            return user.user_id == registered.user_id &&
+                   user.role == hms::Role::Receptionist;
+        }));
 
     const auto persisted_audit_read = hms::handle_audit_log(
         "GET", "/api/v1/audit-log",
@@ -668,8 +694,9 @@ void test_postgres_authentication_when_enabled()
           std::string::npos);
     const auto persisted_json = nlohmann::json::parse(
         persisted_audit_read.body);
-    CHECK(persisted_json.at("entries").size() == 1);
-    const auto& persisted_entry = persisted_json.at("entries").front();
+    CHECK(persisted_json.is_array());
+    CHECK(persisted_json.size() == 1);
+    const auto& persisted_entry = persisted_json.front();
     CHECK(persisted_entry.size() == 7);
     CHECK(persisted_entry.at("userId") == std::stoull(registered.user_id));
     CHECK(persisted_entry.at("role") == "Patient");
@@ -912,12 +939,12 @@ void test_audit_log_endpoint_security()
     CHECK(all_records.body.find("diagnosis") == std::string::npos);
     CHECK(all_records.body.find("notes") == std::string::npos);
     const auto serialized = nlohmann::json::parse(all_records.body);
-    CHECK(serialized.size() == 1);
-    CHECK(serialized.at("entries").size() == 2);
+    CHECK(serialized.is_array());
+    CHECK(serialized.size() == 2);
     const std::set<std::string> allowed_fields = {
         "userId", "username", "role", "action", "recordId", "timestamp",
         "sourceIp"};
-    for (const auto& entry : serialized.at("entries")) {
+    for (const auto& entry : serialized) {
         CHECK(entry.size() == allowed_fields.size());
         for (const auto& field : entry.items())
             CHECK(allowed_fields.find(field.key()) != allowed_fields.end());
@@ -964,7 +991,7 @@ void test_audit_log_endpoint_security()
         "GET", "/api/v1/audit-log", "", "Bearer " + empty_login.token,
         "127.0.0.1", "req-empty-audit", empty_service);
     CHECK(empty_response.status == 200);
-    CHECK(empty_response.body == "{\"entries\":[]}");
+    CHECK(empty_response.body == "[]");
 
     CHECK(hms::AuditRecordId::parse("42").has_value());
     CHECK(hms::AuditRecordId::parse("PID-00000001").has_value());
@@ -1029,7 +1056,7 @@ void test_audit_log_filters()
     const auto count = [&](const std::string& query) {
         const auto response = call(admin.token, query);
         CHECK(response.status == 200);
-        return nlohmann::json::parse(response.body).at("entries").size();
+        return nlohmann::json::parse(response.body).size();
     };
 
     // No filters (run first: each successful read adds a VIEW_AUDIT_LOG row).
@@ -1038,7 +1065,7 @@ void test_audit_log_filters()
     CHECK(count("user=dr_rao&from=2026-10-29&to=2026-10-29") == 2);
     {
         const auto r = call(admin.token, "user=dr_rao");
-        const auto entry = nlohmann::json::parse(r.body).at("entries").front();
+        const auto entry = nlohmann::json::parse(r.body).front();
         CHECK(entry.at("username") == "dr_rao");
         CHECK(entry.contains("action") && entry.contains("recordId") &&
               entry.contains("timestamp"));

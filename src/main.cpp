@@ -1163,16 +1163,129 @@ void handle_client(TlsConnection& client,
         return;
     }
 
+    if (path == "/api/v1/users" && method == "GET") {
+        hms::SessionPrincipal principal;
+        std::string token;
+        if (!require_principal(client, authorization, request_id,
+                               auth_service, principal, token)) {
+            return;
+        }
+        std::string authorization_error;
+        if (!hms::authorize(principal.role, hms::Permission::ManageUsers,
+                            authorization_error)) {
+            send_error(client, 403, "ACCESS_DENIED", authorization_error,
+                       request_id);
+            return;
+        }
+        const auto users = auth_repository.list_users();
+        nlohmann::json response = nlohmann::json::array();
+        for (const auto& user : users) {
+            response.push_back({
+                {"userId", user.user_id},
+                {"username", user.username},
+                {"role", std::string(hms::role_name(user.role))},
+                {"active", user.active},
+                {"doctorId", user.doctor_id.empty()
+                    ? nlohmann::json(nullptr)
+                    : nlohmann::json(user.doctor_id)}
+            });
+        }
+        auth_service.record_audit_event({
+            principal.user_id,
+            std::string(hms::role_name(principal.role)),
+            "VIEW_ACCOUNT", "", client.source_ip
+        });
+        send_response(client, 200, response.dump());
+        return;
+    }
+
     constexpr char user_path[] = "/api/v1/users/";
     if (method == "PATCH" && path.rfind(user_path, 0) == 0) {
+        const std::string user_id =
+            path.substr(sizeof(user_path) - 1);
+        long long numeric_user_id = 0;
+        if (!parse_positive_id(user_id, numeric_user_id) ||
+            std::to_string(numeric_user_id) != user_id) {
+            send_error(client, 400, "INVALID_USER_ID",
+                       "User ID must be a positive integer.", request_id);
+            return;
+        }
+        hms::SessionPrincipal principal;
+        std::string token;
+        if (!require_principal(client, authorization, request_id,
+                               auth_service, principal, token)) {
+            return;
+        }
+        std::string authorization_error;
+        if (!hms::authorize(principal.role, hms::Permission::ManageUsers,
+                            authorization_error)) {
+            send_error(client, 403, "ACCESS_DENIED", authorization_error,
+                       request_id);
+            return;
+        }
+        if (!is_json_content_type(content_type)) {
+            send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+                       "Content-Type must be application/json.", request_id);
+            return;
+        }
         const std::size_t body_start = header_end + 4;
-        const std::string body = has_content_length && raw.size() >= body_start
-            ? raw.substr(body_start, content_length)
-            : std::string();
-        const auto response = hms::handle_user_deactivation(
-            method, path, authorization, content_type, body,
-            has_content_length, client.source_ip, request_id, auth_service);
-        send_response(client, response.status, response.body);
+        if (!has_content_length ||
+            raw.size() < body_start + content_length) {
+            send_error(client, 411, "LENGTH_REQUIRED",
+                       "A Content-Length and request body are required.",
+                       request_id);
+            return;
+        }
+        const auto request = nlohmann::json::parse(
+            raw.substr(body_start, content_length), nullptr, false);
+        if (!request.is_discarded() && request.is_object() &&
+            request.contains("action") && request.at("action") == "deactivate") {
+            const auto response = hms::handle_user_deactivation(
+                method, path, authorization, content_type,
+                raw.substr(body_start, content_length), true,
+                client.source_ip, request_id, auth_service);
+            send_response(client, response.status, response.body);
+            return;
+        }
+        hms::Role role;
+        if (request.is_discarded() || !request.is_object() ||
+            request.size() != 2 || !request.contains("action") ||
+            request.at("action") != "changeRole" ||
+            !request.contains("role") ||
+            !request.at("role").is_string() ||
+            !hms::parse_role(request.at("role").get<std::string>(), role)) {
+            send_error(client, 400, "INVALID_REQUEST",
+                       "Provide action changeRole and a valid role.",
+                       request_id);
+            return;
+        }
+        const auto event = hms::make_audit_event(
+            principal.user_id, hms::audit_role(principal.role),
+            hms::AuditAction::UpdateUserRole, user_id, client.source_ip);
+        const auto result =
+            auth_repository.change_user_role(user_id, role, event);
+        if (result == hms::ChangeUserRoleStatus::NotFound) {
+            send_error(client, 404, "USER_NOT_FOUND",
+                       "User was not found.", request_id);
+            return;
+        }
+        if (result == hms::ChangeUserRoleStatus::LastAdministrator) {
+            send_error(client, 409, "LAST_ADMINISTRATOR",
+                       "At least one active Administrator must remain.",
+                       request_id);
+            return;
+        }
+        if (result == hms::ChangeUserRoleStatus::DoctorProfileRequired) {
+            send_error(client, 409, "DOCTOR_PROFILE_REQUIRED",
+                       "Doctor role changes require doctor-profile management.",
+                       request_id);
+            return;
+        }
+        send_response(client, 200,
+            "{\"userId\":" + json_string(user_id) +
+            ",\"role\":" +
+                json_string(std::string(hms::role_name(role))) +
+            ",\"message\":\"User role updated.\"}");
         return;
     }
 

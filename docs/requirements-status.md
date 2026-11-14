@@ -12,11 +12,11 @@ mean a production or user-acceptance test has been completed.
 | HMS-F-001–004 Authentication, lockout, RBAC, generic login errors | Implemented in `src/services/auth_service.*`, `src/services/rbac_service.*`, and `src/main.cpp`; covered by `tests/auth_service_test.cpp` and `tests/api_test.cpp`. |
 | HMS-F-010–014 Patient registration, validation, duplicate warning, search, update history | Implemented in `src/patients/`, API routes in `src/main.cpp`, and client screens in `src/client/patientmanagementwindow.cpp`; covered by patient service and encryption tests. The client now includes the optional allergy field supported by the API. |
 | HMS-F-020–024 Booking, unique-slot conflict, booking window, reschedule/cancel, doctor schedule | Implemented in `src/appointments/` and `src/main.cpp`; covered by appointment, change-appointment, and doctor-schedule tests. See the documented F-024 response deviations below. |
-| HMS-F-030–034 Visits, prescriptions, allergy warning/override, history, patient-owned records | Service and API behavior exists in `src/clinical/`, `src/billing/`, and `src/main.cpp`; covered by clinical service tests. The desktop client can record visits and prescriptions, and now prompts for a required reason after an allergy warning. Patient clinical history/bills are exposed by API endpoints, but not yet presented in a dedicated patient-history/bills desktop screen. |
-| HMS-F-040–042 Itemized bills, payments, receipts | Implemented in `src/billing/` and API routes in `src/main.cpp`; covered by billing, tax-boundary, and receipt tests. There is no billing workflow in the current desktop client. |
-| HMS-F-050 Daily appointment/revenue reports | CSV/PDF report generation and API route are implemented in `src/reports/` and `src/main.cpp`; covered by `tests/report_service_test.cpp`. A report workflow is not exposed in the current desktop client. |
-| HMS-F-060 User creation, deactivation, role assignment | Server-side creation/deactivation and role checks are implemented and covered by authentication/API service tests. The desktop client currently exposes account creation only, not account deactivation or role changes. |
-| HMS-F-061 Filtered administrator audit log | Implemented in `src/api/audit_log_handler.cpp` with tests under the auth/API suites. The response is an object containing an `entries` array rather than the SAD’s described bare array; see `docs/deviations.md`. There is no audit-log workflow in the current desktop client. |
+| HMS-F-030–034 Visits, prescriptions, allergy warning/override, history, patient-owned records | Service and API behavior exists in `src/clinical/`, `src/billing/`, and `src/main.cpp`; covered by clinical service tests. The desktop client records visits and prescriptions, prompts for a required allergy-override reason, loads doctor appointments with patient identity/allergy context, and exposes patient-owned history and bills. |
+| HMS-F-040–042 Itemized bills, payments, receipts | Implemented in `src/billing/` and API routes in `src/main.cpp`; covered by billing, tax-boundary, and receipt tests. The Billing Officer desktop workflow supports itemized bill creation, payment recording, and receipt downloads. |
+| HMS-F-050 Daily appointment/revenue reports | CSV/PDF report generation and API route are implemented in `src/reports/` and `src/main.cpp`; covered by `tests/report_service_test.cpp`. The desktop client exposes date-filtered report generation and file saving. |
+| HMS-F-060 User creation, deactivation, role assignment | Server-side creation/deactivation and role checks are implemented. The Administrator desktop workflow lists accounts, creates and deactivates accounts, and changes supported roles. Role changes to/from Doctor are rejected until doctor-profile management can be performed atomically; the last active Administrator cannot be deactivated or demoted. |
+| HMS-F-061 Filtered administrator audit log | Implemented in `src/api/audit_log_handler.cpp` with tests under the auth/API suites. The Administrator desktop workflow exposes filtered audit viewing, and the API returns the SAD-specified array of entries. |
 
 ## Non-functional and security requirements
 
@@ -42,19 +42,15 @@ mean a production or user-acceptance test has been completed.
 
 ## Known contract deviations and integration gaps
 
-- F-024 and F-061 response differences are recorded in
-  [deviations.md](deviations.md) and should be resolved against the expected
-  SAD contract before an external client depends on those exact response
-  shapes.
-- Several SRS functions are available through the HTTPS API but do not yet
-  have desktop workflows: patient-owned clinical history/bills, billing,
-  reports, audit-log viewing, and administrator account deactivation/role
-  changes. These are integration gaps, not evidence that the underlying API
-  implementation is absent.
-- The SAD calls for clinical screens to show patient identity and allergy
-  information. The prescription flow now enforces allergy warning and
-  override-reason entry, but the current consultation screen does not yet load
-  the appointment’s patient identity into a clinical banner.
+- Remaining F-024 and F-042 contract differences are recorded in
+  [deviations.md](deviations.md) and should be resolved against the SAD before
+  external clients depend on the exact response or endpoint shapes.
+- Role transitions to or from Doctor remain intentionally unavailable in the
+  account-management workflow because they require synchronized doctor-profile
+  management. Creating a Doctor account remains supported.
+- Newly added `/api/v1/users` listing and role-update routes are not yet covered
+  by running-server end-to-end tests. The existing API test suite primarily
+  exercises API helpers and service-level handlers.
 - Automated CTest does not replace the manual usability, operational
   availability, production-scale load, or recovery-drill acceptance criteria.
 - `tests/api_test.cpp` tests API error/JSON helpers rather than exercising the
@@ -63,16 +59,22 @@ mean a production or user-acceptance test has been completed.
 
 ## Validation snapshot
 
-On 2026-11-12 the current Windows Visual Studio 2022 x64 Release build
-completed, all 16 registered CTest suites passed, the three coverage-checker
-unit tests passed, and the Qt client remained alive during an offscreen startup
-smoke check. A fresh GCC 13.3/lcov run with PostgreSQL-backed tests also passed
-all 16 CTest suites and measured 92.09% service-source line coverage
-(2,805/3,046) and 51.62% branch coverage (3,618/7,009). Every service module
-exceeds the documented 70% line threshold; there is no branch-coverage
-threshold in the Test Plan. Detailed evidence and limitations are in
+The prior 2026-11-12 baseline recorded a Windows Visual Studio 2022 x64
+Release build, all 16 registered CTest suites, three coverage-checker unit
+tests, and an offscreen Qt startup smoke check. Its PostgreSQL-backed GCC
+13.3/lcov run measured 92.09% service-source line coverage (2,805/3,046) and
+51.62% branch coverage (3,618/7,009). Those coverage figures predate the
+desktop integration changes in this branch and should not be treated as
+current measurements. Detailed baseline evidence and limitations are in
 [docs/reports/](reports/) and the updated test cases in
 [docs/test-cases-updated.md](test-cases-updated.md).
+
+For the follow-up changes, the existing WSL/GCC build completed, all 16
+registered CTest suites passed, and the Qt client stayed running through a
+bounded four-second offscreen startup check. The PostgreSQL-specific account
+tests were not rerun because their dedicated `hms_f060_test` database is not
+present. A fresh Windows Visual Studio build and post-change coverage capture
+remain outstanding.
 
 The latest available historical GitHub Actions service coverage run is
 2026-10-31 at commit `82e117d935ecc80572398c215f187adad0e206a8`; its line
