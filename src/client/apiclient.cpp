@@ -338,8 +338,9 @@ void ApiClient::recordPayment(const QString &billId, const QString &amount,
                               const QString &mode)
 {
     sendWorkflowRequest(
-        QNetworkAccessManager::PostOperation, endpoint("/api/v1/payments"),
-        {{"billId", billId}, {"amount", amount}, {"mode", mode}},
+        QNetworkAccessManager::PostOperation,
+        endpoint("/api/v1/bills/" + billId + "/payments"),
+        {{"amount", amount}, {"mode", mode}},
         "recordPayment");
 }
 

@@ -682,9 +682,19 @@ std::optional<hms::Permission> permission_for_request(
             std::string::npos) {
         return hms::Permission::RecordVisitPrescribe;
     }
-    if (method == "POST" &&
-        (path == "/api/v1/bills" || path == "/api/v1/payments" ||
-         path == "/api/v1/receipts")) {
+    constexpr char bill_payment_prefix[] = "/api/v1/bills/";
+    constexpr char bill_payment_suffix[] = "/payments";
+    const bool bill_payment_route =
+        method == "POST" && path.rfind(bill_payment_prefix, 0) == 0 &&
+        path.size() > sizeof(bill_payment_prefix) - 1 +
+                          sizeof(bill_payment_suffix) - 1 &&
+        path.compare(path.size() - (sizeof(bill_payment_suffix) - 1),
+                     sizeof(bill_payment_suffix) - 1,
+                     bill_payment_suffix) == 0;
+    if ((method == "POST" &&
+         (path == "/api/v1/bills" || path == "/api/v1/payments" ||
+          path == "/api/v1/receipts")) ||
+        bill_payment_route) {
         return hms::Permission::BillingPaymentsReceipts;
     }
     if (method == "GET" &&
@@ -1429,12 +1439,36 @@ void handle_client(TlsConnection& client,
             return;
         }
 
-        if (method == "POST" && path == "/api/v1/payments") {
+        constexpr char bill_payment_prefix[] = "/api/v1/bills/";
+        constexpr char bill_payment_suffix[] = "/payments";
+        const bool bill_payment_route =
+            method == "POST" && path.rfind(bill_payment_prefix, 0) == 0 &&
+            path.size() > sizeof(bill_payment_prefix) - 1 +
+                              sizeof(bill_payment_suffix) - 1 &&
+            path.compare(path.size() - (sizeof(bill_payment_suffix) - 1),
+                         sizeof(bill_payment_suffix) - 1,
+                         bill_payment_suffix) == 0;
+        if (method == "POST" &&
+            (path == "/api/v1/payments" || bill_payment_route)) {
             if (!is_json_content_type(content_type)) {
                 send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
                            "Content-Type must be application/json.",
                            request_id);
                 return;
+            }
+            long long bill_id = 0;
+            if (bill_payment_route) {
+                const std::string bill_id_text = path.substr(
+                    sizeof(bill_payment_prefix) - 1,
+                    path.size() - (sizeof(bill_payment_prefix) - 1) -
+                        (sizeof(bill_payment_suffix) - 1));
+                if (!parse_positive_id(bill_id_text, bill_id) ||
+                    std::to_string(bill_id) != bill_id_text) {
+                    send_error(client, 400, "INVALID_BILL_ID",
+                               "Bill ID must be a positive integer.",
+                               request_id);
+                    return;
+                }
             }
             const std::size_t body_start = header_end + 4;
             if (!has_content_length ||
@@ -1450,23 +1484,33 @@ void handle_client(TlsConnection& client,
                     raw.substr(body_start, content_length));
             } catch (const nlohmann::json::parse_error&) {
                 send_error(client, 400, "INVALID_REQUEST",
-                           "Provide billId, amount and mode.", request_id);
+                           bill_payment_route
+                               ? "Provide amount and mode."
+                               : "Provide billId, amount and mode.",
+                           request_id);
                 return;
             }
-            if (!request.is_object() || request.size() != 3 ||
-                !request.contains("billId") ||
-                !request.at("billId").is_string() ||
+            const bool valid_bill_reference =
+                bill_payment_route
+                    ? !request.contains("billId")
+                    : request.contains("billId") &&
+                          request.at("billId").is_string();
+            if (!request.is_object() ||
+                request.size() != (bill_payment_route ? 2 : 3) ||
+                !valid_bill_reference ||
                 !request.contains("amount") ||
                 !request.at("amount").is_string() ||
                 !request.contains("mode") ||
                 !request.at("mode").is_string()) {
                 send_error(client, 400, "INVALID_REQUEST",
-                           "Provide string billId, amount and mode.",
+                           bill_payment_route
+                               ? "Provide string amount and mode."
+                               : "Provide string billId, amount and mode.",
                            request_id);
                 return;
             }
-            long long bill_id = 0;
-            if (!parse_positive_id(request.at("billId").get<std::string>(),
+            if (!bill_payment_route &&
+                !parse_positive_id(request.at("billId").get<std::string>(),
                                    bill_id)) {
                 send_error(client, 400, "INVALID_REQUEST",
                            "billId must be a positive integer string.",
