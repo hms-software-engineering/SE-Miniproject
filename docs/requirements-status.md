@@ -42,9 +42,8 @@ mean a production or user-acceptance test has been completed.
 
 ## Known contract deviations and integration gaps
 
-- Remaining F-024 and F-042 contract differences are recorded in
-  [deviations.md](deviations.md) and should be resolved against the SAD before
-  external clients depend on the exact response or endpoint shapes.
+- The F-024 schedule example differences and the supplemental F-042 receipt
+  retrieval route are recorded in [deviations.md](deviations.md).
 - Role transitions to or from Doctor remain intentionally unavailable in the
   account-management workflow because they require synchronized doctor-profile
   management. Creating a Doctor account remains supported.
