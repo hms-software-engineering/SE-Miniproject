@@ -1,15 +1,12 @@
-TC-APT-01 — PARTIAL
-Tester: Daksha SG
-Execution start/end: 2026-11-15T22:32:18+05:30 / 2026-11-15T22:32:18+05:30
-Build commit: 09757541b9cbe3a79d30255fa0bd18f1a88a5d5e
-Operating system: Darwin Dakshas-MacBook-Air 25.1.0 Darwin Kernel Version 25.1.0: Mon Oct 20 19:34:03 PDT 2025; root:xnu-12377.41.6~2/RELEASE_ARM64_T8112 arm64
-Environment: Existing macOS CMake build in build/; no separate HTTP server or external account was configured for these executable runs.
-Preconditions: The target executable existed in build/ and was run from the repository root.
-Account role(s): Not reported by this executable run. No real accounts or credentials were used.
-Synthetic test data: The executable's internal test fixtures; individual fixture values are not emitted in the captured output.
-Steps performed: Executed `./build/appointments_test` from the repository root. No UI action, API request, or database query was performed as part of this invocation.
-Expected: A booking for a synthetic patient and doctor succeeds for an available future slot.
-Actual: Process exit status 0. Raw stdout was exactly: `All appointment tests passed.`. The executable did not emit this case's assertion name, HTTP status/message, measured value, or UI observation. The suite-level success line cannot establish all checks for this specific case.
-Evidence: [`appointments_test` raw output (run.log)](run.log); [`command.txt`](command.txt); [`execution_metadata.txt`](execution_metadata.txt); [`verbose CTest output`](../../automated_tests/ctest_verbose.log).
-Manual evidence: Not captured. The shared Sprint videos have no per-case timestamps, and no UI steps were performed in this run.
-Outcome: Partial — relevant suite executable passed, but case-specific assertion and required manual/API observation evidence are missing.
+TC-APT-01 — PASS
+Tester: Codex-assisted API execution at Daksha SG's request
+Execution date/time: 2026-11-15T22:56:13+05:30
+Build/commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Operating system: macOS-26.1-arm64-arm-64bit-Mach-O
+Environment: HTTPS test server on loopback; isolated PostgreSQL 15.18 database; synthetic data only.
+Setup/roles: Synthetic Administrator, Receptionist, Doctor and patient records as required. Credentials and bearer tokens omitted.
+Steps performed: See sanitized HTTP methods, paths and request bodies in run.log.
+Expected: Authenticated free-slot lookup succeeds; booking an available future slot returns HTTP 201.
+Actual: CHECK PASS: free slots HTTP 200, count=13, selected=09:30; booking HTTP 201; response={'appointment': {'appointmentId': 6, 'patientId': 'PID-00000003', 'doctorId': 2, 'slotStart': '2026-11-18 09:30', 'status': 'Confirmed'}}
+Evidence: run.log (sanitized request/response with HTTP status and values).
+Outcome: PASS

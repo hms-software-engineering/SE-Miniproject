@@ -1,1 +1,15 @@
-All authentication and RBAC tests passed.
+Execution: 2026-11-15T22:58:48+05:30
+Commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Environment: macOS-26.1-arm64-arm-64bit-Mach-O; isolated PostgreSQL 15.18; test-only trusted TLS certificate.
+Evidence: sanitized HTTPS requests/responses; test password and bearer token redacted.
+
+REQUEST GET /api/v1/health/live
+HTTP_STATUS 200
+RESPONSE {"checks": {"process": "ok"}, "status": "alive"}
+
+REQUEST POST /api/v1/auth/login
+REQUEST_BODY {"username":"hms_admin_test","password":"<redacted>"}
+HTTP_STATUS 200
+RESPONSE {"message": "Login successful", "role": "Administrator", "token": "<redacted>", "userId": "6"}
+
+CHECK PASS: valid admin login returned HTTP 200 with role Administrator; returned bearer token was redacted.

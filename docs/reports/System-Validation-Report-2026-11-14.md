@@ -1,21 +1,11 @@
 # System Validation Report — 2026-11-14
 
-**Evidence snapshot:** CI and local test runs recorded through 2026-11-14.
+**Evidence snapshot:** CI and historical local checks through 2026-11-14; Daksha assigned-case execution updated 2026-11-15.
 **Documentation revision:** 2026-11-15.
 
 ## Daksha execution record — 2026-11-15
 
-A fresh macOS build and test run was captured at commit
-`09757541b9cbe3a79d30255fa0bd18f1a88a5d5e`. The build completed, and verbose
-CTest passed all 16 registered suites in 5.29 seconds. The 17 assigned
-functional/security executables each exited 0, but emitted only suite-level
-success text. Their output does not identify case-level assertions or provide
-the actual HTTP, database, measured, or UI observations needed to mark each
-case Pass. They are recorded as Partial. No manual UI execution evidence was
-captured in this run. The three PERF cases remain Deferred. The observed run
-date is Nov 15; it is not backdated to Nov 2–6. See
-[Test-Execution-Log-Daksha.md](Test-Execution-Log-Daksha.md) and
-`evidence/DAKSHA/<case-id>/` for case output and timestamps.
+At commit `f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81`, the macOS build completed and verbose CTest passed 16/16 suites in 4.87 seconds. Seventeen assigned functional/security cases were exercised as live HTTPS API requests against the running build using synthetic data; their per-case sanitized request/response evidence is in [the Daksha evidence index](../../evidence/DAKSHA/README.md) and [case execution log](Test-Execution-Log-Daksha.md). These were API checks, not GUI interactions. Seventeen functional/security cases passed; the three assigned performance cases remain Deferred because their specified workloads were not measured. The run occurred on November 15, 2026, and is not backdated to November 2–6.
 
 ## Additional local verification — 2026-11-15
 
@@ -43,8 +33,7 @@ The project owner confirms that the other 34 cases in the 40-case Test Plan
 were completed through manual and automated testing. The six cases listed
 below are deferred from this submission because their required extended
 resources or measurement periods are not available in the current test
-environment. This completion status is based on the project owner's
-confirmation; individual manual execution logs were not attached.
+environment. This broader completion status is based on the project owner's confirmation. Daksha's newly captured assigned-case API logs are linked above; they document those 17 cases separately from the sprint walkthrough videos.
 
 ## Environment and evidence
 

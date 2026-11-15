@@ -1,1 +1,100 @@
-All authentication and RBAC tests passed.
+Execution: 2026-11-15T22:54:00+05:30
+Commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Environment: macOS-26.1-arm64-arm-64bit-Mach-O
+Evidence: sanitized HTTPS requests/responses against isolated PostgreSQL 15.18 at 127.0.0.1:55432; synthetic data only.
+No passwords or bearer tokens recorded.
+
+REQUEST POST /api/v1/users
+REQUEST_BODY {"password": "<redacted>", "role": "Receptionist", "username": "manual_reception"}
+HTTP_STATUS 201
+RESPONSE {"role": "Receptionist", "userId": "7"}
+
+REQUEST POST /api/v1/users
+REQUEST_BODY {"password": "<redacted>", "role": "Doctor", "username": "manual_doctor"}
+HTTP_STATUS 201
+RESPONSE {"doctorId": "2", "role": "Doctor", "userId": "8"}
+
+REQUEST POST /api/v1/users
+REQUEST_BODY {"password": "<redacted>", "role": "Billing Officer", "username": "manual_billing"}
+HTTP_STATUS 201
+RESPONSE {"role": "Billing Officer", "userId": "9"}
+
+REQUEST POST /api/v1/auth/login
+REQUEST_BODY {"password": "<redacted>", "username": "manual_reception"}
+HTTP_STATUS 200
+RESPONSE {"message": "Login successful", "role": "Receptionist", "token": "<redacted>", "userId": "7"}
+
+REQUEST POST /api/v1/auth/login
+REQUEST_BODY {"password": "<redacted>", "username": "manual_doctor"}
+HTTP_STATUS 200
+RESPONSE {"message": "Login successful", "role": "Doctor", "token": "<redacted>", "userId": "8"}
+
+REQUEST GET /api/v1/users
+REQUEST_BODY <none>
+HTTP_STATUS 403
+RESPONSE {"error": {"code": "ACCESS_DENIED", "message": "Access denied", "requestId": "req-18"}}
+
+REQUEST GET /api/v1/users
+REQUEST_BODY <none>
+HTTP_STATUS 200
+RESPONSE [{"active": false, "doctorId": null, "role": "Receptionist", "userId": "1", "username": "seed_receptionist"}, {"active": false, "doctorId": "1", "role": "Doctor", "userId": "2", "username": "seed_doctor"}, {"active": false, "doctorId": null, "role": "Patient", "userId": "3", "username": "seed_patient"}, {"active": false, "doctorId": null, "role": "Billing Officer", "userId": "4", "username": "seed_billing"}, {"active": false, "doctorId": null, "role": "Administrator", "userId": "5", "username": "seed_admin"}, {"active": false, "doctorId": null, "role": "Administrator", "userId": "6", "username": "hms_admin_test"}, {"active": false, "doctorId": null, "role": "Receptionist", "userId": "7", "username": "manual_reception"}, {"active": false, "doctorId": "2", "role": "Doctor", "userId": "8", "username": "manual_doctor"}, {"active": false, "doctorId": null, "role": "Billing Officer", "userId": "9", "username": "manual_billing"}, {"active": false, "doctorId": null, "role": "Receptionist", "userId": "10", "username": "manual_lockout"}]
+
+CHECK PASS: Receptionist login 200, Doctor login 200, Receptionist GET users 403 (Access denied), Administrator GET users 200
+
+Additional role matrix execution: 2026-11-15T22:57:37+05:30
+
+Commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+
+Environment: disposable PostgreSQL 15.18 database; synthetic identities only.
+
+REQUEST GET /api/v1/users
+REQUEST_BODY <none>
+HTTP_STATUS 403
+RESPONSE {"error": {"code": "ACCESS_DENIED", "message": "Access denied", "requestId": "req-62"}}
+
+CHECK role=Receptionist login_http=200 users_list_http=403 expected=403
+
+REQUEST GET /api/v1/users
+REQUEST_BODY <none>
+HTTP_STATUS 403
+RESPONSE {"error": {"code": "ACCESS_DENIED", "message": "Access denied", "requestId": "req-64"}}
+
+CHECK role=Doctor login_http=200 users_list_http=403 expected=403
+
+REQUEST GET /api/v1/users
+REQUEST_BODY <none>
+HTTP_STATUS 403
+RESPONSE {"error": {"code": "ACCESS_DENIED", "message": "Access denied", "requestId": "req-66"}}
+
+CHECK role=Billing Officer login_http=200 users_list_http=403 expected=403
+
+REQUEST POST /api/v1/auth/register
+REQUEST_BODY {"password": "<redacted>", "username": "manual_patient"}
+HTTP_STATUS 201
+RESPONSE {"message": "User registered successfully", "role": "Patient", "userId": "11"}
+
+Patient role login HTTP 200 role=Patient token=<redacted>
+
+REQUEST POST /api/v1/patients/me/profile
+REQUEST_BODY {"address": "2 Test Avenue", "dateOfBirth": "02-02-1992", "gender": "Other", "name": "Synthetic Patient Self", "phone": "5550101999"}
+HTTP_STATUS 201
+RESPONSE {"patient": {"address": "2 Test Avenue", "allergies": "", "dateOfBirth": "02-02-1992", "gender": "Other", "name": "Synthetic Patient Self", "patientId": "PID-00000004", "phone": "5550101999"}}
+
+REQUEST GET /api/v1/patients/PID-00000004
+REQUEST_BODY <none>
+HTTP_STATUS 200
+RESPONSE {"patient": {"address": "2 Test Avenue", "allergies": "", "dateOfBirth": "02-02-1992", "gender": "Other", "name": "Synthetic Patient Self", "patientId": "PID-00000004", "phone": "5550101999"}}
+
+REQUEST GET /api/v1/patients/PID-00000003
+REQUEST_BODY <none>
+HTTP_STATUS 403
+RESPONSE {"error": {"code": "ACCESS_DENIED", "message": "Access denied", "requestId": "req-71"}}
+
+REQUEST GET /api/v1/users
+REQUEST_BODY <none>
+HTTP_STATUS 403
+RESPONSE {"error": {"code": "ACCESS_DENIED", "message": "Access denied", "requestId": "req-72"}}
+
+CHECK Patient own-profile=201 own-record=200 other-patient-record=403 user-list=403 patientId=PID-00000004
+
+CHECK PASS: Administrator can list users; Receptionist, Doctor, Billing Officer, and Patient cannot; patient can read own record but cannot read another synthetic patient record.

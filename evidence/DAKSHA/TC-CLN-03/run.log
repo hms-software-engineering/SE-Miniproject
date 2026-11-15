@@ -1,1 +1,32 @@
-All clinical service tests passed.
+Execution: 2026-11-15T22:54:00+05:30
+Commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Environment: macOS-26.1-arm64-arm-64bit-Mach-O
+Evidence: sanitized HTTPS requests/responses against isolated PostgreSQL 15.18 at 127.0.0.1:55432; synthetic data only.
+No passwords or bearer tokens recorded.
+
+REQUEST PUT /api/v1/patients/PID-00000003/allergies
+REQUEST_BODY {"allergies": "SyntheticPenicillin"}
+HTTP_STATUS 200
+RESPONSE {"updated": true}
+
+REQUEST POST /api/v1/appointments
+REQUEST_BODY {"date": "2026-11-18", "doctorId": "2", "patientId": "PID-00000003", "time": "14:00"}
+HTTP_STATUS 201
+RESPONSE {"appointment": {"appointmentId": 4, "doctorId": 2, "patientId": "PID-00000003", "slotStart": "2026-11-18 14:00", "status": "Confirmed"}}
+
+REQUEST POST /api/v1/visits
+REQUEST_BODY {"appointmentId": "4", "diagnosis": "Synthetic diagnosis B", "notes": "Synthetic note B", "symptoms": "Synthetic symptom B"}
+HTTP_STATUS 201
+RESPONSE {"visitId": "2"}
+
+REQUEST POST /api/v1/visits/2/prescriptions
+REQUEST_BODY {"days": "5", "dosage": "1 tablet", "frequency": "daily", "item": "SyntheticPenicillin"}
+HTTP_STATUS 409
+RESPONSE {"error": {"code": "ALLERGY_WARNING", "message": "Patient allergy matches this medicine (SyntheticPenicillin). Resubmit with overrideReason to prescribe it.", "requestId": "req-39"}}
+
+REQUEST POST /api/v1/visits/2/prescriptions
+REQUEST_BODY {"days": "5", "dosage": "1 tablet", "frequency": "daily", "item": "SyntheticPenicillin", "overrideReason": "Synthetic clinical override test"}
+HTTP_STATUS 201
+RESPONSE {"created": true}
+
+CHECK PASS: allergy update 200, appt 201, visit 201, matching medicine HTTP 409 code=ALLERGY_WARNING, override HTTP 201

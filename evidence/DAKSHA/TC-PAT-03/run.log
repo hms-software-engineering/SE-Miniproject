@@ -1,1 +1,12 @@
-All patient service tests passed.
+Execution: 2026-11-15T22:54:00+05:30
+Commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Environment: macOS-26.1-arm64-arm-64bit-Mach-O
+Evidence: sanitized HTTPS requests/responses against isolated PostgreSQL 15.18 at 127.0.0.1:55432; synthetic data only.
+No passwords or bearer tokens recorded.
+
+REQUEST POST /api/v1/patients
+REQUEST_BODY {"address": "1 Test Avenue", "allergies": "", "dateOfBirth": "01-01-1990", "gender": "Female", "name": "Synthetic Patient Alpha", "phone": "5550101001"}
+HTTP_STATUS 409
+RESPONSE {"error": {"code": "DUPLICATE_PATIENT", "message": "A patient with the same name, date of birth, and phone number already exists.", "requestId": "req-22"}}
+
+CHECK PASS: HTTP 409; error code=DUPLICATE_PATIENT

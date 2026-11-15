@@ -1,1 +1,12 @@
-All patient service tests passed.
+Execution: 2026-11-15T22:54:00+05:30
+Commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Environment: macOS-26.1-arm64-arm-64bit-Mach-O
+Evidence: sanitized HTTPS requests/responses against isolated PostgreSQL 15.18 at 127.0.0.1:55432; synthetic data only.
+No passwords or bearer tokens recorded.
+
+REQUEST POST /api/v1/patients
+REQUEST_BODY {"address": "1 Test Avenue", "allergies": "", "dateOfBirth": "31-02-1990", "gender": "Female", "name": "Synthetic Patient Alpha", "phone": "5550101002"}
+HTTP_STATUS 400
+RESPONSE {"error": {"code": "INVALID_PATIENT", "message": "dateOfBirth: Date of birth must be a valid DD-MM-YYYY date.", "requestId": "req-21"}}
+
+CHECK PASS: HTTP 400; error code=INVALID_PATIENT; response={'error': {'code': 'INVALID_PATIENT', 'message': 'dateOfBirth: Date of birth must be a valid DD-MM-YYYY date.', 'requestId': 'req-21'}}

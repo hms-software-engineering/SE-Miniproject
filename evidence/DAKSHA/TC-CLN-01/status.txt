@@ -1,15 +1,12 @@
-TC-CLN-01 — PARTIAL
-Tester: Daksha SG
-Execution start/end: 2026-11-15T22:32:18+05:30 / 2026-11-15T22:32:18+05:30
-Build commit: 09757541b9cbe3a79d30255fa0bd18f1a88a5d5e
-Operating system: Darwin Dakshas-MacBook-Air 25.1.0 Darwin Kernel Version 25.1.0: Mon Oct 20 19:34:03 PDT 2025; root:xnu-12377.41.6~2/RELEASE_ARM64_T8112 arm64
-Environment: Existing macOS CMake build in build/; no separate HTTP server or external account was configured for these executable runs.
-Preconditions: The target executable existed in build/ and was run from the repository root.
-Account role(s): Not reported by this executable run. No real accounts or credentials were used.
-Synthetic test data: The executable's internal test fixtures; individual fixture values are not emitted in the captured output.
-Steps performed: Executed `./build/clinical_service_test` from the repository root. No UI action, API request, or database query was performed as part of this invocation.
-Expected: A visit record is saved for the synthetic patient and appointment with the submitted clinical values.
-Actual: Process exit status 0. Raw stdout was exactly: `All clinical service tests passed.`. The executable did not emit this case's assertion name, HTTP status/message, measured value, or UI observation. The suite-level success line cannot establish all checks for this specific case.
-Evidence: [`clinical_service_test` raw output (run.log)](run.log); [`command.txt`](command.txt); [`execution_metadata.txt`](execution_metadata.txt); [`verbose CTest output`](../../automated_tests/ctest_verbose.log).
-Manual evidence: Not captured. The shared Sprint videos have no per-case timestamps, and no UI steps were performed in this run.
-Outcome: Partial — relevant suite executable passed, but case-specific assertion and required manual/API observation evidence are missing.
+TC-CLN-01 — PASS
+Tester: Codex-assisted manual API execution at Daksha SG's request
+Execution date/time: 2026-11-15T22:54:00+05:30
+Build/commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Operating system: macOS-26.1-arm64-arm-64bit-Mach-O
+Environment: HMS server on 127.0.0.1:8443 (trusted test-only TLS certificate); isolated PostgreSQL 15.18 at 127.0.0.1:55432; synthetic test data.
+Setup/roles: Synthetic Administrator, Receptionist, Doctor, Billing Officer, patient, and lockout account as needed. All passwords and bearer tokens are omitted from evidence.
+Steps performed: See the exact HTTP method/path and sanitized request body for every request in run.log.
+Expected: A confirmed appointment can be recorded as a clinical visit (HTTP 201).
+Actual: CHECK PASS: HTTP 201; visitId=1; response={'visitId': '1'}
+Evidence: run.log (sanitized request/response, HTTP statuses, response messages, and checks).
+Outcome: PASS

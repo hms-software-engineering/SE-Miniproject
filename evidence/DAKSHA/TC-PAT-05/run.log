@@ -1,1 +1,17 @@
-All patient service tests passed.
+Execution: 2026-11-15T22:56:13+05:30
+Commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Environment: macOS-26.1-arm64-arm-64bit-Mach-O
+Evidence: sanitized HTTPS requests/responses against isolated PostgreSQL 15.18 at 127.0.0.1:55432; synthetic data only.
+No passwords or bearer tokens recorded.
+
+REQUEST PUT /api/v1/patients/PID-00000003
+REQUEST_BODY {"address": "1 Test Avenue", "allergies": "SyntheticPenicillin", "dateOfBirth": "01-01-1990", "gender": "Female", "name": "Synthetic Patient Alpha Final 2", "phone": "5550101005"}
+HTTP_STATUS 200
+RESPONSE {"patient": {"address": "1 Test Avenue", "allergies": "SyntheticPenicillin", "dateOfBirth": "01-01-1990", "gender": "Female", "name": "Synthetic Patient Alpha Final 2", "patientId": "PID-00000003", "phone": "5550101005"}}
+
+REQUEST GET /api/v1/patients/PID-00000003/history
+REQUEST_BODY <none>
+HTTP_STATUS 200
+RESPONSE {"history": [{"changedAt": "2026-11-15T17:26:13.621816Z", "changedBy": "manual_reception", "oldValues": {"address": "1 Test Avenue", "dateOfBirth": "01-01-1990", "gender": "Female", "name": "Synthetic Patient Alpha Final", "phone": "5550101004"}}, {"changedAt": "2026-11-15T17:25:23.126829Z", "changedBy": "manual_reception", "oldValues": {"address": "1 Test Avenue", "dateOfBirth": "01-01-1990", "gender": "Female", "name": "Synthetic Patient Alpha Updated", "phone": "5550101003"}}, {"changedAt": "2026-11-15T17:24:01.788434Z", "changedBy": "manual_reception", "oldValues": {"address": "1 Test Avenue", "dateOfBirth": "01-01-1990", "gender": "Female", "name": "Synthetic Patient Alpha", "phone": "5550101001"}}]}
+
+CHECK PASS: update HTTP 200; history HTTP 200; prior names=['Synthetic Patient Alpha Final', 'Synthetic Patient Alpha Updated', 'Synthetic Patient Alpha']

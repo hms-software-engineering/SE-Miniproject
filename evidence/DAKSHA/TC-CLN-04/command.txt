@@ -1,1 +1,0 @@
-./build/clinical_test

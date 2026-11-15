@@ -1,1 +1,17 @@
-All appointment tests passed.
+Execution: 2026-11-15T22:56:13+05:30
+Commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Environment: macOS-26.1-arm64-arm-64bit-Mach-O
+Evidence: sanitized HTTPS requests/responses against isolated PostgreSQL 15.18 at 127.0.0.1:55432; synthetic data only.
+No passwords or bearer tokens recorded.
+
+REQUEST GET /api/v1/appointments/free-slots?doctorId=2&date=2026-11-18
+REQUEST_BODY <none>
+HTTP_STATUS 200
+RESPONSE {"slots": ["09:30", "10:00", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:30", "15:00", "15:30", "16:00", "16:30"]}
+
+REQUEST POST /api/v1/appointments
+REQUEST_BODY {"date": "2026-11-18", "doctorId": "2", "patientId": "PID-00000003", "time": "09:30"}
+HTTP_STATUS 201
+RESPONSE {"appointment": {"appointmentId": 6, "doctorId": 2, "patientId": "PID-00000003", "slotStart": "2026-11-18 09:30", "status": "Confirmed"}}
+
+CHECK PASS: free slots HTTP 200, count=13, selected=09:30; booking HTTP 201; response={'appointment': {'appointmentId': 6, 'patientId': 'PID-00000003', 'doctorId': 2, 'slotStart': '2026-11-18 09:30', 'status': 'Confirmed'}}

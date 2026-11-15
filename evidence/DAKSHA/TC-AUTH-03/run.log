@@ -1,1 +1,42 @@
-All authentication and RBAC tests passed.
+Execution: 2026-11-15T22:54:00+05:30
+Commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Environment: macOS-26.1-arm64-arm-64bit-Mach-O
+Evidence: sanitized HTTPS requests/responses against isolated PostgreSQL 15.18 at 127.0.0.1:55432; synthetic data only.
+No passwords or bearer tokens recorded.
+
+REQUEST POST /api/v1/users
+REQUEST_BODY {"password": "<redacted>", "role": "Receptionist", "username": "manual_lockout"}
+HTTP_STATUS 201
+RESPONSE {"role": "Receptionist", "userId": "10"}
+
+REQUEST POST /api/v1/auth/login
+REQUEST_BODY {"password": "<redacted>", "username": "manual_lockout"}
+HTTP_STATUS 401
+RESPONSE {"error": {"code": "INVALID_CREDENTIALS", "message": "Invalid username or password.", "requestId": "req-10"}}
+
+REQUEST POST /api/v1/auth/login
+REQUEST_BODY {"password": "<redacted>", "username": "manual_lockout"}
+HTTP_STATUS 401
+RESPONSE {"error": {"code": "INVALID_CREDENTIALS", "message": "Invalid username or password.", "requestId": "req-11"}}
+
+REQUEST POST /api/v1/auth/login
+REQUEST_BODY {"password": "<redacted>", "username": "manual_lockout"}
+HTTP_STATUS 401
+RESPONSE {"error": {"code": "INVALID_CREDENTIALS", "message": "Invalid username or password.", "requestId": "req-12"}}
+
+REQUEST POST /api/v1/auth/login
+REQUEST_BODY {"password": "<redacted>", "username": "manual_lockout"}
+HTTP_STATUS 401
+RESPONSE {"error": {"code": "INVALID_CREDENTIALS", "message": "Invalid username or password.", "requestId": "req-13"}}
+
+REQUEST POST /api/v1/auth/login
+REQUEST_BODY {"password": "<redacted>", "username": "manual_lockout"}
+HTTP_STATUS 423
+RESPONSE {"error": {"code": "ACCOUNT_LOCKED", "message": "Account locked after repeated failed logins.", "requestId": "req-14"}}
+
+REQUEST POST /api/v1/auth/login
+REQUEST_BODY {"password": "<redacted>", "username": "manual_lockout"}
+HTTP_STATUS 423
+RESPONSE {"error": {"code": "ACCOUNT_LOCKED", "message": "Account locked after repeated failed logins.", "requestId": "req-15"}}
+
+CHECK PASS: login HTTP sequence=[401, 401, 401, 401, 423, 423]; expected first four 401 then 423 and locked follow-up 423

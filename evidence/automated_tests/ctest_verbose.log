@@ -13,7 +13,7 @@ test 1
 1: Working Directory: /Users/dakshasg/SE-Miniproject/build
 1: Test timeout computed to be: 10000000
 1: Backup encryption tests passed
- 1/16 Test  #1: backup_service_test ..............   Passed    0.03 sec
+ 1/16 Test  #1: backup_service_test ..............   Passed    0.02 sec
 test 2
       Start  2: api_test
 
@@ -29,7 +29,7 @@ test 3
 3: Working Directory: /Users/dakshasg/SE-Miniproject/build
 3: Test timeout computed to be: 10000000
 3: All authentication and RBAC tests passed.
- 3/16 Test  #3: auth_service_test ................   Passed    5.11 sec
+ 3/16 Test  #3: auth_service_test ................   Passed    4.72 sec
 test 4
       Start  4: health_test
 
@@ -37,7 +37,7 @@ test 4
 4: Working Directory: /Users/dakshasg/SE-Miniproject/build
 4: Test timeout computed to be: 10000000
 4: All health and availability tests passed.
- 4/16 Test  #4: health_test ......................   Passed    0.01 sec
+ 4/16 Test  #4: health_test ......................   Passed    0.00 sec
 test 5
       Start  5: password_security_test
 
@@ -53,7 +53,7 @@ test 6
 6: Working Directory: /Users/dakshasg/SE-Miniproject/build
 6: Test timeout computed to be: 10000000
 6: All appointment tests passed.
- 6/16 Test  #6: appointments_test ................   Passed    0.02 sec
+ 6/16 Test  #6: appointments_test ................   Passed    0.01 sec
 test 7
       Start  7: change_appointment_test
 
@@ -85,7 +85,7 @@ test 10
 10: Working Directory: /Users/dakshasg/SE-Miniproject/build
 10: Test timeout computed to be: 10000000
 10: All report service tests passed.
-10/16 Test #10: report_service_test ..............   Passed    0.01 sec
+10/16 Test #10: report_service_test ..............   Passed    0.00 sec
 test 11
       Start 11: billing_service_test
 
@@ -117,7 +117,7 @@ test 14
 14: Working Directory: /Users/dakshasg/SE-Miniproject/build
 14: Test timeout computed to be: 10000000
 14: All patient service tests passed.
-14/16 Test #14: patient_service_test .............   Passed    0.01 sec
+14/16 Test #14: patient_service_test .............   Passed    0.02 sec
 test 15
       Start 15: patient_field_encryption_test
 
@@ -137,4 +137,4 @@ test 16
 
 100% tests passed out of 16
 
-Total Test time (real) =   5.29 sec
+Total Test time (real) =   4.87 sec

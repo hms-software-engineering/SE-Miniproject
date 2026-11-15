@@ -1,1 +1,17 @@
-All appointment tests passed.
+Execution: 2026-11-15T22:54:00+05:30
+Commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Environment: macOS-26.1-arm64-arm-64bit-Mach-O
+Evidence: sanitized HTTPS requests/responses against isolated PostgreSQL 15.18 at 127.0.0.1:55432; synthetic data only.
+No passwords or bearer tokens recorded.
+
+REQUEST POST /api/v1/appointments
+REQUEST_BODY {"date": "2026-11-14", "doctorId": "2", "patientId": "PID-00000003", "time": "10:00"}
+HTTP_STATUS 400
+RESPONSE {"error": {"code": "INVALID_DATE", "message": "Choose a date and time that have not passed.", "requestId": "req-29"}}
+
+REQUEST POST /api/v1/appointments
+REQUEST_BODY {"date": "2027-02-01", "doctorId": "2", "patientId": "PID-00000003", "time": "10:00"}
+HTTP_STATUS 400
+RESPONSE {"error": {"code": "INVALID_DATE", "message": "Appointments can be booked no more than 60 days ahead.", "requestId": "req-30"}}
+
+CHECK PASS: past date HTTP 400 code=INVALID_DATE; far date HTTP 400 code=INVALID_DATE

@@ -1,1 +1,23 @@
-All change_appointment tests passed
+Execution: 2026-11-15T22:54:00+05:30
+Commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Environment: macOS-26.1-arm64-arm-64bit-Mach-O
+Evidence: sanitized HTTPS requests/responses against isolated PostgreSQL 15.18 at 127.0.0.1:55432; synthetic data only.
+No passwords or bearer tokens recorded.
+
+REQUEST POST /api/v1/appointments
+REQUEST_BODY {"date": "2026-11-18", "doctorId": "2", "patientId": "PID-00000003", "time": "12:00"}
+HTTP_STATUS 201
+RESPONSE {"appointment": {"appointmentId": 3, "doctorId": 2, "patientId": "PID-00000003", "slotStart": "2026-11-18 12:00", "status": "Confirmed"}}
+
+REQUEST PATCH /api/v1/appointments/3
+REQUEST_BODY {"action": "reschedule", "newSlot": "2026-11-18 13:00"}
+HTTP_STATUS 200
+RESPONSE {"appointment": {"appointmentId": 3, "doctorId": 2, "patientId": "PID-00000003", "slotStart": "2026-11-18 13:00", "status": "Confirmed"}}
+
+REQUEST PATCH /api/v1/appointments/3
+REQUEST_BODY {"action": "cancel"}
+HTTP_STATUS 200
+RESPONSE {"appointment": {"appointmentId": 3, "doctorId": 2, "patientId": "PID-00000003", "slotStart": "2026-11-18 13:00", "status": "Cancelled"}}
+
+CHECK PASS: create HTTP 201, reschedule HTTP 200, cancel HTTP 200, rescheduled={'appointmentId': 3, 'patientId': 'PID-00000003', 'doctorId': 2, 'slotStart': '2026-11-18 13:00', 'status': 'Confirmed'}, cancel response={'appointment': {'appointmentId': 3, 'patientId': 'PID-00000003', 'doctorId': 2, 'slotStart': '2026-11-18 13:00', 'status': 'Cancelled'}}
+3|2026-11-18 13:00:00+05:30|Cancelled

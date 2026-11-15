@@ -1,15 +1,12 @@
-TC-CLN-04 — PARTIAL
-Tester: Daksha SG
-Execution start/end: 2026-11-15T22:32:18+05:30 / 2026-11-15T22:32:18+05:30
-Build commit: 09757541b9cbe3a79d30255fa0bd18f1a88a5d5e
-Operating system: Darwin Dakshas-MacBook-Air 25.1.0 Darwin Kernel Version 25.1.0: Mon Oct 20 19:34:03 PDT 2025; root:xnu-12377.41.6~2/RELEASE_ARM64_T8112 arm64
-Environment: Existing macOS CMake build in build/; no separate HTTP server or external account was configured for these executable runs.
-Preconditions: The target executable existed in build/ and was run from the repository root.
-Account role(s): Not reported by this executable run. No real accounts or credentials were used.
-Synthetic test data: The executable's internal test fixtures; individual fixture values are not emitted in the captured output.
-Steps performed: Executed `./build/clinical_test` from the repository root. No UI action, API request, or database query was performed as part of this invocation.
-Expected: Clinical history is returned newest first with the expected visit and prescription records.
-Actual: Process exit status 0. Raw stdout was exactly: `All clinical tests passed.`. The executable did not emit this case's assertion name, HTTP status/message, measured value, or UI observation. The suite-level success line cannot establish all checks for this specific case.
-Evidence: [`clinical_test` raw output (run.log)](run.log); [`command.txt`](command.txt); [`execution_metadata.txt`](execution_metadata.txt); [`verbose CTest output`](../../automated_tests/ctest_verbose.log).
-Manual evidence: Not captured. The shared Sprint videos have no per-case timestamps, and no UI steps were performed in this run.
-Outcome: Partial — relevant suite executable passed, but case-specific assertion and required manual/API observation evidence are missing.
+TC-CLN-04 — PASS
+Tester: Codex-assisted API execution at Daksha SG's request
+Execution date/time: 2026-11-15T22:56:13+05:30
+Build/commit: f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81
+Operating system: macOS-26.1-arm64-arm-64bit-Mach-O
+Environment: HTTPS test server on loopback; isolated PostgreSQL 15.18 database; synthetic data only.
+Setup/roles: Synthetic Administrator, Receptionist, Doctor and patient records as required. Credentials and bearer tokens omitted.
+Steps performed: See sanitized HTTP methods, paths and request bodies in run.log.
+Expected: Doctor visit history returns at least two visits newest first.
+Actual: CHECK PASS: HTTP 200; diagnosis order=['Synthetic diagnosis B', 'Synthetic diagnosis A']; response={'visits': [{'visitId': '2', 'visitedAt': '2026-11-15 22:54', 'symptoms': 'Synthetic symptom B', 'diagnosis': 'Synthetic diagnosis B', 'notes': 'Synthetic note B', 'prescriptions': [{'item': 'SyntheticPenicillin', 'dosage': '1 tablet', 'frequency': 'daily', 'days': 5, 'overrideReason': 'Synthetic clinical override test'}]}, {'visitId': '1', 'visitedAt': '2026-11-15 22:54', 'symptoms': 'Synthetic symptom A', 'diagnosis': 'Synthetic diagnosis A', 'notes': 'Synthetic note A', 'prescriptions': [{'item': 'Synthetic Medication A', 'dosage': '1 tablet', 'frequency': 'daily', 'days': 5, 'overrideReason': ''}]}]}
+Evidence: run.log (sanitized request/response with HTTP status and values).
+Outcome: PASS
