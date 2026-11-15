@@ -1,0 +1,54 @@
+Date=2026-11-15 16:29:09 +05:30
+DatabaseScope=isolated PostgreSQL 17.11; hms_assigned_test; 127.0.0.1:55432
+StartupHealthTLS12=200; protocol=TLSv1.2
+LoadedOpenSslDllPaths=<repo>\vcpkg_installed\x64-windows\bin\libssl-3-x64.dll;<repo>\vcpkg_installed\x64-windows\bin\libcrypto-3-x64.dll
+LivenessTLS12=200; protocol=TLSv1.2; cipher=ECDHE-RSA-AES256-GCM-SHA384
+TLS13Negotiation=200; protocol=TLSv1.3; cipher=TLS_AES_256_GCM_SHA384; verify=; error=
+TLS11Rejected=True
+TLS10Rejected=True
+ReadinessTLS=200
+UntrustedCertificateRejected=True; verify=18
+PlainHTTPRejected=True
+ServerSurvivedTLSNegativeChecks=True
+AdminLogin=200; role=Administrator
+WeakPasswordRejected=400
+ReceptionistCreated=201; assignedRole=Receptionist
+ReceptionistLogin=200; role=Receptionist
+NonAdminUserCreateDenied=403
+ReceptionistDeactivated=200; active=False
+InactiveLoginRejected=401
+AdminAuditFilterEndpoint=501
+NonAdminAuditReadDenied=403
+LoginSqlInjectionRejected=401
+SearchInjectionResponse=200; matches=0
+DoctorCreated=201; profilePresent=True
+PatientAProfileCreated=201; idPresent=True
+PatientBProfileCreated=201; idPresent=True
+PatientOwnRecord=200
+CrossPatientRecordDenied=403; bodyEmpty=True
+PatientOwnHistoryEndpoint=404
+PatientOwnBillsEndpoint=404
+CrossPatientHistoryDenied=403
+OtherDoctorFreeSlotAvailable=True
+OtherDoctorAppointmentBooked=201
+SyntheticAppointmentBooked=201; idPresent=True
+AssignedScheduleEndpoint=404
+ImplementedScheduleEndpoint=501
+SyntheticVisitCreated=201; idPresent=True
+BillingOfficerCreated=201; role=Billing Officer
+BillCreationEndpoint=501
+PaymentEndpoint=501
+ReceiptEndpoint=501
+RevenueReportEndpoint=501
+SyntheticPatientUpdate=200
+Logout=200
+LoggedOutTokenReplay=401
+CredentialHashSummary=7|7|true
+DeactivationPersisted=false
+PatientNameNotPlaintextAtRest=true
+VisitDiagnosisAndNotesNotPlaintext=true|true
+AuditEventCountForSyntheticAdmin=6
+AuditRowsAndNoScriptNote=11|true
+ServerAliveAfterApiChecks=True
+NoSecretsRecorded=true
+ServerStopped=true

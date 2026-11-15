@@ -1,0 +1,24 @@
+HMS Stage 3 CTest (fresh Windows build)
+Date: 2026-11-15
+Command: set PATH=vcpkg_installed/x64-windows/bin;PostgreSQL/17/bin then ctest --test-dir <fresh Stage 3 temp build> -C Debug --output-on-failure
+OpenSSL server target includes OpenSSL::applink
+Test project %TEMP%/hms-stage3-msvc-ninja-20261115
+    Start 1: api_test
+1/7 Test #1: api_test .........................   Passed    0.16 sec
+    Start 2: appointments_test
+2/7 Test #2: appointments_test ................   Passed    0.12 sec
+    Start 3: auth_service_test
+3/7 Test #3: auth_service_test ................   Passed    5.95 sec
+    Start 4: password_security_test
+4/7 Test #4: password_security_test ...........   Passed    1.58 sec
+    Start 5: patient_service_test
+5/7 Test #5: patient_service_test .............   Passed    0.09 sec
+    Start 6: clinical_service_test
+6/7 Test #6: clinical_service_test ............   Passed    0.11 sec
+    Start 7: health_test
+7/7 Test #7: health_test ......................   Passed    0.10 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =   8.16 sec
+CTEST_EXIT=0

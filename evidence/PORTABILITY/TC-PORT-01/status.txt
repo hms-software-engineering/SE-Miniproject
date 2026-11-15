@@ -1,0 +1,6 @@
+TC-PORT-01 — PARTIAL
+Execution date: 2026-11-15
+Tester: Dhruv Swatantramath (PES1UG24CS155)
+Actual observation: Fresh current-worktree Windows build succeeded and CTest plus PostgreSQL integration CTest each passed 7/7. Stage 3 TLS/API smoke completed successfully on Windows. Ubuntu 22.04 was unavailable; WSL returned E_ACCESSDENIED. Evidence: ../../automated_tests/stage3_fresh_windows_build_test_20261115.log; ../../automated_tests/stage3_ctest_20261115.log; ../../automated_tests/stage3_api_execution_20261115.txt.
+Full Appendix A procedure completed: No.
+No patient identifiers, credentials or real clinical data were used.

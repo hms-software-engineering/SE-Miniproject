@@ -1,0 +1,7 @@
+TC-SEC-05 — FAIL
+Execution date: 2026-11-15
+Tester: Dhruv Swatantramath (PES1UG24CS155)
+Actual observation: Audit rows recorded tested login, user, visit, and patient-update activity; non-admin audit read returned 403. Direct patient-record reads lacked the expected VIEW_PATIENT audit event.
+Evidence: ../../automated_tests/stage3_api_execution_20261115.txt
+Full Appendix A procedure completed: No.
+Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.

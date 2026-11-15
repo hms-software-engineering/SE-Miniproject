@@ -1,0 +1,7 @@
+TC-SEC-03 — PASS
+Execution date: 2026-11-15
+Tester: Dhruv Swatantramath (PES1UG24CS155)
+Actual observation: Logged-out token replay returned 401. A separate session unused for 606 seconds returned 401 on its next authenticated request; server remained alive.
+Evidence: ../../automated_tests/stage3_idle_session_20261115.txt
+Full Appendix A procedure completed: Yes.
+Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.

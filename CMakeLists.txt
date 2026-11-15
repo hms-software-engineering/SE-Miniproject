@@ -272,6 +272,10 @@ target_link_libraries(hms_server PRIVATE
 if(WIN32)
     target_link_libraries(hms_server PRIVATE ws2_32)
 endif()
+if(MSVC AND OPENSSL_APPLINK_SOURCE AND TARGET OpenSSL::applink)
+    enable_language(C)
+    target_link_libraries(hms_server PRIVATE OpenSSL::applink)
+endif()
 
 # The service inventory is explicit so every module is independently checked.
 # Source files are taken from each library target to keep the coverage manifest

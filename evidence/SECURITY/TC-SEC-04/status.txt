@@ -1,0 +1,7 @@
+TC-SEC-04 — PARTIAL
+Execution date: 2026-11-15
+Tester: Dhruv Swatantramath (PES1UG24CS155)
+Actual observation: Login SQL-injection string returned 401; patient search returned zero matches. Script notes payload was stored only in encrypted visit fields. Oversized/boundary and browser rendering checks were not completed.
+Evidence: ../../automated_tests/stage3_api_execution_20261115.txt
+Full Appendix A procedure completed: No.
+Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.

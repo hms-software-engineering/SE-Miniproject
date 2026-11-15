@@ -1,0 +1,7 @@
+TC-ADM-02 — FAIL
+Execution date: 2026-11-15
+Tester: Dhruv Swatantramath (PES1UG24CS155)
+Actual observation: Administrator audit-filter endpoint returned 501. Non-administrator audit read returned 403; required administrator filter results were unavailable.
+Evidence: ../../automated_tests/stage3_api_execution_20261115.txt
+Full Appendix A procedure completed: No.
+Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.

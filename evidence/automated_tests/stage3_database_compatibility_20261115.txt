@@ -1,0 +1,8 @@
+Stage 3 database compatibility check
+Date: 2026-11-15
+Project target: PostgreSQL 15 per SRS
+Installed PostgreSQL directories inspected: C:\Program Files\PostgreSQL\17 only
+Version actually used: PostgreSQL 17.11, isolated cluster, 127.0.0.1:55432, database hms_assigned_test
+Migrations: 001-006 applied
+Stage 3 PostgreSQL integration CTest: 7/7 passed; see stage3_postgresql_ctest_20261115.log
+PostgreSQL 15 compatibility: NOT VERIFIED; no PostgreSQL 15 installation was present. The existing PostgreSQL 17 installation/service was not replaced or altered.

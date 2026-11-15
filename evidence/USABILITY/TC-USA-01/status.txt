@@ -1,0 +1,6 @@
+TC-USA-01 — BLOCKED
+Execution date: 2026-11-15
+Tester: Dhruv Swatantramath (PES1UG24CS155)
+Actual observation: No trained participants or usability sessions; timings/help rates were not invented.
+Full Appendix A procedure completed: No.
+No patient identifiers, credentials or real clinical data were used.

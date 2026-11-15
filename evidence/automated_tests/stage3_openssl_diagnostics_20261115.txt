@@ -1,0 +1,107 @@
+OpenSSL Stage 3 build/runtime diagnostics
+Date: 2026-11-15
+Package version: vcpkg openssl 3.6.5
+FindOpenSSL source: OPENSSL_APPLINK_SOURCE:FILEPATH=<repo>/vcpkg_installed/x64-windows/include/openssl/applink.c
+Server build includes:
+build CMakeFiles\hms_server.dir\vcpkg_installed\x64-windows\include\openssl\applink.c.obj: C_COMPILER__hms_server_unscanned_Debug C$:\Users\dhruv\Downloads\HMS-Team-Repo\vcpkg_installed\x64-windows\include\openssl\applink.c || cmake_object_order_depends_target_hms_server
+build hms_server.exe: CXX_EXECUTABLE_LINKER__hms_server_Debug CMakeFiles\hms_server.dir\src\main.cpp.obj CMakeFiles\hms_server.dir\vcpkg_installed\x64-windows\include\openssl\applink.c.obj | hms_api.lib hms_auth.lib hms_patients.lib hms_appointments.lib hms_clinical.lib hms_health.lib C$:\Users\dhruv\Downloads\HMS-Team-Repo\vcpkg_installed\x64-windows\lib\libssl.lib C$:\Users\dhruv\Downloads\HMS-Team-Repo\vcpkg_installed\x64-windows\lib\libcrypto.lib C$:\Users\dhruv\Downloads\HMS-Team-Repo\vcpkg_installed\x64-windows\lib\argon2.lib || hms_api.lib hms_appointments.lib hms_auth.lib hms_clinical.lib hms_health.lib hms_patients.lib
+hms_server.exe DLL dependencies:
+Microsoft (R) COFF/PE Dumper Version 14.51.36260.0
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+
+Dump of file %TEMP%\hms-stage3-msvc-ninja-20261115\hms_server.exe
+
+File Type: EXECUTABLE IMAGE
+
+  Image has the following dependencies:
+
+    libssl-3-x64.dll
+    libcrypto-3-x64.dll
+    WS2_32.dll
+    argon2.dll
+    bcrypt.dll
+    KERNEL32.dll
+    MSVCP140D.dll
+    VCRUNTIME140D.dll
+    VCRUNTIME140_1D.dll
+    ucrtbased.dll
+
+  Summary
+
+        1000 .00cfg
+        2000 .data
+        4000 .idata
+       10000 .pdata
+       34000 .rdata
+        2000 .reloc
+        1000 .rsrc
+      11D000 .text
+        1000 .tls
+libssl DLL dependencies:
+Microsoft (R) COFF/PE Dumper Version 14.51.36260.0
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+
+Dump of file <repo>\vcpkg_installed\x64-windows\bin\libssl-3-x64.dll
+
+File Type: DLL
+
+  Image has the following dependencies:
+
+    libcrypto-3-x64.dll
+    WS2_32.dll
+    KERNEL32.dll
+    VCRUNTIME140.dll
+    api-ms-win-crt-heap-l1-1-0.dll
+    api-ms-win-crt-environment-l1-1-0.dll
+    api-ms-win-crt-runtime-l1-1-0.dll
+    api-ms-win-crt-time-l1-1-0.dll
+    api-ms-win-crt-string-l1-1-0.dll
+    api-ms-win-crt-utility-l1-1-0.dll
+    api-ms-win-crt-filesystem-l1-1-0.dll
+    api-ms-win-crt-convert-l1-1-0.dll
+
+  Summary
+
+        4000 .data
+        9000 .pdata
+       2C000 .rdata
+        2000 .reloc
+        1000 .rsrc
+       9A000 .text
+libcrypto DLL dependencies:
+Microsoft (R) COFF/PE Dumper Version 14.51.36260.0
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+
+Dump of file <repo>\vcpkg_installed\x64-windows\bin\libcrypto-3-x64.dll
+
+File Type: DLL
+
+  Image has the following dependencies:
+
+    WS2_32.dll
+    ADVAPI32.dll
+    CRYPT32.dll
+    USER32.dll
+    KERNEL32.dll
+    VCRUNTIME140.dll
+    api-ms-win-crt-string-l1-1-0.dll
+    api-ms-win-crt-stdio-l1-1-0.dll
+    api-ms-win-crt-convert-l1-1-0.dll
+    api-ms-win-crt-time-l1-1-0.dll
+    api-ms-win-crt-utility-l1-1-0.dll
+    api-ms-win-crt-heap-l1-1-0.dll
+    api-ms-win-crt-runtime-l1-1-0.dll
+    api-ms-win-crt-filesystem-l1-1-0.dll
+    api-ms-win-crt-environment-l1-1-0.dll
+
+  Summary
+
+        7000 .data
+       29000 .pdata
+      163000 .rdata
+        D000 .reloc
+        1000 .rsrc
+      36A000 .text

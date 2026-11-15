@@ -1,0 +1,7 @@
+TC-SEC-07 — PASS
+Execution date: 2026-11-15
+Tester: Dhruv Swatantramath (PES1UG24CS155)
+Actual observation: Patient could read own record (200); requests for another patient's record and history returned 403 without protected data.
+Evidence: ../../automated_tests/stage3_api_execution_20261115.txt
+Full Appendix A procedure completed: Yes.
+Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.

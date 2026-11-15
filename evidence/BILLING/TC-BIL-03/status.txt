@@ -1,0 +1,6 @@
+TC-BIL-03 — BLOCKED
+Execution date: 2026-11-15
+Tester: Dhruv Swatantramath (PES1UG24CS155)
+Actual observation: No bill or successful payment existed because the preceding API endpoints returned 501. Receipt generation returned 501; printable output and receipt fields could not be verified. Evidence: ../../automated_tests/stage3_api_execution_20261115.txt.
+Full Appendix A procedure completed: No.
+No patient identifiers, credentials or real clinical data were used.

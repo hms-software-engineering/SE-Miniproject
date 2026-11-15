@@ -1,0 +1,25 @@
+HMS Stage 3 PostgreSQL integration CTest
+Date: 2026-11-15
+Database: isolated PostgreSQL 17.11, hms_assigned_test on 127.0.0.1:55432
+Enabled: HMS_AUTH_TEST_POSTGRES=1; HMS_PATIENT_TEST_POSTGRES=1
+Temporary keys generated in process; values not recorded
+Test project %TEMP%/hms-stage3-msvc-ninja-20261115
+    Start 1: api_test
+1/7 Test #1: api_test .........................   Passed    0.09 sec
+    Start 2: appointments_test
+2/7 Test #2: appointments_test ................   Passed    0.09 sec
+    Start 3: auth_service_test
+3/7 Test #3: auth_service_test ................   Passed    5.16 sec
+    Start 4: password_security_test
+4/7 Test #4: password_security_test ...........   Passed    1.38 sec
+    Start 5: patient_service_test
+5/7 Test #5: patient_service_test .............   Passed    0.44 sec
+    Start 6: clinical_service_test
+6/7 Test #6: clinical_service_test ............   Passed    0.09 sec
+    Start 7: health_test
+7/7 Test #7: health_test ......................   Passed    0.09 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =   7.38 sec
+CTEST_EXIT=0

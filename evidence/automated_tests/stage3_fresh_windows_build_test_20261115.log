@@ -1,0 +1,13 @@
+HMS Stage 3 fresh Windows build
+Date: 2026-11-15
+Source HEAD: 010bdf2849c73f0ad26be266f64e6a57d213bef6 plus existing dirty worktree changes
+Compiler: MSVC 19.51.36260; CMake 4.3.1-msvc1; Ninja 1.13.2
+OpenSSL: vcpkg OpenSSL 3.6.5 dynamic DLLs; applink.c compiled into hms_server
+Command: cmake --build <fresh Stage 3 temp build> --parallel
+**********************************************************************
+** Visual Studio 2026 Developer Command Prompt v18.11.0
+** Copyright (c) 2026 Microsoft Corporation
+**********************************************************************
+[1/2] Building C object CMakeFiles\hms_server.dir\vcpkg_installed\x64-windows\include\openssl\applink.c.obj
+[2/2] Linking CXX executable hms_server.exe
+BUILD_EXIT=0

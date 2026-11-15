@@ -1,0 +1,7 @@
+TC-CLN-05 — FAIL
+Execution date: 2026-11-15
+Tester: Dhruv Swatantramath (PES1UG24CS155)
+Actual observation: Created two synthetic patient profiles and a visit. Own-history and own-bills routes returned 404; cross-patient record/history requests returned 403.
+Evidence: ../../automated_tests/stage3_api_execution_20261115.txt
+Full Appendix A procedure completed: No.
+Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.

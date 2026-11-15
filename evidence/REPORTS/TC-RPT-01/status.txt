@@ -1,0 +1,7 @@
+TC-RPT-01 — FAIL
+Execution date: 2026-11-15
+Tester: Dhruv Swatantramath (PES1UG24CS155)
+Actual observation: Revenue report route returned 501; required daily appointment/revenue report and exports were unavailable.
+Evidence: ../../automated_tests/stage3_api_execution_20261115.txt
+Full Appendix A procedure completed: No.
+Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.

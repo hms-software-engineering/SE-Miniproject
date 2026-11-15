@@ -1,0 +1,7 @@
+TC-SEC-06 — PASS
+Execution date: 2026-11-15
+Tester: Dhruv Swatantramath (PES1UG24CS155)
+Actual observation: Isolated DB inspection confirmed updated synthetic patient name and visit diagnosis/notes were not stored as plaintext in protected fields.
+Evidence: ../../automated_tests/stage3_api_execution_20261115.txt
+Full Appendix A procedure completed: Yes.
+Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.

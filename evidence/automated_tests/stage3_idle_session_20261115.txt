@@ -1,0 +1,6 @@
+LoginStatus=200
+AfterIdleRequestStatus=401
+ExpectedExpiredSession401=True
+TokenOrPasswordRecorded=false
+ServerAliveAfterIdleRequest=True
+ServerStopped=true
