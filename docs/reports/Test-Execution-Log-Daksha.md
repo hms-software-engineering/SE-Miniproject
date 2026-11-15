@@ -1,16 +1,20 @@
-**# HMS Test Execution Log — Daksha SG**
+# HMS Test Execution Log — Daksha SG
 
 
-**Project:\*\*** Hospital Management System (HMS)  
 
-**Tester:\*\*** Daksha SG  
+**Project:**** Hospital Management System (HMS)  
 
-**Test-case source:\*\*** HMS Software Test Plan, Appendix A  
+**Tester:**** Daksha SG  
 
-**Repository:\*\*** https\://github.com/hms-software-engineering/SE-Miniproject  
+**Test-case source:**** HMS Software Test Plan, Appendix A  
+
+**Repository:**** https://github.com/hms-software-engineering/SE-Miniproject  
+
+**Prepared on:**** 15 November 2026
 
 
-**## Purpose**
+
+## Purpose
 
 
 
@@ -18,11 +22,11 @@ This file records the 20 test cases assigned to Daksha SG. It distinguishes proj
 
 
 
-**## Evidence and recording notes**
+## Evidence and recording notes
 
 
 
-The supplied project verification-status review states that the project owner confirmed **34 of 40 Test Plan cases completed through manual and automated testing\*\***. It identifies six deferred cases, including the three performance cases assigned to Daksha. The 17 assigned functional/security cases are not listed among those six deferred cases; they are therefore recorded below as **Completed — owner-confirmed\*\***, not as independently evidenced individual executions.
+The supplied project verification-status review states that the project owner confirmed **34 of 40 Test Plan cases completed through manual and automated testing****. It identifies six deferred cases, including the three performance cases assigned to Daksha. The 17 assigned functional/security cases are not listed among those six deferred cases; they are therefore recorded below as **Completed — owner-confirmed****, not as independently evidenced individual executions.
 
 
 
@@ -30,66 +34,45 @@ The supplied review does not provide an individual execution timestamp, tester c
 
 
 
-**### Common supporting evidence**
+### Common supporting evidence
 
 
 
-\- **Application CI:\*\*** [GitHub Actions run 43632305410](https\://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410), commit `ed4af4a214721c2e7e8f07d3162be65b803385b6`. The review reports successful Ubuntu and Windows builds and 16 registered CTest suites passing.
+- **Application CI:**** [GitHub Actions run 43632305410](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410), commit `ed4af4a214721c2e7e8f07d3162be65b803385b6`. The review reports successful Ubuntu and Windows builds and 16 registered CTest suites passing.
 
-\- **Coverage CI:\*\*** [GitHub Actions run 43625440994](https\://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43625440994), commit `b170901`. The review reports 16 registered CTest suites passing in the PostgreSQL-enabled coverage job.
+- **Coverage CI:**** [GitHub Actions run 43625440994](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43625440994), commit `b170901`. The review reports 16 registered CTest suites passing in the PostgreSQL-enabled coverage job.
 
-\- **Local reruns:\*\*** The supplied review records all 16 registered CTest suites passing on Windows and WSL on 15 November 2026.
+- **Local reruns:**** The supplied review records all 16 registered CTest suites passing on Windows and WSL on 15 November 2026.
 
-\- **Project reports:\*\*** `docs/reports/Unit-Test-Report-2026-11-14.md`, `docs/reports/System-Validation-Report-2026-11-14.md`, `docs/reports/Code-Coverage-Report-2026-11-14.md`, and `docs/reports/Branch-Coverage-Report-2026-11-14.md`.
+- **Project reports:**** `docs/reports/Unit-Test-Report-2026-11-14.md`, `docs/reports/System-Validation-Report-2026-11-14.md`, `docs/reports/Code-Coverage-Report-2026-11-14.md`, and `docs/reports/Branch-Coverage-Report-2026-11-14.md`.
 
 
 
-**## Assigned test cases**
+## Assigned test cases
 
 
 
 | Case ID | Tester | Date | Build / version | Status | Brief actual result / execution note | Evidence |
-
 |---|---|---|---|---|---|---|
-
-| TC-AUTH-01 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Authentication implementation and related automated tests are present; the registered CTest suites passed in the reported CI run. | `tests/auth_service_test.cpp`, `tests/api_test.cpp`; [CI run](https\://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual login execution output was not supplied. |
-
+| TC-AUTH-01 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Authentication implementation and related automated tests are present; the registered CTest suites passed in the reported CI run. | `tests/auth_service_test.cpp`, `tests/api_test.cpp`; [CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual login execution output was not supplied. |
 | TC-AUTH-02 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Generic login-error behavior is implemented and covered by authentication/API tests; registered CTest suites passed. | `tests/auth_service_test.cpp`, `tests/api_test.cpp`; `docs/reports/Unit-Test-Report-2026-11-14.md`. Individual invalid-credential output was not supplied. |
-
-| TC-AUTH-03 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Account-lockout behavior is implemented in the authentication service and related tests passed in CI. | `tests/auth_service_test.cpp`; [CI run](https\://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual lockout execution output was not supplied. |
-
+| TC-AUTH-03 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Account-lockout behavior is implemented in the authentication service and related tests passed in CI. | `tests/auth_service_test.cpp`; [CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual lockout execution output was not supplied. |
 | TC-RBAC-01 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Server-side role/permission checks are implemented and covered by authentication/API tests. A separate read-only server check reportedly confirmed unauthenticated user listing is rejected. | `tests/auth_service_test.cpp`, `tests/api_test.cpp`; `docs/reports/System-Validation-Report-2026-11-14.md`. Individual role-by-role output was not supplied. |
-
 | TC-PAT-01 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Patient-registration functionality and related patient-service tests are present; registered CTest suites passed. | Patient-service tests under `tests/`; `docs/reports/Unit-Test-Report-2026-11-14.md`. Individual registration request/response was not supplied. |
-
-| TC-PAT-02 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Patient input validation is implemented and covered by patient-service tests; registered CTest suites passed. | Patient-service tests under `tests/`; [CI run](https\://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual invalid-input output was not supplied. |
-
+| TC-PAT-02 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Patient input validation is implemented and covered by patient-service tests; registered CTest suites passed. | Patient-service tests under `tests/`; [CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual invalid-input output was not supplied. |
 | TC-PAT-03 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Duplicate-patient detection/warning behavior is implemented and covered by patient-service tests. | Patient-service tests under `tests/`; `docs/reports/Unit-Test-Report-2026-11-14.md`. Individual duplicate-warning output was not supplied. |
-
-| TC-PAT-04 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Patient-search functionality is implemented and covered by patient-service tests; registered CTest suites passed. | Patient-service tests under `tests/`; [CI run](https\://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual search output was not supplied. |
-
+| TC-PAT-04 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Patient-search functionality is implemented and covered by patient-service tests; registered CTest suites passed. | Patient-service tests under `tests/`; [CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual search output was not supplied. |
 | TC-PAT-05 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Patient-update/history functionality is implemented and covered by patient-service tests. | Patient-service tests under `tests/`; `docs/reports/Unit-Test-Report-2026-11-14.md`. Individual update/history output was not supplied. |
-
-| TC-APT-01 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Appointment-booking functionality is implemented and covered by appointment tests; registered CTest suites passed. | `tests/appointments_test.cpp`; [CI run](https\://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual booking output was not supplied. |
-
+| TC-APT-01 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Appointment-booking functionality is implemented and covered by appointment tests; registered CTest suites passed. | `tests/appointments_test.cpp`; [CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual booking output was not supplied. |
 | TC-APT-02 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Appointment slot-conflict/unique-booking behavior is implemented and covered by appointment tests. | `tests/appointments_test.cpp`; `docs/reports/Unit-Test-Report-2026-11-14.md`. Individual successful/conflicting booking output was not supplied. |
-
-| TC-APT-03 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Booking date/window validation is implemented and covered by appointment tests. | `tests/appointments_test.cpp`; [CI run](https\://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual past-date, elapsed-today, day-60 and day-61 outputs were not supplied. |
-
-| TC-APT-04 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Reschedule/cancel behavior is implemented and covered by change-appointment tests. | `tests/change_appointment_test.cpp`; [CI run](https\://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual cancellation/rescheduling output was not supplied. |
-
-| TC-CLN-01 | Daksha SG | Not recorded | HMS; coverage commit `b170901` | Completed — owner-confirmed | Clinical visit-recording functionality and related clinical-service tests are present; the PostgreSQL-enabled coverage job passed. | Clinical-service tests under `tests/`; [coverage CI run](https\://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43625440994). Individual visit-creation output was not supplied. |
-
-| TC-CLN-02 | Daksha SG | Not recorded | HMS; coverage commit `b170901` | Completed — owner-confirmed | Prescription functionality is implemented and covered by clinical-service tests; the PostgreSQL-enabled coverage job passed. | Clinical-service tests under `tests/`; [coverage CI run](https\://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43625440994). Individual prescription output was not supplied. |
-
+| TC-APT-03 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Booking date/window validation is implemented and covered by appointment tests. | `tests/appointments_test.cpp`; [CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual past-date, elapsed-today, day-60 and day-61 outputs were not supplied. |
+| TC-APT-04 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Reschedule/cancel behavior is implemented and covered by change-appointment tests. | `tests/change_appointment_test.cpp`; [CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410). Individual cancellation/rescheduling output was not supplied. |
+| TC-CLN-01 | Daksha SG | Not recorded | HMS; coverage commit `b170901` | Completed — owner-confirmed | Clinical visit-recording functionality and related clinical-service tests are present; the PostgreSQL-enabled coverage job passed. | Clinical-service tests under `tests/`; [coverage CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43625440994). Individual visit-creation output was not supplied. |
+| TC-CLN-02 | Daksha SG | Not recorded | HMS; coverage commit `b170901` | Completed — owner-confirmed | Prescription functionality is implemented and covered by clinical-service tests; the PostgreSQL-enabled coverage job passed. | Clinical-service tests under `tests/`; [coverage CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43625440994). Individual prescription output was not supplied. |
 | TC-CLN-03 | Daksha SG | Not recorded | HMS; CI commit `ed4af4a` | Completed — owner-confirmed | Allergy warning/override behavior, including the required override reason, is implemented and covered by clinical-service tests. | Clinical-service tests under `tests/`; `docs/reports/Unit-Test-Report-2026-11-14.md`. Individual warning/override output was not supplied. |
-
-| TC-CLN-04 | Daksha SG | Not recorded | HMS; coverage commit `b170901` | Completed — owner-confirmed | Clinical-history functionality is implemented and covered by clinical-service tests; the PostgreSQL-enabled coverage job passed. | Clinical-service tests under `tests/`; [coverage CI run](https\://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43625440994). Individual patient-history output was not supplied. |
-
+| TC-CLN-04 | Daksha SG | Not recorded | HMS; coverage commit `b170901` | Completed — owner-confirmed | Clinical-history functionality is implemented and covered by clinical-service tests; the PostgreSQL-enabled coverage job passed. | Clinical-service tests under `tests/`; [coverage CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43625440994). Individual patient-history output was not supplied. |
 | TC-PERF-01 | Daksha SG | Not executed for this submission | Not applicable — current acceptance run deferred | Deferred | The current 100,000-patient / 100-concurrent-user patient-search acceptance run was deferred. The supplied verification-status review says the required dataset and load environment were not available. No current acceptance result is claimed. | Performance assets are reported under `tests/performance/`. Test Plan acceptance target: 100,000 patients, 100 virtual users, 10-minute run, p95 search response time ≤2 seconds. No current result file was supplied. |
-
 | TC-PERF-02 | Daksha SG | Not executed for this submission | Not applicable — current acceptance run deferred | Deferred | The current appointment-booking load acceptance run was deferred. The supplied verification-status review says a dedicated load environment and test data were required. No current acceptance result is claimed. | `scripts/appointment_booking_load_test.py`. Test Plan acceptance target: 100 virtual users booking appointments for 10 minutes, p95 response time <3 seconds and no duplicate bookings. No current result file was supplied. |
-
 | TC-PERF-03 | Daksha SG | Historical run date not recorded; current rerun deferred | Historical build/commit not recorded | Deferred — historical result available | The historical summary reports 200 concurrent sessions for 30 minutes, 345,656 requests, 344,237 successful requests, 1,419 failed requests, a 0.411% error rate, average response time of 20 ms, p95 of 39 ms, maximum of 761 ms, and that the server survived. The current rerun was deferred. Do not treat the historical result as a current-build rerun. | `tests/performance/NF-003-summary.txt`. Attach the original JMeter result file if available; the historical run date and build were not recorded in the supplied material. |
 
 
