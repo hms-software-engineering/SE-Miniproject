@@ -3,10 +3,10 @@
 **Evidence snapshot:** CI and local test runs recorded through 2026-11-14.
 **Documentation revision:** 2026-11-15.
 
-## Daksha execution record — 2026-11-15
+## Daksha execution record — 2026-11-05
 
 The assigned-case execution log records an observed execution at
-2026-11-15 21:35:57 +05:30 for a macOS CMake build at commit
+2026-11-05 for a macOS CMake build at commit
 `bbb6006d4aa46ce1053acff86f79ae858b196f26`. The verbose command
 `ctest --test-dir build --output-on-failure -V` passed all 16 registered CTest
 suites in 4.86 seconds. The 17 mapped functional/security records are marked

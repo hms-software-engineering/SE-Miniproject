@@ -1,5 +1,4 @@
 Case: TC-PAT-04
-Suite: patient_service_test
 Command: ./build/patient_service_test
 
 All patient service tests passed.

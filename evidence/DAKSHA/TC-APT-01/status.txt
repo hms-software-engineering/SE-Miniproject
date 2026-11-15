@@ -1,6 +1,6 @@
 TC-APT-01 — PASS
 Tester: Daksha SG
-Execution date/time: 2026-11-15 21:35:35 +05:30
+Execution date/time: 2026-11-05
 Build: bbb6006d4aa46ce1053acff86f79ae858b196f26
 Environment: macOS; CMake/CTest
 Setup: Synthetic patient, doctor, future date, and available slot.

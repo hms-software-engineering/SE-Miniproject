@@ -1,5 +1,4 @@
 Case: TC-CLN-03
-Suite: clinical_service_test
 Command: ./build/clinical_service_test
 
 All clinical service tests passed.

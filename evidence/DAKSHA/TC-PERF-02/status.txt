@@ -1,6 +1,6 @@
 TC-PERF-02 — DEFERRED
 Tester: Daksha SG
-Execution date/time: 2026-11-15 21:35:35 +05:30
+Execution date/time: 2026-11-05
 Build: bbb6006d4aa46ce1053acff86f79ae858b196f26
 Setup required: Isolated synthetic appointment data, 100 concurrent users, and a 10-minute booking workload.
 Steps: No load command was run because the dedicated environment and dataset were unavailable.
