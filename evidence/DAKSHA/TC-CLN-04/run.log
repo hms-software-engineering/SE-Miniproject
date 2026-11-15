@@ -1,4 +1,1 @@
-Case: TC-CLN-04
-Command: ./build/clinical_test
-
 All clinical tests passed.

@@ -1,4 +1,1 @@
-Case: TC-APT-04
-Command: ./build/change_appointment_test
-
 All change_appointment tests passed

@@ -1,4 +1,1 @@
-Case: TC-APT-01
-Command: ./build/appointments_test
-
 All appointment tests passed.

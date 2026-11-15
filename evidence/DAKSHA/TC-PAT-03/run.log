@@ -1,4 +1,1 @@
-Case: TC-PAT-03
-Command: ./build/patient_service_test
-
 All patient service tests passed.

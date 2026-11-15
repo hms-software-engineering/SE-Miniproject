@@ -1,18 +1,12 @@
 # Daksha SG test evidence
 
-These records support the 20 cases assigned to Daksha SG. The automated
-evidence record is dated 2026-11-05; raw terminal output retains its actual capture timestamp on macOS at commit
-`bbb6006d4aa46ce1053acff86f79ae858b196f26`.
+This evidence records a fresh run on 2026-11-15 at commit
+`09757541b9cbe3a79d30255fa0bd18f1a88a5d5e`. It is not a run from Nov 2–6.
+The build and verbose CTest outputs are under `../automated_tests/`.
 
-The 17 functional/security records contain automated component evidence from
-CTest and manual demonstration evidence from the Sprint 1 and Sprint 2 videos
-listed in `docs/Sprint_Video_links.txt`. The three performance records are
-deferred.
-
-### Terminal execution evidence
-
-![Build and test output](1.png)
-![Case execution output](2.png)
-![Case execution output](3.png)
-
-Shared raw output: [ctest_verbose.log](../automated_tests/ctest_verbose.log)
+The 17 functional/security executable runs each exited 0 and each has a raw
+`run.log`, exact `command.txt`, and timestamp/commit/exit record in
+`execution_metadata.txt`. The executables emit suite-level success messages,
+not case-specific assertion names or UI/API measurements. These cases are
+therefore marked Partial. The three performance cases remain Deferred. No
+per-case manual screenshots or timestamped videos were captured for this run.

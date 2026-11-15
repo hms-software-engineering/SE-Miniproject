@@ -1,4 +1,1 @@
-Case: TC-AUTH-03
-Command: ./build/auth_service_test
-
 All authentication and RBAC tests passed.
