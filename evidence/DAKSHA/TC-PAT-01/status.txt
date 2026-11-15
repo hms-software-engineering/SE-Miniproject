@@ -1,4 +1,4 @@
-TC-PAT-01 — PARTIAL
+TC-PAT-01 — PASS
 Tester: Daksha SG
 Execution date/time: 2026-11-05 10:00 IST
 Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
@@ -6,6 +6,5 @@ Environment: macOS; CMake/CTest
 Setup: Synthetic patient fixture and isolated test repository.
 Steps: Ran the shared CTest command; executed registration cases in `patient_service_test`.
 Expected: A valid synthetic patient is saved and assigned an identifier.
-Actual: Registration assertions passed; no manual registration request/response was supplied.
-Evidence: ../../automated_tests/daksha_ctest_20261105.log
-Reason: Automated component evidence only; full acceptance case is not demonstrated.
+Actual: Patient registration passed in the automated run and manual demonstration.
+Evidence: ../../automated_tests/daksha_ctest_20261105.log; https://drive.google.com/file/d/1qDIriDJt5D6KRF6aak_MMC9w-JNqN1pb/view?usp=sharing

@@ -1,4 +1,4 @@
-TC-APT-02 — PARTIAL
+TC-APT-02 — PASS
 Tester: Daksha SG
 Execution date/time: 2026-11-05 10:00 IST
 Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
@@ -6,6 +6,5 @@ Environment: macOS; CMake/CTest
 Setup: Synthetic patient/doctor and occupied appointment slot.
 Steps: Ran the shared CTest command; executed duplicate-slot cases in `appointments_test`.
 Expected: Duplicate booking is rejected and alternative slots are returned.
-Actual: Assertions passed; no HTTP status or response body was supplied.
-Evidence: ../../automated_tests/daksha_ctest_20261105.log
-Reason: Automated component evidence only; full acceptance case is not demonstrated.
+Actual: Slot-conflict behavior passed in the automated run and manual demonstration.
+Evidence: ../../automated_tests/daksha_ctest_20261105.log; https://drive.google.com/file/d/1-xAuHDfu1cM6kgMXtMZXSou5fmDtst9V/view?usp=sharing

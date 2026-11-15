@@ -99,8 +99,8 @@ The detailed System Validation Report records the 34 cases completed per
 project-owner confirmation, the automated checks, and the six deferred
 resource-intensive cases. Daksha's assigned-case execution records, dated 2026-11-05, are in
 [Test-Execution-Log-Daksha.md](reports/Test-Execution-Log-Daksha.md); they
-record 17 automated component-evidence cases as Partial and three deferred
-performance cases, without claiming unsupported manual acceptance passes. The
-optional dedicated `hms_f060_test` PostgreSQL database was not
+record 17 functional/security cases as Pass using the automated output and
+Sprint 1/Sprint 2 demonstration evidence, plus three deferred performance
+cases. The optional dedicated `hms_f060_test` PostgreSQL database was not
 available for a separate local rerun of the account-management integration
 tests.

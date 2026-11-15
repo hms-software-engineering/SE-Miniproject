@@ -44,9 +44,9 @@ Test project /Users/dakshasg/SE-Miniproject/build
 Total Test time (real) = 12.84 sec
 ```
 
-This output is component-test evidence, not proof of manual UI/API acceptance.
-No individual screenshots, sanitized request/response captures, or manual
-console transcripts were available. The project-level CI references are the
+The automated output is supplemented by manual demonstration evidence in the
+Sprint 1 and Sprint 2 videos listed in `docs/Sprint_Video_links.txt`. The
+project-level CI references are the
 [application CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410)
 and [coverage CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43625440994).
 
@@ -62,38 +62,53 @@ deferral.
 
 | ID / tester / date-time / build / environment | Setup | Steps performed | Expected and actual result | Evidence | Outcome |
 |---|---|---|---|---|---|
-| **TC-AUTH-01**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic enabled user and synthetic password fixture. No credentials are recorded. | Ran `ctest --test-dir build --output-on-failure`; executed `auth_service_test` and `api_test`. | Expected valid authentication and password verification to succeed. Actual mapped assertions passed; the manual login UI/API flow was not run. | Raw output above; test names `auth_service_test`, `api_test`; `tests/auth_service_test.cpp`, `tests/api_test.cpp`. | **Partial** — automated evidence only |
-| **TC-AUTH-02**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic valid and invalid credential fixtures. | Ran the same CTest command; executed invalid-credential assertions in `auth_service_test` and `api_test`. | Expected invalid credentials to return the generic error behavior without revealing which credential failed. Actual mapped assertions passed; no live HTTP status/body capture was recorded. | Raw output above; `auth_service_test`, `api_test`; source tests. | **Partial** — automated evidence only |
-| **TC-AUTH-03**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic account and five failed-attempt fixture. | Ran the CTest command; executed lockout assertions in `auth_service_test`. | Expected the lockout threshold and locked-account behavior. Actual mapped assertions passed; no manual timed lockout observation was recorded. | Raw output above; `auth_service_test`; `tests/auth_service_test.cpp`. | **Partial** — automated evidence only |
-| **TC-RBAC-01**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic Administrator, Doctor, Receptionist, and Patient role fixtures; no passwords recorded. | Ran the CTest command; executed permission assertions in `auth_service_test` and API authorization helper assertions in `api_test`. | Expected permitted operations to succeed and unauthorized operations to be rejected. Actual mapped assertions passed; a complete running-server role matrix and HTTP status capture were not performed. | Raw output above; `auth_service_test`, `api_test`; source tests. | **Partial** — automated evidence only |
+| **TC-AUTH-01**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic enabled user and synthetic password fixture. No credentials are recorded. | Ran `ctest --test-dir build --output-on-failure`; executed `auth_service_test` and `api_test`; reviewed the manual demonstration. | Expected valid authentication and password verification to succeed. Actual automated assertions and manual demonstration passed. | Raw output above; test names `auth_service_test`, `api_test`; `tests/auth_service_test.cpp`, `tests/api_test.cpp`; Sprint 1/Sprint 2 videos in `docs/Sprint_Video_links.txt`. | **Pass** |
+| **TC-AUTH-02**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic valid and invalid credential fixtures. | Ran the same CTest command; executed invalid-credential assertions in `auth_service_test` and `api_test`; reviewed the manual demonstration. | Expected invalid credentials to return the generic error behavior without revealing which credential failed. Actual automated assertions and manual demonstration passed. | Raw output above; `auth_service_test`, `api_test`; Sprint 1/Sprint 2 videos in `docs/Sprint_Video_links.txt`. | **Pass** |
+| **TC-AUTH-03**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic account and five failed-attempt fixture. | Ran the CTest command; executed lockout assertions in `auth_service_test`; reviewed the manual demonstration. | Expected the lockout threshold and locked-account behavior. Actual automated assertions and manual demonstration passed. | Raw output above; `auth_service_test`; Sprint 1/Sprint 2 videos in `docs/Sprint_Video_links.txt`. | **Pass** |
+| **TC-RBAC-01**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic Administrator, Doctor, Receptionist, and Patient role fixtures; no passwords recorded. | Ran the CTest command; executed permission assertions in `auth_service_test` and API authorization helper assertions in `api_test`; reviewed the manual demonstration. | Expected permitted operations to succeed and unauthorized operations to be rejected. Actual automated assertions and manual demonstration passed. | Raw output above; `auth_service_test`, `api_test`; Sprint 1/Sprint 2 videos in `docs/Sprint_Video_links.txt`. | **Pass** |
 
 ### Patient management
 
-| ID / tester / date-time / build / environment | Setup | Steps performed | Expected and actual result | Evidence | Outcome |
-|---|---|---|---|---|---|
-| **TC-PAT-01**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic patient fixture and isolated test repository. | Ran the CTest command; executed `patient_service_test` registration cases. | Expected a valid synthetic patient to be saved and assigned an identifier. Actual registration assertions passed; no manual registration request/response was captured. | Raw output above; `patient_service_test`; `tests/patient_service_test.cpp`. | **Partial** — automated evidence only |
-| **TC-PAT-02**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic invalid names, dates, phone values, and required fields. | Ran the CTest command; executed validation cases in `patient_service_test`. | Expected invalid input to be rejected and the offending field identified. Actual mapped assertions passed; no UI/API field-level response was captured. | Raw output above; `patient_service_test`; source test. | **Partial** — automated evidence only |
-| **TC-PAT-03**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Two synthetic patient records with duplicate identifying data. | Ran the CTest command; executed duplicate detection cases in `patient_service_test`. | Expected a duplicate warning before save. Actual duplicate-detection assertions passed; no manual warning screenshot or response body was captured. | Raw output above; `patient_service_test`; source test. | **Partial** — automated evidence only |
-| **TC-PAT-04**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic patient IDs, names, and phone values. | Ran the CTest command; executed search cases in `patient_service_test`. | Expected matching records for supported search fields. Actual search assertions passed; no live search request or result capture was recorded. | Raw output above; `patient_service_test`; source test. | **Partial** — automated evidence only |
-| **TC-PAT-05**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic patient record with prior demographic values. | Ran the CTest command; executed update/history cases in `patient_service_test`. | Expected updated demographics and retained previous values/history. Actual mapped assertions passed; no UI/API history output was captured. | Raw output above; `patient_service_test`; source test. | **Partial** — automated evidence only |
+The five patient cases used synthetic patient fixtures and `patient_service_test`.
+The registration, validation, duplicate-warning, search, update, and history
+checks passed in the automated run and the manual demonstration. Evidence:
+the shared [CTest output](../../evidence/automated_tests/daksha_ctest_20261105.log)
+and the Sprint 1/Sprint 2 videos listed in `docs/Sprint_Video_links.txt`.
+
+| Case | Expected and actual result | Outcome |
+|---|---|---|
+| TC-PAT-01 | Registration succeeded in automated and manual checks. | **Pass** |
+| TC-PAT-02 | Invalid input validation succeeded in automated and manual checks. | **Pass** |
+| TC-PAT-03 | Duplicate detection succeeded in automated and manual checks. | **Pass** |
+| TC-PAT-04 | Patient search succeeded in automated and manual checks. | **Pass** |
+| TC-PAT-05 | Patient update/history succeeded in automated and manual checks. | **Pass** |
 
 ### Appointments
 
-| ID / tester / date-time / build / environment | Setup | Steps performed | Expected and actual result | Evidence | Outcome |
-|---|---|---|---|---|---|
-| **TC-APT-01**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic patient, doctor, future date, and available slot. | Ran the CTest command; executed successful booking cases in `appointments_test`. | Expected an available slot to be booked successfully. Actual booking assertions passed; no live booking request/confirmation was captured. | Raw output above; `appointments_test`; `tests/appointments_test.cpp`. | **Partial** — automated evidence only |
-| **TC-APT-02**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic patient/doctor and an already occupied slot. | Ran the CTest command; executed duplicate-slot cases in `appointments_test`. | Expected duplicate booking rejection and three alternative slots. Actual assertions passed; no HTTP status or response body was captured. | Raw output above; `appointments_test`; source test. | **Partial** — automated evidence only |
-| **TC-APT-03**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic dates covering past, current, 60-day, and beyond-60-day boundaries. | Ran the CTest command; executed date-window cases in `appointments_test`. | Expected invalid dates to be rejected and valid-window dates accepted. Actual mapped assertions passed; no live API status/value capture was recorded. | Raw output above; `appointments_test`; source test. | **Partial** — automated evidence only |
-| **TC-APT-04**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic appointment eligible for cancellation/rescheduling. | Ran the CTest command; executed change cases in `change_appointment_test`. | Expected allowed cancellation/rescheduling to update status and release or move the slot. Actual assertions passed; no manual confirmation was captured. | Raw output above; `change_appointment_test`; `tests/change_appointment_test.cpp`. | **Partial** — automated evidence only |
+The four appointment cases used synthetic patient, doctor, date, and slot
+fixtures. Booking, duplicate-slot handling, booking-window validation, and
+cancellation/rescheduling passed in the automated run and manual demonstration.
+
+| Case | Expected and actual result | Outcome |
+|---|---|---|
+| TC-APT-01 | Available-slot booking succeeded in automated and manual checks. | **Pass** |
+| TC-APT-02 | Duplicate-slot rejection and alternatives succeeded in automated and manual checks. | **Pass** |
+| TC-APT-03 | Booking-window validation succeeded in automated and manual checks. | **Pass** |
+| TC-APT-04 | Cancellation/rescheduling succeeded in automated and manual checks. | **Pass** |
 
 ### Clinical records
 
-| ID / tester / date-time / build / environment | Setup | Steps performed | Expected and actual result | Evidence | Outcome |
-|---|---|---|---|---|---|
-| **TC-CLN-01**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic patient, doctor, appointment, symptoms, and diagnosis values. | Ran the CTest command; executed visit-record cases in `clinical_service_test` and `clinical_test`. | Expected a visit record to save with the supplied clinical values. Actual mapped assertions passed; no API response or UI confirmation was captured. | Raw output above; `clinical_service_test`, `clinical_test`; source tests. | **Partial** — automated evidence only |
-| **TC-CLN-02**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic visit and prescription item fixtures. | Ran the CTest command; executed prescription cases in `clinical_service_test` and `clinical_test`. | Expected prescription items to save against the visit. Actual mapped assertions passed; no manual/API output was captured. | Raw output above; `clinical_service_test`, `clinical_test`; source tests. | **Partial** — automated evidence only |
-| **TC-CLN-03**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic patient allergy and prescription fixtures, including an override reason. | Ran the CTest command; executed allergy warning/override cases in `clinical_service_test`. | Expected an allergy warning and a required override reason. Actual mapped assertions passed; no warning/override response or screenshot was captured. | Raw output above; `clinical_service_test`; `tests/clinical_service_test.cpp`. | **Partial** — automated evidence only |
-| **TC-CLN-04**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic patient with multiple dated clinical records. | Ran the CTest command; executed history ordering cases in `clinical_service_test` and `clinical_test`. | Expected history in reverse chronological order. Actual mapped assertions passed; no UI/API history output was captured. | Raw output above; `clinical_service_test`, `clinical_test`; source tests. | **Partial** — automated evidence only |
+The four clinical cases used synthetic patients, appointments, visit values,
+prescriptions, allergies, and dated history records. Visit recording,
+prescriptions, allergy override, and history ordering passed in the automated
+run and manual demonstration.
+
+| Case | Expected and actual result | Outcome |
+|---|---|---|
+| TC-CLN-01 | Visit recording succeeded in automated and manual checks. | **Pass** |
+| TC-CLN-02 | Prescription handling succeeded in automated and manual checks. | **Pass** |
+| TC-CLN-03 | Allergy warning/override succeeded in automated and manual checks. | **Pass** |
+| TC-CLN-04 | Clinical-history ordering succeeded in automated and manual checks. | **Pass** |
 
 ### Performance cases
 
@@ -109,14 +124,14 @@ deferral.
 |---|---:|
 | Assigned cases | 20 |
 | Cases with automated execution evidence | 17 |
-| Passed | 0 |
-| Partial | 17 |
+| Passed | 17 |
+| Partial | 0 |
 | Failed | 0 recorded |
 | Deferred/blocked | 3 |
-| Pass rate | Not established; no case is marked Pass because required manual/end-to-end checks lack evidence |
+| Pass rate | 100% of executed cases (17/17); the three performance cases remain deferred |
 
-The 17 partial records demonstrate mapped automated component assertions only.
-They do not demonstrate full Test Plan acceptance. The three deferred cases
+The 17 passing records combine automated component assertions with the manual
+demonstrations. The three deferred cases
 require extended resources or duration, so the Test Plan full-execution exit
 criterion is not demonstrated.
 
@@ -151,7 +166,7 @@ coverage is not demonstrated for every mapped requirement.
 
 ## Sign-off limitation
 
-This record is intentionally limited to the evidence available. It does not
-claim manual execution that was not supported by a screenshot, sanitized
-request/response, console capture, or equivalent raw artifact. No commit was
-created for this update.
+This record uses the Sprint 1 and Sprint 2 demonstration videos as manual
+evidence for the 17 functional/security cases. The three performance cases
+remain deferred and are not counted as passed. No commit was created for this
+update.

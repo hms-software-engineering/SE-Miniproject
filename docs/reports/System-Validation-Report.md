@@ -10,8 +10,9 @@ of 2026-11-05 10:00 IST for a macOS CMake build at commit
 `9dc32b1edffeeb786090540b8c0d84d6e6ad7272`. The command
 `ctest --test-dir build --output-on-failure` passed all 16 registered CTest
 suites in 12.84 seconds. The 17 mapped functional/security records are marked
-Partial because this is automated component evidence only, not a substitute
-for manual acceptance. The three performance cases are deferred. See
+Pass using the automated output and the Sprint 1/Sprint 2 manual demonstration
+videos listed in `docs/Sprint_Video_links.txt`. The three performance cases are
+deferred. See
 [Test-Execution-Log-Daksha.md](Test-Execution-Log-Daksha.md) for the
 per-case records, evidence references, summary, and limitations.
 

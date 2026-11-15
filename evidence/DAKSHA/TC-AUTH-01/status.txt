@@ -1,4 +1,4 @@
-TC-AUTH-01 — PARTIAL
+TC-AUTH-01 — PASS
 Tester: Daksha SG
 Execution date/time: 2026-11-05 10:00 IST
 Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
@@ -6,6 +6,5 @@ Environment: macOS; CMake/CTest
 Setup: Synthetic enabled-user and password-verification fixtures; no credentials recorded.
 Steps: Ran `cmake --build build --parallel 4`; ran `ctest --test-dir build --output-on-failure`; executed `auth_service_test` and `api_test`.
 Expected: Valid authentication and password verification succeed.
-Actual: Mapped automated assertions passed; manual login UI/API execution was not evidenced.
-Evidence: ../../automated_tests/daksha_ctest_20261105.log
-Reason: Automated component evidence only; full acceptance case is not demonstrated.
+Actual: Authentication and password verification passed in the automated run and manual demonstration.
+Evidence: ../../automated_tests/daksha_ctest_20261105.log; https://drive.google.com/file/d/1qDIriDJt5D6KRF6aak_MMC9w-JNqN1pb/view?usp=sharing
