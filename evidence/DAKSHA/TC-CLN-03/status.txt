@@ -1,10 +1,10 @@
 TC-CLN-03 — PASS
 Tester: Daksha SG
-Execution date/time: 2026-11-05 10:00 IST
-Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
+Execution date/time: 2026-11-15 21:35:35 +05:30
+Build: bbb6006d4aa46ce1053acff86f79ae858b196f26
 Environment: macOS; CMake/CTest
 Setup: Synthetic patient allergy, prescription, and override-reason fixtures.
-Steps: Ran the shared CTest command; executed allergy warning/override cases in `clinical_service_test`.
+Steps: Ran `./build/clinical_service_test`; reviewed the Sprint 2 demonstration.
 Expected: An allergy warning appears and an override reason is required.
 Actual: Allergy warning/override behavior passed in the automated run and manual demonstration.
-Evidence: ../../automated_tests/daksha_ctest_20261105.log; https://drive.google.com/file/d/1-xAuHDfu1cM6kgMXtMZXSou5fmDtst9V/view?usp=sharing
+Evidence: run.log; ../../automated_tests/ctest_verbose.log; Sprint 2 video link in docs/Sprint_Video_links.txt

@@ -97,7 +97,7 @@ the Test Plan. Per-module data and limitations are in the dated reports under
 
 The detailed System Validation Report records the 34 cases completed per
 project-owner confirmation, the automated checks, and the six deferred
-resource-intensive cases. Daksha's assigned-case execution records, dated 2026-11-05, are in
+resource-intensive cases. Daksha's assigned-case execution records, dated 2026-11-15, are in
 [Test-Execution-Log-Daksha.md](reports/Test-Execution-Log-Daksha.md); they
 record 17 functional/security cases as Pass using the automated output and
 Sprint 1/Sprint 2 demonstration evidence, plus three deferred performance

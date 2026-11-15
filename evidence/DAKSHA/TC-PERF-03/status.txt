@@ -1,6 +1,7 @@
 TC-PERF-03 — DEFERRED
 Tester: Daksha SG
-Execution date/time: 2026-11-05 10:00 IST
+Execution date/time: 2026-11-15 21:35:35 +05:30
+Build: bbb6006d4aa46ce1053acff86f79ae858b196f26
 Setup required: Sustained 200-session workload for 30 minutes.
 Steps: No current rerun was performed because the sustained-load environment was unavailable.
 Expected: 200 concurrent sessions for 30 minutes with error rate below 1%.

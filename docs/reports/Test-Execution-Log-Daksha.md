@@ -1,172 +1,73 @@
 # HMS Test Execution Log — Daksha SG
 
-| Field | Value |
+## Run metadata
+
+| Field | Observed value |
 |---|---|
-| Project | Hospital Management System |
 | Tester | Daksha SG |
-| Test-case source | HMS Software Test Plan, Appendix A |
-| Recorded execution date/time | 2026-11-05 10:00 IST |
-| Build/version | Commit `9dc32b1edffeeb786090540b8c0d84d6e6ad7272` |
-| Operating system/environment | macOS; CMake build; CTest; 16 registered targets |
-| Test data | Synthetic fixtures created by the automated tests; no real patient data |
+| Execution timestamp | 2026-11-15T21:35:57+05:30 |
+| Commit | `bbb6006d4aa46ce1053acff86f79ae858b196f26` |
+| Operating system | `Darwin Dakshas-MacBook-Air 25.1.0 ... RELEASE_ARM64_T8112 arm64` |
+| Build command | `cmake --build build --parallel 4` |
+| Test command | `ctest --test-dir build --output-on-failure -V` |
+| Automated result | 16/16 CTest tests passed; total time 4.86 seconds |
 
-## Shared automated evidence
+The complete metadata, build output, verbose CTest output, and per-case
+executable logs are stored under
+[`evidence/automated_tests/`](../../evidence/automated_tests/). The custom
+executables are assertion binaries, not GoogleTest binaries; `--gtest_filter`
+is unsupported. Each automated case therefore records the exact executable
+command that was run and its actual stdout.
 
-The automated execution used this command:
+Manual demonstration evidence is linked from
+[`docs/Sprint_Video_links.txt`](../Sprint_Video_links.txt). The repository
+does not contain per-case video timestamps, so the video links are retained as
+shared demonstration evidence rather than inventing timestamps.
 
-```text
-cmake --build build --parallel 4
-ctest --test-dir build --output-on-failure
-```
+## Per-case records
 
-Recorded runner output:
+All functional/security cases used synthetic fixtures only. No passwords,
+tokens, or real patient information are included.
 
-```text
-Test project /Users/dakshasg/SE-Miniproject/build
-1/16  backup_service_test .............. Passed
-2/16  api_test ......................... Passed
-3/16  auth_service_test ................ Passed
-4/16  health_test ...................... Passed
-5/16  password_security_test ........... Passed
-6/16  appointments_test ................ Passed
-7/16  change_appointment_test .......... Passed
-8/16  doctor_schedule_test ............. Passed
-9/16  clinical_service_test ............ Passed
-10/16 report_service_test .............. Passed
-11/16 billing_service_test ............. Passed
-12/16 billing_tax_boundary_test ........ Passed
-13/16 receipt_test ..................... Passed
-14/16 patient_service_test ............. Passed
-15/16 patient_field_encryption_test .... Passed
-16/16 clinical_test .................... Passed
-
-100% tests passed out of 16
-Total Test time (real) = 12.84 sec
-```
-
-The automated output is supplemented by manual demonstration evidence in the
-Sprint 1 and Sprint 2 videos listed in `docs/Sprint_Video_links.txt`. The
-project-level CI references are the
-[application CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43632305410)
-and [coverage CI run](https://github.com/hms-software-engineering/SE-Miniproject/actions/runs/43625440994).
-
-Per-case evidence records are stored in the
-[Daksha evidence folder](../../evidence/DAKSHA/README.md). Each case folder
-contains a `status.txt` record; the 17 functional/security records point to
-the shared raw CTest output and the three performance records explain their
-deferral.
-
-## Per-case execution records
-
-### Authentication and authorization
-
-| ID / tester / date-time / build / environment | Setup | Steps performed | Expected and actual result | Evidence | Outcome |
+| Case | Setup and steps performed | Expected result | Actual observed result | Evidence | Outcome |
 |---|---|---|---|---|---|
-| **TC-AUTH-01**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic enabled user and synthetic password fixture. No credentials are recorded. | Ran `ctest --test-dir build --output-on-failure`; executed `auth_service_test` and `api_test`; reviewed the manual demonstration. | Expected valid authentication and password verification to succeed. Actual automated assertions and manual demonstration passed. | Raw output above; test names `auth_service_test`, `api_test`; `tests/auth_service_test.cpp`, `tests/api_test.cpp`; Sprint 1/Sprint 2 videos in `docs/Sprint_Video_links.txt`. | **Pass** |
-| **TC-AUTH-02**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic valid and invalid credential fixtures. | Ran the same CTest command; executed invalid-credential assertions in `auth_service_test` and `api_test`; reviewed the manual demonstration. | Expected invalid credentials to return the generic error behavior without revealing which credential failed. Actual automated assertions and manual demonstration passed. | Raw output above; `auth_service_test`, `api_test`; Sprint 1/Sprint 2 videos in `docs/Sprint_Video_links.txt`. | **Pass** |
-| **TC-AUTH-03**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic account and five failed-attempt fixture. | Ran the CTest command; executed lockout assertions in `auth_service_test`; reviewed the manual demonstration. | Expected the lockout threshold and locked-account behavior. Actual automated assertions and manual demonstration passed. | Raw output above; `auth_service_test`; Sprint 1/Sprint 2 videos in `docs/Sprint_Video_links.txt`. | **Pass** |
-| **TC-RBAC-01**<br>Daksha SG<br>2026-11-05 10:00 IST<br>`9dc32b1`; macOS; CMake/CTest | Synthetic Administrator, Doctor, Receptionist, and Patient role fixtures; no passwords recorded. | Ran the CTest command; executed permission assertions in `auth_service_test` and API authorization helper assertions in `api_test`; reviewed the manual demonstration. | Expected permitted operations to succeed and unauthorized operations to be rejected. Actual automated assertions and manual demonstration passed. | Raw output above; `auth_service_test`, `api_test`; Sprint 1/Sprint 2 videos in `docs/Sprint_Video_links.txt`. | **Pass** |
+| TC-AUTH-01 | Synthetic enabled-user fixture. Ran `./build/auth_service_test`. Reviewed the authentication demonstration. | Valid authentication succeeds. | Executable printed `All authentication and RBAC tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-AUTH-01/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-AUTH-02 | Synthetic valid/invalid credential fixtures. Ran `./build/auth_service_test`. Reviewed the invalid-login demonstration. | Invalid credentials produce generic error behavior. | Executable printed `All authentication and RBAC tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-AUTH-02/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-AUTH-03 | Synthetic failed-attempt fixture. Ran `./build/auth_service_test`. Reviewed the lockout demonstration. | Lockout occurs after the configured failed-attempt threshold. | Executable printed `All authentication and RBAC tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-AUTH-03/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-RBAC-01 | Synthetic Administrator, Doctor, Receptionist, and Patient role fixtures. Ran `./build/auth_service_test`. Reviewed role/permission demonstration. | Authorized actions succeed and unauthorized actions are rejected. | Executable printed `All authentication and RBAC tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-RBAC-01/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-PAT-01 | Synthetic patient fixture. Ran `./build/patient_service_test`. Reviewed registration demonstration. | Valid patient registration succeeds. | Executable printed `All patient service tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-PAT-01/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-PAT-02 | Synthetic invalid patient fields. Ran `./build/patient_service_test`. Reviewed validation demonstration. | Invalid input is rejected with the offending field. | Executable printed `All patient service tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-PAT-02/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-PAT-03 | Synthetic duplicate patient fixtures. Ran `./build/patient_service_test`. Reviewed duplicate-warning demonstration. | Duplicate patient is detected before save. | Executable printed `All patient service tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-PAT-03/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-PAT-04 | Synthetic IDs, names, and phone values. Ran `./build/patient_service_test`. Reviewed search demonstration. | Matching patient records are returned. | Executable printed `All patient service tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-PAT-04/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-PAT-05 | Synthetic patient with prior demographics. Ran `./build/patient_service_test`. Reviewed update/history demonstration. | Updated values save and history is retained. | Executable printed `All patient service tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-PAT-05/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-APT-01 | Synthetic patient, doctor, future date, and free slot. Ran `./build/appointments_test`. Reviewed booking demonstration. | Available slot is booked successfully. | Executable printed `All appointment tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-APT-01/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-APT-02 | Synthetic occupied appointment slot. Ran `./build/appointments_test`. Reviewed conflict demonstration. | Duplicate booking is rejected and alternatives are shown. | Executable printed `All appointment tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-APT-02/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-APT-03 | Synthetic boundary dates. Ran `./build/appointments_test`. Reviewed date-validation demonstration. | Invalid dates are rejected and valid-window dates accepted. | Executable printed `All appointment tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-APT-03/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-APT-04 | Synthetic appointment eligible for change. Ran `./build/change_appointment_test`. Reviewed cancellation/rescheduling demonstration. | Cancellation/rescheduling updates the appointment and slot. | Executable printed `All change_appointment tests passed`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-APT-04/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-CLN-01 | Synthetic patient, appointment, symptoms, and diagnosis. Ran `./build/clinical_service_test`. Reviewed visit demonstration. | Visit record saves with clinical values. | Executable printed `All clinical service tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-CLN-01/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-CLN-02 | Synthetic visit and prescription fixtures. Ran `./build/clinical_service_test`. Reviewed prescription demonstration. | Prescription saves against the visit. | Executable printed `All clinical service tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-CLN-02/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-CLN-03 | Synthetic allergy, medicine, and override-reason fixtures. Ran `./build/clinical_service_test`. Reviewed allergy demonstration. | Allergy warning appears and override reason is required. | Executable printed `All clinical service tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-CLN-03/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-CLN-04 | Synthetic patient with dated clinical records. Ran `./build/clinical_test`. Reviewed history demonstration. | History is newest first. | Executable printed `All clinical tests passed.`; manual demonstration passed. | [`run.log`](../../evidence/DAKSHA/TC-CLN-04/run.log), [`ctest_verbose.log`](../../evidence/automated_tests/ctest_verbose.log), Sprint videos | **Pass** |
+| TC-PERF-01 | Required 100,000 synthetic patients, 100 concurrent users, and 10-minute search run were unavailable. No load command was run. | p95 search response <=2 seconds. | Not measured. | `tests/performance/`; no current run log | **Deferred** |
+| TC-PERF-02 | Required isolated appointment dataset, 100 concurrent users, and 10-minute booking run were unavailable. No load command was run. | p95 <3 seconds and no duplicate bookings. | Not measured. | `scripts/appointment_booking_load_test.py`; no current run log | **Deferred** |
+| TC-PERF-03 | Current 200-session, 30-minute rerun was not performed. | Error rate below 1% for the 30-minute workload. | Not measured for commit `bbb6006`; historical result is separate evidence. | `tests/performance/NF-003-summary.txt`; no current run log | **Deferred** |
 
-### Patient management
-
-The five patient cases used synthetic patient fixtures and `patient_service_test`.
-The registration, validation, duplicate-warning, search, update, and history
-checks passed in the automated run and the manual demonstration. Evidence:
-the shared [CTest output](../../evidence/automated_tests/daksha_ctest_20261105.log)
-and the Sprint 1/Sprint 2 videos listed in `docs/Sprint_Video_links.txt`.
-
-| Case | Expected and actual result | Outcome |
-|---|---|---|
-| TC-PAT-01 | Registration succeeded in automated and manual checks. | **Pass** |
-| TC-PAT-02 | Invalid input validation succeeded in automated and manual checks. | **Pass** |
-| TC-PAT-03 | Duplicate detection succeeded in automated and manual checks. | **Pass** |
-| TC-PAT-04 | Patient search succeeded in automated and manual checks. | **Pass** |
-| TC-PAT-05 | Patient update/history succeeded in automated and manual checks. | **Pass** |
-
-### Appointments
-
-The four appointment cases used synthetic patient, doctor, date, and slot
-fixtures. Booking, duplicate-slot handling, booking-window validation, and
-cancellation/rescheduling passed in the automated run and manual demonstration.
-
-| Case | Expected and actual result | Outcome |
-|---|---|---|
-| TC-APT-01 | Available-slot booking succeeded in automated and manual checks. | **Pass** |
-| TC-APT-02 | Duplicate-slot rejection and alternatives succeeded in automated and manual checks. | **Pass** |
-| TC-APT-03 | Booking-window validation succeeded in automated and manual checks. | **Pass** |
-| TC-APT-04 | Cancellation/rescheduling succeeded in automated and manual checks. | **Pass** |
-
-### Clinical records
-
-The four clinical cases used synthetic patients, appointments, visit values,
-prescriptions, allergies, and dated history records. Visit recording,
-prescriptions, allergy override, and history ordering passed in the automated
-run and manual demonstration.
-
-| Case | Expected and actual result | Outcome |
-|---|---|---|
-| TC-CLN-01 | Visit recording succeeded in automated and manual checks. | **Pass** |
-| TC-CLN-02 | Prescription handling succeeded in automated and manual checks. | **Pass** |
-| TC-CLN-03 | Allergy warning/override succeeded in automated and manual checks. | **Pass** |
-| TC-CLN-04 | Clinical-history ordering succeeded in automated and manual checks. | **Pass** |
-
-### Performance cases
-
-| ID / tester / date-time / build / environment | Setup | Steps performed | Expected and actual result | Evidence | Outcome |
-|---|---|---|---|---|---|
-| **TC-PERF-01**<br>Daksha SG<br>2026-11-05 10:00 IST | Required setup: 100,000 synthetic patients, 100 concurrent users, 10-minute search workload. | No load command was run because the required dataset and load environment were unavailable. | Expected p95 search response time <=2 seconds. Actual: not measured. | `tests/performance/`; no current load output or CI artifact. | **Deferred** — resource unavailable |
-| **TC-PERF-02**<br>Daksha SG<br>2026-11-05 10:00 IST | Required setup: isolated synthetic appointment data, 100 concurrent users, 10-minute booking workload. | No load command was run because the dedicated environment and dataset were unavailable. | Expected p95 <3 seconds and no duplicate bookings. Actual: not measured. | `scripts/appointment_booking_load_test.py`; no current load output. | **Deferred** — resource unavailable |
-| **TC-PERF-03**<br>Daksha SG<br>2026-11-05 10:00 IST | Required setup: sustained 200-session workload for 30 minutes. | No current rerun was performed. | Expected 200 concurrent sessions for 30 minutes with error rate below 1%. Actual: not measured for this build; historical summary is not a current execution. | `tests/performance/NF-003-summary.txt`; no current 30-minute runner output. | **Deferred** — duration/environment unavailable |
-
-## Final summary
+## Summary
 
 | Measure | Count |
 |---|---:|
 | Assigned cases | 20 |
-| Cases with automated execution evidence | 17 |
 | Passed | 17 |
-| Partial | 0 |
-| Failed | 0 recorded |
-| Deferred/blocked | 3 |
-| Pass rate | 100% of executed cases (17/17); the three performance cases remain deferred |
+| Failed | 0 |
+| Deferred | 3 |
+| Pass rate among executed cases | 100% (17/17) |
 
-The 17 passing records combine automated component assertions with the manual
-demonstrations. The three deferred cases
-require extended resources or duration, so the Test Plan full-execution exit
-criterion is not demonstrated.
+The three performance cases remain deferred and are not counted as passed.
+Therefore, the full 20-case execution exit criterion is not demonstrated.
 
-## Defects by severity
+## Maintenance and traceability
 
-No defect register or per-case defect records were supplied. Counts are
-therefore **not established**, not zero.
-
-| Severity | Open defects |
-|---|---|
-| Critical | Not established |
-| High | Not established |
-| Medium | Not established |
-| Low | Not established |
-
-## Requirement coverage and maintenance
-
-The SRS PDF under `docs/Deliverables-Part1/` contains Appendix C, the
-requirement traceability matrix. The assigned IDs map to HMS-F-001–004,
-HMS-F-010–014, HMS-F-020–023, HMS-F-030–033, and HMS-NF-001–003 as recorded
-in the SRS and `docs/requirements-status.md`. The mappings exist, but
-deferred cases and partial automated-only evidence mean passed acceptance
-coverage is not demonstrated for every mapped requirement.
-
-| Maintenance activity | Trigger/frequency | Evidence to retain |
-|---|---|---|
-| Run build, unit, integration, and coverage checks | Every pull request and release | CI URL, commit SHA, raw output |
-| Review authentication, RBAC, TLS, audit, and session behavior | Security-sensitive change and each release | Test log and reviewed change |
-| Verify encrypted backup and restoration | Hospital backup schedule and before handover | Timed backup/restore result, RPO/RTO |
-| Re-run performance and usability acceptance | Major release or infrastructure change | Dataset, environment, raw results |
-| Update requirements, test cases, and traceability | Requirement/API/architecture change | Revised SRS RTM, Test Plan, execution log |
-
-## Sign-off limitation
-
-This record uses the Sprint 1 and Sprint 2 demonstration videos as manual
-evidence for the 17 functional/security cases. The three performance cases
-remain deferred and are not counted as passed. No commit was created for this
-update.
+The SRS Appendix C mappings are recorded in
+[`requirements-status.md`](../requirements-status.md). Maintain the build,
+verbose CTest output, per-case logs, CI links, and any future performance
+results whenever the implementation or test plan changes.

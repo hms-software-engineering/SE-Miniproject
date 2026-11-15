@@ -1,0 +1,5 @@
+Case: TC-APT-02
+Suite: appointments_test
+Command: ./build/appointments_test
+
+All appointment tests passed.

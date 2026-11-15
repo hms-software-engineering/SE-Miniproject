@@ -1,0 +1,5 @@
+Case: TC-CLN-04
+Suite: clinical_test
+Command: ./build/clinical_test
+
+All clinical tests passed.

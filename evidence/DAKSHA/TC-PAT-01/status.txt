@@ -1,10 +1,10 @@
 TC-PAT-01 — PASS
 Tester: Daksha SG
-Execution date/time: 2026-11-05 10:00 IST
-Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
+Execution date/time: 2026-11-15 21:35:35 +05:30
+Build: bbb6006d4aa46ce1053acff86f79ae858b196f26
 Environment: macOS; CMake/CTest
 Setup: Synthetic patient fixture and isolated test repository.
-Steps: Ran the shared CTest command; executed registration cases in `patient_service_test`.
+Steps: Ran `./build/patient_service_test`; reviewed the Sprint 1 demonstration.
 Expected: A valid synthetic patient is saved and assigned an identifier.
 Actual: Patient registration passed in the automated run and manual demonstration.
-Evidence: ../../automated_tests/daksha_ctest_20261105.log; https://drive.google.com/file/d/1qDIriDJt5D6KRF6aak_MMC9w-JNqN1pb/view?usp=sharing
+Evidence: run.log; ../../automated_tests/ctest_verbose.log; Sprint 1 video link in docs/Sprint_Video_links.txt

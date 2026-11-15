@@ -3,16 +3,16 @@
 **Evidence snapshot:** CI and local test runs recorded through 2026-11-14.
 **Documentation revision:** 2026-11-15.
 
-## Daksha execution record — 2026-11-05
+## Daksha execution record — 2026-11-15
 
-The assigned-case execution log records the tester-supplied execution timestamp
-of 2026-11-05 10:00 IST for a macOS CMake build at commit
-`9dc32b1edffeeb786090540b8c0d84d6e6ad7272`. The command
-`ctest --test-dir build --output-on-failure` passed all 16 registered CTest
-suites in 12.84 seconds. The 17 mapped functional/security records are marked
-Pass using the automated output and the Sprint 1/Sprint 2 manual demonstration
-videos listed in `docs/Sprint_Video_links.txt`. The three performance cases are
-deferred. See
+The assigned-case execution log records an observed execution at
+2026-11-15 21:35:57 +05:30 for a macOS CMake build at commit
+`bbb6006d4aa46ce1053acff86f79ae858b196f26`. The verbose command
+`ctest --test-dir build --output-on-failure -V` passed all 16 registered CTest
+suites in 4.86 seconds. The 17 mapped functional/security records are marked
+Pass using the per-case executable logs and the Sprint 1/Sprint 2 manual
+demonstration videos listed in `docs/Sprint_Video_links.txt`. The three
+performance cases are deferred. See
 [Test-Execution-Log-Daksha.md](Test-Execution-Log-Daksha.md) for the
 per-case records, evidence references, summary, and limitations.
 

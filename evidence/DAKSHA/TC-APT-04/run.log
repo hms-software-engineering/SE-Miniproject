@@ -1,0 +1,5 @@
+Case: TC-APT-04
+Suite: change_appointment_test
+Command: ./build/change_appointment_test
+
+All change_appointment tests passed

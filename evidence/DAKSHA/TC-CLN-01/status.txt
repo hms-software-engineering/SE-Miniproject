@@ -1,10 +1,10 @@
 TC-CLN-01 — PASS
 Tester: Daksha SG
-Execution date/time: 2026-11-05 10:00 IST
-Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
+Execution date/time: 2026-11-15 21:35:35 +05:30
+Build: bbb6006d4aa46ce1053acff86f79ae858b196f26
 Environment: macOS; CMake/CTest
 Setup: Synthetic patient, doctor, appointment, symptoms, and diagnosis values.
-Steps: Ran the shared CTest command; executed visit-record cases in `clinical_service_test` and `clinical_test`.
+Steps: Ran `./build/clinical_service_test`; reviewed the Sprint 2 demonstration.
 Expected: A visit record saves with the supplied clinical values.
 Actual: Visit recording passed in the automated run and manual demonstration.
-Evidence: ../../automated_tests/daksha_ctest_20261105.log; https://drive.google.com/file/d/1-xAuHDfu1cM6kgMXtMZXSou5fmDtst9V/view?usp=sharing
+Evidence: run.log; ../../automated_tests/ctest_verbose.log; Sprint 2 video link in docs/Sprint_Video_links.txt

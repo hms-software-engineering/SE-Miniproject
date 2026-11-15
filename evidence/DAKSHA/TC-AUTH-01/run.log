@@ -1,0 +1,5 @@
+Case: TC-AUTH-01
+Suite: auth_service_test
+Command: ./build/auth_service_test
+
+All authentication and RBAC tests passed.
