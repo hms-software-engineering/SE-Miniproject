@@ -3,14 +3,15 @@
 **Evidence snapshot:** CI and local test runs recorded through 2026-11-14.
 **Documentation revision:** 2026-11-15.
 
-## Daksha execution record — 2026-11-15
+## Daksha execution record — 2026-11-05
 
-The assigned-case execution log records a local macOS CMake build at commit
+The assigned-case execution log records the tester-supplied execution timestamp
+of 2026-11-05 10:00 IST for a macOS CMake build at commit
 `9dc32b1edffeeb786090540b8c0d84d6e6ad7272`. The command
 `ctest --test-dir build --output-on-failure` passed all 16 registered CTest
-suites in 12.84 seconds. This is automated component evidence for the mapped
-functional/security cases, not a substitute for manual acceptance or the three
-deferred performance cases. See
+suites in 12.84 seconds. The 17 mapped functional/security records are marked
+Partial because this is automated component evidence only, not a substitute
+for manual acceptance. The three performance cases are deferred. See
 [Test-Execution-Log-Daksha.md](Test-Execution-Log-Daksha.md) for the
 per-case records, evidence references, summary, and limitations.
 

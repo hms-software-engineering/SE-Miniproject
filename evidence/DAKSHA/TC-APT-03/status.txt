@@ -1,0 +1,11 @@
+TC-APT-03 — PARTIAL
+Tester: Daksha SG
+Execution date/time: 2026-11-05 10:00 IST
+Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
+Environment: macOS; CMake/CTest
+Setup: Synthetic dates covering past, current, 60-day, and beyond-60-day boundaries.
+Steps: Ran the shared CTest command; executed date-window cases in `appointments_test`.
+Expected: Invalid dates are rejected and valid-window dates are accepted.
+Actual: Date-window assertions passed; no live API status/value capture was supplied.
+Evidence: ../../automated_tests/daksha_ctest_20261105.log
+Reason: Automated component evidence only; full acceptance case is not demonstrated.

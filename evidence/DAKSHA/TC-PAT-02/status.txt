@@ -1,0 +1,11 @@
+TC-PAT-02 — PARTIAL
+Tester: Daksha SG
+Execution date/time: 2026-11-05 10:00 IST
+Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
+Environment: macOS; CMake/CTest
+Setup: Synthetic invalid names, dates, phone values, and required fields.
+Steps: Ran the shared CTest command; executed validation cases in `patient_service_test`.
+Expected: Invalid input is rejected and the offending field is identified.
+Actual: Validation assertions passed; no UI/API field-level response was supplied.
+Evidence: ../../automated_tests/daksha_ctest_20261105.log
+Reason: Automated component evidence only; full acceptance case is not demonstrated.

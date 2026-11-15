@@ -1,0 +1,9 @@
+TC-PERF-03 — DEFERRED
+Tester: Daksha SG
+Execution date/time: 2026-11-05 10:00 IST
+Setup required: Sustained 200-session workload for 30 minutes.
+Steps: No current rerun was performed because the sustained-load environment was unavailable.
+Expected: 200 concurrent sessions for 30 minutes with error rate below 1%.
+Actual: Not measured for this build.
+Evidence: Historical `tests/performance/NF-003-summary.txt` only; no current 30-minute output.
+Reason: Deferred for unavailable duration/environment; not counted as passed.

@@ -1,0 +1,11 @@
+TC-AUTH-03 — PARTIAL
+Tester: Daksha SG
+Execution date/time: 2026-11-05 10:00 IST
+Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
+Environment: macOS; CMake/CTest
+Setup: Synthetic account and failed-attempt fixtures.
+Steps: Ran the shared CTest command; executed lockout assertions in `auth_service_test`.
+Expected: The configured failed-attempt threshold locks the account.
+Actual: Mapped assertions passed; no manual timed lockout observation was supplied.
+Evidence: ../../automated_tests/daksha_ctest_20261105.log
+Reason: Automated component evidence only; full acceptance case is not demonstrated.

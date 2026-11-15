@@ -97,10 +97,10 @@ the Test Plan. Per-module data and limitations are in the dated reports under
 
 The detailed System Validation Report records the 34 cases completed per
 project-owner confirmation, the automated checks, and the six deferred
-resource-intensive cases. Daksha's assigned-case execution records are in
+resource-intensive cases. Daksha's assigned-case execution records, dated 2026-11-05, are in
 [Test-Execution-Log-Daksha.md](reports/Test-Execution-Log-Daksha.md); they
-record 17 locally executed automated component-evidence cases and three
-deferred performance cases, without claiming unsupported manual acceptance
-passes. The optional dedicated `hms_f060_test` PostgreSQL database was not
+record 17 automated component-evidence cases as Partial and three deferred
+performance cases, without claiming unsupported manual acceptance passes. The
+optional dedicated `hms_f060_test` PostgreSQL database was not
 available for a separate local rerun of the account-management integration
 tests.

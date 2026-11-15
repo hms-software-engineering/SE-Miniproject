@@ -1,0 +1,11 @@
+TC-CLN-04 — PARTIAL
+Tester: Daksha SG
+Execution date/time: 2026-11-05 10:00 IST
+Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
+Environment: macOS; CMake/CTest
+Setup: Synthetic patient with multiple dated clinical records.
+Steps: Ran the shared CTest command; executed history ordering cases in `clinical_service_test` and `clinical_test`.
+Expected: History is returned in reverse chronological order.
+Actual: Assertions passed; no UI/API history output was supplied.
+Evidence: ../../automated_tests/daksha_ctest_20261105.log
+Reason: Automated component evidence only; full acceptance case is not demonstrated.

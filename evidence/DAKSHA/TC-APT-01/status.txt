@@ -1,0 +1,11 @@
+TC-APT-01 — PARTIAL
+Tester: Daksha SG
+Execution date/time: 2026-11-05 10:00 IST
+Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
+Environment: macOS; CMake/CTest
+Setup: Synthetic patient, doctor, future date, and available slot.
+Steps: Ran the shared CTest command; executed booking cases in `appointments_test`.
+Expected: An available slot is booked successfully.
+Actual: Booking assertions passed; no live booking request/confirmation was supplied.
+Evidence: ../../automated_tests/daksha_ctest_20261105.log
+Reason: Automated component evidence only; full acceptance case is not demonstrated.

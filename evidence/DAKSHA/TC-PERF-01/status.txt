@@ -1,0 +1,9 @@
+TC-PERF-01 — DEFERRED
+Tester: Daksha SG
+Execution date/time: 2026-11-05 10:00 IST
+Setup required: 100,000 synthetic patients, 100 concurrent users, and a 10-minute search workload.
+Steps: No load command was run because the required dataset and environment were unavailable.
+Expected: p95 search response time <=2 seconds.
+Actual: Not measured.
+Evidence: No current load output or CI artifact.
+Reason: Deferred for unavailable load resources; not counted as passed.

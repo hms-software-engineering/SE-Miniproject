@@ -1,0 +1,11 @@
+TC-APT-04 — PARTIAL
+Tester: Daksha SG
+Execution date/time: 2026-11-05 10:00 IST
+Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
+Environment: macOS; CMake/CTest
+Setup: Synthetic appointment eligible for cancellation/rescheduling.
+Steps: Ran the shared CTest command; executed change cases in `change_appointment_test`.
+Expected: Allowed cancellation/rescheduling updates status and releases or moves the slot.
+Actual: Assertions passed; no manual confirmation was supplied.
+Evidence: ../../automated_tests/daksha_ctest_20261105.log
+Reason: Automated component evidence only; full acceptance case is not demonstrated.

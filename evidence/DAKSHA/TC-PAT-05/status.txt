@@ -1,0 +1,11 @@
+TC-PAT-05 — PARTIAL
+Tester: Daksha SG
+Execution date/time: 2026-11-05 10:00 IST
+Build: 9dc32b1edffeeb786090540b8c0d84d6e6ad7272
+Environment: macOS; CMake/CTest
+Setup: Synthetic patient record with prior demographic values.
+Steps: Ran the shared CTest command; executed update/history cases in `patient_service_test`.
+Expected: Updated demographics are saved and previous values are retained.
+Actual: Update/history assertions passed; no UI/API history output was supplied.
+Evidence: ../../automated_tests/daksha_ctest_20261105.log
+Reason: Automated component evidence only; full acceptance case is not demonstrated.
