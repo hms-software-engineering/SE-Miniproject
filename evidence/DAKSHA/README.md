@@ -9,7 +9,7 @@
 | CTest | 16/16 passed; [ctest_verbose.log](../automated_tests/ctest_verbose.log) |
 | Overall case results | 17 Pass; 3 performance cases Deferred |
 
-The functional/security cases were run as live HTTPS API requests against the current build. Each case folder has two records: `status.txt` for setup, steps, expected/actual and outcome; `run.log` for sanitized requests, responses, HTTP values, and the named case check. These are API executions, not screenshots or GUI interactions. The shared Sprint videos are supplemental context and are not presented as proof of this current build. No credentials, tokens, or real patient information are recorded. The actual execution date is November 15; it is not backdated to November 2–6.
+The functional/security cases were run as live HTTPS API requests against the current build. Each case folder has two records: `status.txt` for setup, steps, expected/actual and outcome; `run.log` for sanitized requests, responses, HTTP values, and the named case check. These are API executions, not screenshots or GUI interactions. The shared Sprint videos are supplemental context and are not presented as proof of this current build. No credentials, tokens, or real patient information are recorded.
 
 | Case | Result | Evidence |
 |---|---|---|
