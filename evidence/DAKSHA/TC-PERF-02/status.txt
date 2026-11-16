@@ -1,5 +1,5 @@
 TC-PERF-02 — DEFERRED
-Tester: Daksha SG
+Tester: Daksha
 Execution date/time: Not run; status reviewed 2026-11-15 (Asia/Kolkata).
 Build context: Repository HEAD at review time was f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81; no performance build or workload execution is claimed.
 Operating system: macOS Darwin 25.1.0 arm64.
