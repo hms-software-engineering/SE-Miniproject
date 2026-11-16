@@ -1,0 +1,5 @@
+Appointment ID,Patient ID,Patient Name,Doctor,Date,Slot,Status
+"2","PID-00000001","Asha Nair Stage3 3c34f960b0","doctor_3c34f960b0","2026-12-23","09:00","Confirmed"
+"4","PID-00000002","Mira Shah Stage3 3c34f960b0","doctor_3c34f960b0","2026-12-23","10:00","Confirmed"
+"3","PID-00000001","Asha Nair Stage3 3c34f960b0","doctor_3c34f960b0","2026-12-23","11:00","Confirmed"
+"1","PID-00000002","Mira Shah Stage3 3c34f960b0","otherdoctor_3c34f960b0","2026-12-23","16:30","Confirmed"

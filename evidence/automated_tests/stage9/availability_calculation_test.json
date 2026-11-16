@@ -1,0 +1,14 @@
+{
+    "startDateLocal":  "2026-02-01",
+    "windowStartLocal":  "2026-02-01 06:00:00 +05:30",
+    "windowEndExclusiveLocal":  "2026-02-07 22:00:00 +05:30",
+    "dailyWindow":  "[06:00, 22:00) local; one scheduled slot per minute",
+    "expectedChecks":  6720,
+    "uniqueObservedChecks":  6718,
+    "successfulChecks":  6717,
+    "failedChecks":  3,
+    "missingChecks":  2,
+    "duplicateRows":  1,
+    "outOfWindowRows":  1,
+    "availabilityPercent":  99.9554
+}

@@ -1,0 +1,364 @@
+Starting HMS server...
+Bootstrap administrator created with userId=173.
+HMS API listening at https://localhost:8443/api/v1
+Health endpoint: GET /api/v1/health
+Stop with Ctrl+C or close this console.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/health/live
+[INFO] requestId=req-1 component=API method=GET path=/api/v1/health/live
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/health/live
+[INFO] requestId=req-2 component=API method=GET path=/api/v1/health/live
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Waiting for a client...
+Accepted client connection.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/health
+[INFO] requestId=req-3 component=API method=GET path=/api/v1/health
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Waiting for a client...
+Accepted client connection.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/auth/login
+[INFO] requestId=req-4 component=API method=POST path=/api/v1/auth/login
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/users
+[INFO] requestId=req-5 component=API method=POST path=/api/v1/users
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/users
+[INFO] requestId=req-6 component=API method=POST path=/api/v1/users
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/auth/login
+[INFO] requestId=req-7 component=API method=POST path=/api/v1/auth/login
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/users
+[INFO] requestId=req-8 component=API method=POST path=/api/v1/users
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: PATCH /api/v1/users/174
+[INFO] requestId=req-9 component=API method=PATCH path=/api/v1/users/174
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/auth/login
+[INFO] requestId=req-10 component=API method=POST path=/api/v1/auth/login
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/users
+[INFO] requestId=req-11 component=API method=POST path=/api/v1/users
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/auth/login
+[INFO] requestId=req-12 component=API method=POST path=/api/v1/auth/login
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/audit-log
+[INFO] requestId=req-13 component=API method=GET path=/api/v1/audit-log
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/audit-log
+[INFO] requestId=req-14 component=API method=GET path=/api/v1/audit-log
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/auth/login
+[INFO] requestId=req-15 component=API method=POST path=/api/v1/auth/login
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/patients/search
+[INFO] requestId=req-16 component=API method=GET path=/api/v1/patients/search
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/users
+[INFO] requestId=req-17 component=API method=POST path=/api/v1/users
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/auth/login
+[INFO] requestId=req-18 component=API method=POST path=/api/v1/auth/login
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/auth/register
+[INFO] requestId=req-19 component=API method=POST path=/api/v1/auth/register
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/auth/login
+[INFO] requestId=req-20 component=API method=POST path=/api/v1/auth/login
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/patients/me/profile
+[INFO] requestId=req-21 component=API method=POST path=/api/v1/patients/me/profile
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/auth/register
+[INFO] requestId=req-22 component=API method=POST path=/api/v1/auth/register
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/auth/login
+[INFO] requestId=req-23 component=API method=POST path=/api/v1/auth/login
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/patients/me/profile
+[INFO] requestId=req-24 component=API method=POST path=/api/v1/patients/me/profile
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/patients/PID-REDACTED
+[INFO] requestId=req-25 component=API method=GET path=/api/v1/patients/PID-REDACTED
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/patients/PID-REDACTED
+[INFO] requestId=req-26 component=API method=GET path=/api/v1/patients/PID-REDACTED
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/patients/me/history
+[INFO] requestId=req-27 component=API method=GET path=/api/v1/patients/me/history
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/patients/me/bills
+[INFO] requestId=req-28 component=API method=GET path=/api/v1/patients/me/bills
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/patients/PID-REDACTED/history
+[INFO] requestId=req-29 component=API method=GET path=/api/v1/patients/PID-REDACTED/history
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/patients/me/bills
+[INFO] requestId=req-30 component=API method=GET path=/api/v1/patients/me/bills
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/appointments/free-slots
+[INFO] requestId=req-31 component=API method=GET path=/api/v1/appointments/free-slots
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/appointments
+[INFO] requestId=req-32 component=API method=POST path=/api/v1/appointments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/appointments
+[INFO] requestId=req-33 component=API method=POST path=/api/v1/appointments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/appointments
+[INFO] requestId=req-34 component=API method=POST path=/api/v1/appointments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/appointments
+[INFO] requestId=req-35 component=API method=POST path=/api/v1/appointments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/doctors/me/schedule
+[INFO] requestId=req-36 component=API method=GET path=/api/v1/doctors/me/schedule
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/doctors/me/schedule
+[INFO] requestId=req-37 component=API method=GET path=/api/v1/doctors/me/schedule
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/doctors/me/appointments
+[INFO] requestId=req-38 component=API method=GET path=/api/v1/doctors/me/appointments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/reports/appointments
+[INFO] requestId=req-39 component=API method=GET path=/api/v1/reports/appointments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/reports/appointments
+[INFO] requestId=req-40 component=API method=GET path=/api/v1/reports/appointments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/reports/appointments
+[INFO] requestId=req-41 component=API method=GET path=/api/v1/reports/appointments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/reports/appointments
+[INFO] requestId=req-42 component=API method=GET path=/api/v1/reports/appointments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/visits
+[INFO] requestId=req-43 component=API method=POST path=/api/v1/visits
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/patients/me/history
+[INFO] requestId=req-44 component=API method=GET path=/api/v1/patients/me/history
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/visits
+[INFO] requestId=req-45 component=API method=POST path=/api/v1/visits
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/patients/me/history
+[INFO] requestId=req-46 component=API method=GET path=/api/v1/patients/me/history
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/visits
+[INFO] requestId=req-47 component=API method=POST path=/api/v1/visits
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/visits
+[INFO] requestId=req-48 component=API method=POST path=/api/v1/visits
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/patients/me/history
+[INFO] requestId=req-49 component=API method=GET path=/api/v1/patients/me/history
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/users
+[INFO] requestId=req-50 component=API method=POST path=/api/v1/users
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/auth/login
+[INFO] requestId=req-51 component=API method=POST path=/api/v1/auth/login
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/bills
+[INFO] requestId=req-52 component=API method=POST path=/api/v1/bills
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/bills
+[INFO] requestId=req-53 component=API method=POST path=/api/v1/bills
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/bills
+[INFO] requestId=req-54 component=API method=POST path=/api/v1/bills
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/bills
+[INFO] requestId=req-55 component=API method=POST path=/api/v1/bills
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/patients/me/bills
+[INFO] requestId=req-56 component=API method=GET path=/api/v1/patients/me/bills
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/payments
+[INFO] requestId=req-57 component=API method=POST path=/api/v1/payments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/receipts
+[INFO] requestId=req-58 component=API method=POST path=/api/v1/receipts
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/receipts
+[INFO] requestId=req-59 component=API method=POST path=/api/v1/receipts
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/payments
+[INFO] requestId=req-60 component=API method=POST path=/api/v1/payments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/payments
+[INFO] requestId=req-61 component=API method=POST path=/api/v1/payments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/payments
+[INFO] requestId=req-62 component=API method=POST path=/api/v1/payments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/payments
+[INFO] requestId=req-63 component=API method=POST path=/api/v1/payments
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/reports/revenue
+[INFO] requestId=req-64 component=API method=GET path=/api/v1/reports/revenue
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/reports/revenue
+[INFO] requestId=req-65 component=API method=GET path=/api/v1/reports/revenue
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/reports/revenue
+[INFO] requestId=req-66 component=API method=GET path=/api/v1/reports/revenue
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/reports/revenue
+[INFO] requestId=req-67 component=API method=GET path=/api/v1/reports/revenue
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: PUT /api/v1/patients/PID-REDACTED
+[INFO] requestId=req-68 component=API method=PUT path=/api/v1/patients/PID-REDACTED
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: POST /api/v1/auth/logout
+[INFO] requestId=req-69 component=API method=POST path=/api/v1/auth/logout
+Client connection closed.
+Waiting for a client...
+Accepted client connection.
+Request: GET /api/v1/auth/me
+[INFO] requestId=req-70 component=API method=GET path=/api/v1/auth/me
+Client connection closed.
+Waiting for a client...

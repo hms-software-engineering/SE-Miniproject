@@ -1,3 +1,6 @@
+TC-RPT-01 ? CURRENT STATUS: PASS (Stage 5, 2026-11-15).
+Historical initial and Stage 4 observations follow; the Stage 5 retest below is current.
+
 TC-RPT-01 — FAIL
 Execution date: 2026-11-15
 Tester: Dhruv Swatantramath (PES1UG24CS155)
@@ -5,3 +8,10 @@ Actual observation: Revenue report route returned 501; required daily appointmen
 Evidence: ../../automated_tests/stage3_api_execution_20261115.txt
 Full Appendix A procedure completed: No.
 Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.
+
+Stage 4 retest: PARTIAL (2026-11-15). The seven-day revenue CSV total reconciled with PostgreSQL payments. PDF response passed header/EOF checks; it was not opened in a PDF viewer. Daily appointment report branch was not exercised.
+Evidence: ../../automated_tests/stage4_api_execution_20261115.txt
+
+
+Stage 5 retest: PASS (2026-11-15). Revenue CSV opened in Excel; seven-day total reconciled with PostgreSQL. Revenue PDF was rendered and visually checked after correcting overlapping lines. The SRS daily appointment report was also separately exercised for CSV/PDF response, expected fields, authorization (403), and invalid date (400). Appendix A TC-RPT-01 is the revenue report procedure.
+Evidence: ../../automated_tests/stage5_api_execution_20261115.txt; ../../automated_tests/stage5_revenue_pdf_render_verified_20261115.png; ../../automated_tests/stage5_revenue_report_20261115.csv; ../../automated_tests/stage5_revenue_report_20261115.pdf.

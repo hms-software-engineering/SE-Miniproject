@@ -1,0 +1,8 @@
+﻿Date=2026-11-16 10:51:52 +05:30
+PowerShell=5.1.26100.9818
+PostgreSQL/backup/Invoke-HmsEncryptedPostgresBackup.ps1=PASS
+PostgreSQL/backup/Register-HmsDailyBackupTask.ps1=PASS
+evidence/automated_tests/stage6_20261115/Invoke-HmsSevenDayReadinessMonitor.ps1=PASS
+evidence/automated_tests/stage6_20261115/Register-HmsSevenDayMonitorTask.ps1=PASS
+evidence/automated_tests/stage6_20261115/run_backup_restore_test.ps1=PASS
+evidence/automated_tests/stage6_20261115/run_assigned_api_regression.ps1=PASS

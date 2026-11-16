@@ -1,7 +1,10 @@
 TC-SEC-04 — PARTIAL
 Execution date: 2026-11-15
 Tester: Dhruv Swatantramath (PES1UG24CS155)
-Actual observation: Login SQL-injection string returned 401; patient search returned zero matches. Script notes payload was stored only in encrypted visit fields. Oversized/boundary and browser rendering checks were not completed.
-Evidence: ../../automated_tests/stage3_api_execution_20261115.txt
+Actual observation: Login SQL-injection string returned 401; patient search returned zero matches. `<script>alert(1)</script>` in visit notes was returned as JSON data and stored in encrypted visit fields. An 8,001-character note returned 400; 8,000 characters returned 201 and persisted exactly. Automated HTML escaping checks passed. Actual HMS desktop browser rendering was unavailable because the Qt6 client was not built, and ZAP/sqlmap were not installed; therefore the complete procedure remains PARTIAL.
+Evidence: ../../automated_tests/stage5_api_execution_20261115.txt
 Full Appendix A procedure completed: No.
 Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.
+
+Stage 9 recheck (2026-11-16): Still PARTIAL. No Qt6/qmake installation was found, CMake Stage 8 evidence confirms the HMS client target was skipped, and no Stage 9 desktop client launch, rendered XSS check, or screenshot was performed. No local ZAP executable was found on PATH. Stage 8's API-level XSS/injection and encrypted-storage checks remain supporting evidence only. See ../../automated_tests/stage9/readiness_assessment.md.
+Stage 10 recheck (2026-11-16): Still PARTIAL. Qt6 Widgets/Network are absent and not declared in the project's vcpkg manifest. The actual client was not built/launched; no rendered-payload result or screenshot exists. No dynamic scan ran. Prior API-level XSS/SQL injection evidence remains supporting evidence only. Details: ../../automated_tests/stage10/environment_and_results.md.

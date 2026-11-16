@@ -1,0 +1,6 @@
+﻿StopDate=2026-11-16 10:44:06 +05:30
+ClusterData=C:\Users\dhruv\AppData\Local\Temp\hms-stage6-api-pg17-b83a9fec05
+ClusterPid=21676
+ExitCode=0
+waiting for server to shut down.... done
+server stopped

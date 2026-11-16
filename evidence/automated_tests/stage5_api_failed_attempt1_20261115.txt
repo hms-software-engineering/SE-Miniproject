@@ -1,0 +1,87 @@
+﻿Date=2026-11-15 19:47:34 +05:30
+DatabaseScope=isolated PostgreSQL 17.11; hms_assigned_test; 127.0.0.1:55432
+StartupHealthTLS12=200; protocol=TLSv1.2
+LoadedOpenSslDllPaths=C:\Users\dhruv\Downloads\HMS-Team-Repo\vcpkg_installed\x64-windows\bin\libcrypto-3-x64.dll;C:\Users\dhruv\Downloads\HMS-Team-Repo\vcpkg_installed\x64-windows\bin\libssl-3-x64.dll
+LivenessTLS12=200; protocol=TLSv1.2; cipher=ECDHE-RSA-AES256-GCM-SHA384
+TLS13Negotiation=200; protocol=TLSv1.3; cipher=TLS_AES_256_GCM_SHA384; verify=; error=
+TLS11Rejected=True
+TLS10Rejected=True
+ReadinessTLS=200
+UntrustedCertificateRejected=True; verify=18
+PlainHTTPRejected=True
+ServerSurvivedTLSNegativeChecks=True
+AdminLogin=200; role=Administrator
+WeakPasswordRejected=400
+ReceptionistCreated=201; assignedRole=Receptionist
+ReceptionistLogin=200; role=Receptionist
+NonAdminUserCreateDenied=403
+ReceptionistDeactivated=200; active=False
+InactiveLoginRejected=401
+AdminAuditFilterEndpoint=200; rows=4; matchingUser=True; timestampsToday=True
+NonAdminAuditReadDenied=403
+LoginSqlInjectionRejected=401
+SearchInjectionResponse=200; matches=0
+DoctorCreated=201; profilePresent=True
+PatientAProfileCreated=201; idPresent=True
+PatientBProfileCreated=201; idPresent=True
+PatientOwnRecord=200
+CrossPatientRecordDenied=403; bodyEmpty=True
+PatientOwnHistoryEndpoint=200
+PatientOwnBillsEndpoint=200
+PatientOwnBillsNoLeak=200; count=0
+CrossPatientHistoryDenied=403
+OtherDoctorFreeSlotAvailable=True
+OtherDoctorAppointmentBooked=201
+SyntheticAppointmentBooked=201; idPresent=True
+ScheduleSeededOutOfOrder=11=201; 10=201
+ScheduleUnauthorizedDenied=403
+AssignedScheduleEndpoint=200
+ImplementedScheduleEndpoint=200
+DoctorScheduleOwnOnly=count=3; doctorMatches=True; sorted=True
+ScheduleDoctorIds=expected=20; actual=20,20,20
+SyntheticVisitCreated=201; idPresent=True
+OwnHistoryAfterVisit=200; visits=1
+PatientHistoryOwnTwoNewestFirst=200; count=2; secondVisitCreated=True; newestSecond=True
+XssPayloadReturnedAsJsonData=True
+NotesLengthBoundary=overLimit=400; atLimit=201; savedLength=0
+BillingOfficerCreated=201; role=Billing Officer
+BillCreationEndpoint=201
+DuplicateBillRejected=409
+BillItemsAndTotalsPersisted=2|800.00|800.00|40.00|840.00
+BillTotals=800.00|40.00|840.00
+InvalidBillRejected=400
+UnauthorizedBillDenied=403
+OwnBillVisible=200; containsBill=True
+UnauthorizedReceiptDenied=403
+ReceiptEndpoint=200; hasReceipt=True; matchesPayment=True; hasAmount=True; hasMode=True; hasDate=True; printable=True
+ReceiptArtifactSaved=True
+PartialPayment=201; balance=440.00; status=Partially Paid
+UnauthorizedPaymentDenied=403
+InvalidPaymentRejected=400
+OverpaymentRejected=409
+FinalPayment=201; balance=0.00; status=Paid
+PaymentRowsAndStatusPersisted=2|840.00|Paid
+ReceiptNumbersUniqueInDatabase=2|2
+RevenueReportEndpoint=200
+RevenueReportCsvValid=True
+RevenueReportPdfValid=True
+RevenueDaysSeven=True
+ReportArtifactsSaved=True
+RevenueCsvReconciles=True
+RevenueExpectedStage5PaymentsIncluded=True
+UnauthorizedRevenueReportDenied=403
+InvalidReportDateRejected=400
+SyntheticPatientUpdate=200
+Logout=200
+LoggedOutTokenReplay=401
+CredentialHashSummary=7|7|true
+DeactivationPersisted=false
+PatientNameNotPlaintextAtRest=true
+VisitDiagnosisAndNotesNotPlaintext=true|true
+PatientViewAuditCount=1
+AuditEventCountForSyntheticAdmin=6
+AuditRowsAndNoScriptNote=18|true
+ServerAliveAfterApiChecks=True
+NoSecretsRecorded=true
+ExecutionError=Required assigned-case verification failed: ^NotesLengthBoundary=overLimit=400; atLimit=201; savedLength=8000$
+ServerStopped=true

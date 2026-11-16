@@ -1,0 +1,9 @@
+﻿PostgreSQL=postgres (PostgreSQL) 17.11
+Cluster=C:\Users\dhruv\AppData\Local\Temp\hms-stage8-api-pg17-582547088458470397f06631c6c5e02d
+Host=127.0.0.1
+Port=55432
+Database=hms_stage8_api
+Authentication=trust on loopback-only isolated temporary cluster
+SchemaMigrations=001,002,004,005,006; development seed omitted
+ClusterDataRetained=True
+ClusterStop=success; isolated data retained

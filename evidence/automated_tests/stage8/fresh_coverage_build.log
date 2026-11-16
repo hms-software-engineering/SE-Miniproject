@@ -1,0 +1,103 @@
+**********************************************************************
+** Visual Studio 2026 Developer Command Prompt v18.11.0
+** Copyright (c) 2026 Microsoft Corporation
+**********************************************************************
+[1/2] Building CXX object CMakeFiles\hms_server.dir\src\main.cpp.obj
+C:\Users\dhruv\Downloads\HMS-Team-Repo\src\main.cpp(2032,41): warning: 'getenv' is deprecated: This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+ 2032 |     const char* certificate_file = std::getenv("HMS_TLS_CERT_FILE");
+      |                                         ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\stdlib.h(1183,20): note: 'getenv' has been explicitly marked deprecated here
+ 1183 |     _Check_return_ _CRT_INSECURE_DEPRECATE(_dupenv_s)
+      |                    ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(358,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  358 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(348,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  348 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\dhruv\Downloads\HMS-Team-Repo\src\main.cpp(2033,41): warning: 'getenv' is deprecated: This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+ 2033 |     const char* private_key_file = std::getenv("HMS_TLS_KEY_FILE");
+      |                                         ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\stdlib.h(1183,20): note: 'getenv' has been explicitly marked deprecated here
+ 1183 |     _Check_return_ _CRT_INSECURE_DEPRECATE(_dupenv_s)
+      |                    ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(358,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  358 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(348,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  348 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\dhruv\Downloads\HMS-Team-Repo\src\main.cpp(2070,37): warning: 'getenv' is deprecated: This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+ 2070 |         const char* data_key = std::getenv("HMS_PATIENT_DATA_KEY");
+      |                                     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\stdlib.h(1183,20): note: 'getenv' has been explicitly marked deprecated here
+ 1183 |     _Check_return_ _CRT_INSECURE_DEPRECATE(_dupenv_s)
+      |                    ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(358,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  358 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(348,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  348 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\dhruv\Downloads\HMS-Team-Repo\src\main.cpp(2072,18): warning: 'getenv' is deprecated: This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+ 2072 |             std::getenv("HMS_PATIENT_NAME_INDEX_KEY");
+      |                  ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\stdlib.h(1183,20): note: 'getenv' has been explicitly marked deprecated here
+ 1183 |     _Check_return_ _CRT_INSECURE_DEPRECATE(_dupenv_s)
+      |                    ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(358,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  358 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(348,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  348 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\dhruv\Downloads\HMS-Team-Repo\src\main.cpp(2074,18): warning: 'getenv' is deprecated: This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+ 2074 |             std::getenv("HMS_PATIENT_PHONE_INDEX_KEY");
+      |                  ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\stdlib.h(1183,20): note: 'getenv' has been explicitly marked deprecated here
+ 1183 |     _Check_return_ _CRT_INSECURE_DEPRECATE(_dupenv_s)
+      |                    ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(358,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  358 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(348,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  348 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\dhruv\Downloads\HMS-Team-Repo\src\main.cpp(2107,18): warning: 'getenv' is deprecated: This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+ 2107 |             std::getenv("HMS_BOOTSTRAP_ADMIN_USERNAME");
+      |                  ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\stdlib.h(1183,20): note: 'getenv' has been explicitly marked deprecated here
+ 1183 |     _Check_return_ _CRT_INSECURE_DEPRECATE(_dupenv_s)
+      |                    ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(358,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  358 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(348,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  348 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\dhruv\Downloads\HMS-Team-Repo\src\main.cpp(2109,18): warning: 'getenv' is deprecated: This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+ 2109 |             std::getenv("HMS_BOOTSTRAP_ADMIN_PASSWORD");
+      |                  ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\stdlib.h(1183,20): note: 'getenv' has been explicitly marked deprecated here
+ 1183 |     _Check_return_ _CRT_INSECURE_DEPRECATE(_dupenv_s)
+      |                    ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(358,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  358 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(348,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  348 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\dhruv\Downloads\HMS-Team-Repo\src\main.cpp(2204,14): warning: 'getenv' is deprecated: This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+ 2204 |         std::getenv("HMS_TEST_STDIN_SHUTDOWN");
+      |              ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\stdlib.h(1183,20): note: 'getenv' has been explicitly marked deprecated here
+ 1183 |     _Check_return_ _CRT_INSECURE_DEPRECATE(_dupenv_s)
+      |                    ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(358,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  358 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231\include\vcruntime.h(348,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  348 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+8 warnings generated.
+[2/2] Linking CXX executable hms_server.exe

@@ -1,0 +1,6 @@
+participant_code,session_date_local,synthetic_patient_code,doctor_task_label,requested_date,booking_completed,appointment_id_displayed,elapsed_seconds,unaided,assistance_count,error_count,moderator_observation
+U01,,,,,,,,,,,
+U02,,,,,,,,,,,
+U03,,,,,,,,,,,
+U04,,,,,,,,,,,
+U05,,,,,,,,,,,

@@ -1,6 +1,19 @@
-TC-MNT-01 — BLOCKED
+TC-MNT-01 — Stage 5 status: BLOCKED; Stage 6 current status: FAIL
 Execution date: 2026-11-15
 Tester: Dhruv Swatantramath (PES1UG24CS155)
-Actual observation: No coverage-instrumented build, gcov/lcov execution or per-service coverage report.
-Full Appendix A procedure completed: No.
+Actual observation: Fresh clang-cl coverage build succeeded; CTest and PostgreSQL-enabled CTest each passed 8/8. LLVM source line coverage: auth 75.19%, patients 80.16%, health 84.91%, password security 91.55%, appointments 60.44%, API 57.78%, billing 31.18%, clinical 6.70%. API workflow execution was not captured in profiles. Acceptance requires >=70% for every service module. Stage 5 recorded BLOCKED; Stage 6 classifies the completed measurement as FAIL because it did not meet the threshold.
+Evidence: stage5_*_coverage_20261115.txt and stage5_coverage_* logs in this directory.
+Full Appendix A procedure was executed; the Stage 5 threshold result was below acceptance.
 No patient identifiers, credentials or real clinical data were used.
+
+
+Stage 6 final status: FAIL
+Execution date: 2026-11-16
+Fresh clang-cl/Ninja coverage build completed 38/38. Normal CTest and PostgreSQL-enabled CTest each passed 8/8. LLVM line coverage: API helper src/api.cpp 100% (not the server route module); route src/main.cpp last usable profile 57.78%; appointments 61.46%; billing 37.14%; clinical 6.70%; auth 75.19%; patients 80.16%; health 84.91%; password security 91.55%. The instrumented API server profile was empty because the existing runner force-stops the process before LLVM profile flush; API route coverage therefore remains at its last usable value. Acceptance requires >=70% line coverage in every service module; the executed criterion failed.
+Full Appendix A procedure completed: Yes; failed threshold.
+Evidence: Stage 6 fresh build, CTest, PostgreSQL CTest, and [module coverage report](../../automated_tests/stage6_20261115/coverage_per_module.txt).
+
+Stage 8 final status: PASS
+Execution date: 2026-11-16
+Fresh Clang-cl 23.1.5/Ninja coverage build succeeded. Normal CTest passed 8/8; isolated PostgreSQL clinical/appointment/billing integration tests passed 3/3; full API regression passed all assertions and the instrumented API server shut down gracefully to flush profile data. Merged successful-only profile line coverage: API routes 72.28%; appointments 94.31%; billing 98.21%; clinical 88.47%; auth 79.52%; patient service 87.47%; PostgreSQL patient repository 83.17%; health service 100%; availability 82.80%; password security 91.55%; RBAC 95.58%. Every measured applicable service/API module meets the >=70% requirement. Stage 8 coverage and logs are under evidence/automated_tests/stage8/.
+Full assigned procedure completed: Yes; per-module threshold met.

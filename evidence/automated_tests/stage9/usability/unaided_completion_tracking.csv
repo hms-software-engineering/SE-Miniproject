@@ -1,0 +1,11 @@
+participant_code,task_code,task_name,completed,unaided,completion_seconds,assistance_count,error_count
+U01,REG,Patient registration,,,,,
+U01,APT,Appointment booking,,,,,
+U02,REG,Patient registration,,,,,
+U02,APT,Appointment booking,,,,,
+U03,REG,Patient registration,,,,,
+U03,APT,Appointment booking,,,,,
+U04,REG,Patient registration,,,,,
+U04,APT,Appointment booking,,,,,
+U05,REG,Patient registration,,,,,
+U05,APT,Appointment booking,,,,,

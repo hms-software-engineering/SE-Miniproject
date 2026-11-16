@@ -1,0 +1,17 @@
+﻿DateUtc=2026-11-15T19:02:49.5600044+00:00
+PostgreSQL=17; isolated temporary cluster; loopback only
+SyntheticDatabase=hms_stage6_test_ebc4617267
+BackupDurationSeconds=2.051
+EncryptedArchiveBytes=2352
+EncryptedArchiveSha256=D392A57CC12EE217E2180C124A180B28EF246F3E82FD63589E27A00AD87682BD
+PlaintextMarkerAbsent=True
+SourceFingerprint=3|85000|stage6-synthetic-01,stage6-synthetic-02,stage6-synthetic-03
+RestoredFingerprintMatches=True
+RestoreDurationSeconds=1.897
+RowsLost=0
+RestoreWithinFourHours=True
+FailedBackupNonzeroAndNotPublished=True
+FailedBackupLoggedWithoutRawToolOutput=True
+ScheduledTaskInstalled=False; no application staging database was configured
+Result=PASS; isolated manual backup and restore behavior verified; assigned nightly-job procedure remains BLOCKED
+ClusterStop=success; isolated cluster data preserved at the temporary path

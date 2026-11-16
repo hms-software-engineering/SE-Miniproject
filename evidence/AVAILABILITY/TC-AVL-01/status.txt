@@ -4,3 +4,5 @@ Tester: Dhruv Swatantramath (PES1UG24CS155)
 Actual observation: No minute-by-minute staging monitoring or seven-day measurement period.
 Full Appendix A procedure completed: No.
 No patient identifiers, credentials or real clinical data were used.
+
+Stage 9 recheck (2026-11-16): Still BLOCKED. Added an end-of-run summary for the existing monitor; a synthetic test passed for 6,720 scheduled minute slots, correctly counting one recorded failure and two missing slots as failures while ignoring a duplicate and out-of-window row. This is calculator evidence only; no trusted staging endpoint was supplied and the seven-day observation has not started. See ../../automated_tests/stage9/availability_calculation_test.json.test.txt and ../../automated_tests/stage9/readiness_assessment.md.

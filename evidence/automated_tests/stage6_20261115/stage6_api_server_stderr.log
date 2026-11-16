@@ -1,0 +1,8 @@
+TLS handshake failed.
+E01C0000:error:0A000102:SSL routines:tls_early_post_process_client_hello:unsupported protocol:ssl\statem\statem_srvr.c:1924:
+TLS handshake failed.
+E01C0000:error:0A000102:SSL routines:tls_early_post_process_client_hello:unsupported protocol:ssl\statem\statem_srvr.c:1924:
+TLS handshake failed.
+E01C0000:error:0A000418:SSL routines:ssl3_read_bytes:tlsv1 alert unknown ca:ssl\record\rec_layer_s3.c:918:SSL alert number 48
+TLS handshake failed.
+E01C0000:error:0A00009C:SSL routines:tls_validate_record_header:http request:ssl\record\methods\tlsany_meth.c:68:

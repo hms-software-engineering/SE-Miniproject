@@ -5,3 +5,6 @@ Actual observation: Created a synthetic visit and authenticated as Billing Offic
 Evidence: ../../automated_tests/stage3_api_execution_20261115.txt
 Full Appendix A procedure completed: No.
 Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.
+
+Stage 4 retest: PASS (2026-11-15). The two persisted line items totaled 800.00; bill subtotal was 800.00, 5% tax 40.00, total 840.00. Invalid request returned 400; unauthorized request returned 403.
+Evidence: ../../automated_tests/stage4_api_execution_20261115.txt

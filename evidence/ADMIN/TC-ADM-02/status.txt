@@ -5,3 +5,6 @@ Actual observation: Administrator audit-filter endpoint returned 501. Non-admini
 Evidence: ../../automated_tests/stage3_api_execution_20261115.txt
 Full Appendix A procedure completed: No.
 Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.
+
+Stage 4 retest: PASS (2026-11-15). Administrator username/date filter returned four matching rows with username, action, record ID, and timestamp. Non-administrator request returned 403.
+Evidence: ../../automated_tests/stage4_api_execution_20261115.txt

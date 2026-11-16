@@ -1,0 +1,7 @@
+﻿Date=2026-11-16 10:45:08 +05:30
+clang-tidy=unavailable on PATH
+cppcheck=unavailable on PATH
+sqlmap=unavailable on PATH
+owasp-zap=unavailable on PATH
+zap=unavailable on PATH
+DynamicScannerConclusion=No OWASP ZAP or sqlmap scan was run.

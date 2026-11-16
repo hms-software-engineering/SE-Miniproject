@@ -1,0 +1,6 @@
+-- Found OpenSSL: C:/Users/dhruv/Downloads/HMS-Team-Repo/vcpkg_installed/x64-windows/lib/libcrypto.lib (found version "3.6.5") found components: Crypto
+-- Qt6 Widgets and Network not found; skipping hms_client
+-- Found OpenSSL: C:/Users/dhruv/Downloads/HMS-Team-Repo/vcpkg_installed/x64-windows/lib/libcrypto.lib (found version "3.6.5") found components: SSL Crypto
+-- Configuring done (0.7s)
+-- Generating done (0.3s)
+-- Build files have been written to: C:/Users/dhruv/AppData/Local/Temp/hms-stage6-fresh-build-20261116

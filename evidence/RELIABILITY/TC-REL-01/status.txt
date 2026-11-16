@@ -1,6 +1,9 @@
 TC-REL-01 — BLOCKED
 Execution date: 2026-11-15
 Tester: Dhruv Swatantramath (PES1UG24CS155)
-Actual observation: No isolated disposable database, encrypted backup, restore operation, data validation or duration/loss measurement.
-Full Appendix A procedure completed: No.
+Actual observation: Manual isolated PostgreSQL 17 drill backed up synthetic rows in custom format, encrypted the artifact with current-user DPAPI, recorded SHA256, dropped the source DB, restored and matched the row fingerprint with zero data loss in 2.088 seconds. No daily scheduled backup job is configured, so the full assigned procedure precondition is unmet and status remains blocked.
+Evidence: stage5_backup_restore_20261115.txt.
+Full Appendix A procedure completed: No
 No patient identifiers, credentials or real clinical data were used.
+
+Stage 9 recheck (2026-11-16): Still BLOCKED. Existing encrypted backup and restore scripts are prepared, but no real staging DB connection values, approved separate storage path, external protected pgpass file, or designated backup account/DPAPI recovery plan were supplied. The task was not installed or run. See ../../automated_tests/stage9/readiness_assessment.md and ../../automated_tests/stage6_20261115/backup_restore_execution.txt.

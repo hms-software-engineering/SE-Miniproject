@@ -1,0 +1,6 @@
+Test=synthetic seven-day availability summary calculation
+ExpectedScheduledSlots=6720 (7 days x 960 minutes; [06:00,22:00) local)
+Fixture=one recorded HTTP 503; two absent slots; duplicate success row; one out-of-window success row
+ObservedUnique=6718; Successful=6717; FailedIncludingMissing=3
+AvailabilityPercent=99.9554
+Result=PASS

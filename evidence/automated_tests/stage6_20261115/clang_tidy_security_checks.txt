@@ -1,0 +1,17 @@
+﻿Tool=clang-tidy LLVM 23.1.5
+Command=clang-tidy -p "C:\Users\dhruv\AppData\Local\Temp\hms-stage6-fresh-build-20261116" --checks=-*,clang-analyzer-security.* <main and five service translation units>
+Scope=static security checks only; not a dynamic scanner; ZAP/sqlmap not installed; Qt6 UI not built
+ExitCode=0
+[1/6] Processing file C:\Users\dhruv\Downloads\HMS-Team-Repo\src\main.cpp.
+7 warnings generated.
+[2/6] Processing file C:\Users\dhruv\Downloads\HMS-Team-Repo\src\services\auth_service.cpp.
+7 warnings generated.
+[3/6] Processing file C:\Users\dhruv\Downloads\HMS-Team-Repo\src\patients\postgres_patient_repository.cpp.
+7 warnings generated.
+[4/6] Processing file C:\Users\dhruv\Downloads\HMS-Team-Repo\src\appointments\appointments.cpp.
+7 warnings generated.
+[5/6] Processing file C:\Users\dhruv\Downloads\HMS-Team-Repo\src\clinical\clinical_service.cpp.
+7 warnings generated.
+[6/6] Processing file C:\Users\dhruv\Downloads\HMS-Team-Repo\src\billing\billing_service.cpp.
+7 warnings generated.
+Suppressed 7 warnings (7 with check filters).

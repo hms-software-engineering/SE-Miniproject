@@ -4,3 +4,5 @@ Tester: Dhruv Swatantramath (PES1UG24CS155)
 Actual observation: No trained participants or usability sessions; timings/help rates were not invented.
 Full Appendix A procedure completed: No.
 No patient identifiers, credentials or real clinical data were used.
+
+Stage 9 recheck (2026-11-16): Still BLOCKED. Prepared a session kit containing participant instructions, synthetic data for five neutral participant codes, registration timing, appointment booking, unaided completion, error/assistance, and final results templates. No actual trained receptionist participated and no results were fabricated. See ../../automated_tests/stage9/usability/.

@@ -1,0 +1,6 @@
+participant_code,synthetic_name,date_of_birth_dd_mm_yyyy,gender,dummy_phone,address,doctor_task_label,appointment_date
+U01,Stage9 Synthetic Patient One,12-03-1985,Female,0000001001,Usability Test Lab Fixture 1,Available Doctor A,2026-12-14
+U02,Stage9 Synthetic Patient Two,21-07-1991,Male,0000001002,Usability Test Lab Fixture 2,Available Doctor A,2026-12-15
+U03,Stage9 Synthetic Patient Three,05-11-1978,Other,0000001003,Usability Test Lab Fixture 3,Available Doctor B,2026-12-16
+U04,Stage9 Synthetic Patient Four,19-02-2000,Female,0000001004,Usability Test Lab Fixture 4,Available Doctor B,2026-12-17
+U05,Stage9 Synthetic Patient Five,30-08-1966,Male,0000001005,Usability Test Lab Fixture 5,Available Doctor A,2026-12-18

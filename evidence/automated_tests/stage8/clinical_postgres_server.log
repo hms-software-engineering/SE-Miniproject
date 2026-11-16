@@ -1,0 +1,146 @@
+2026-11-16 11:34:42.756 IST [12220] LOG:  starting PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35229, 64-bit
+2026-11-16 11:34:42.758 IST [12220] LOG:  listening on IPv4 address "127.0.0.1", port 49324
+2026-11-16 11:34:42.933 IST [24644] LOG:  database system was shut down at 2026-11-16 11:34:37 IST
+2026-11-16 11:34:42.972 IST [12220] LOG:  database system is ready to accept connections
+2026-11-16 11:35:37.143 IST [31412] FATAL:  database "hms_stage8_clinical" does not exist
+2026-11-16 11:36:50.349 IST [19840] LOG:  starting PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35229, 64-bit
+2026-11-16 11:36:50.352 IST [19840] LOG:  listening on IPv4 address "127.0.0.1", port 52308
+2026-11-16 11:36:50.458 IST [33492] LOG:  database system was shut down at 2026-11-16 11:36:46 IST
+2026-11-16 11:36:50.501 IST [19840] LOG:  database system is ready to accept connections
+2026-11-16 11:38:23.906 IST [32392] LOG:  starting PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35229, 64-bit
+2026-11-16 11:38:23.908 IST [32392] LOG:  listening on IPv4 address "127.0.0.1", port 52330
+2026-11-16 11:38:23.980 IST [4344] LOG:  database system was shut down at 2026-11-16 11:38:15 IST
+2026-11-16 11:38:24.020 IST [32392] LOG:  database system is ready to accept connections
+2026-11-16 11:38:55.952 IST [32392] LOG:  received fast shutdown request
+2026-11-16 11:38:55.959 IST [32392] LOG:  aborting any active transactions
+2026-11-16 11:38:55.988 IST [32392] LOG:  background worker "logical replication launcher" (PID 15952) exited with exit code 1
+2026-11-16 11:38:55.992 IST [7564] LOG:  shutting down
+2026-11-16 11:38:55.993 IST [7564] LOG:  checkpoint starting: shutdown immediate
+2026-11-16 11:38:56.550 IST [7564] LOG:  checkpoint complete: wrote 967 buffers (5.9%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.375 s, sync=0.152 s, total=0.559 s; sync files=301, longest=0.003 s, average=0.001 s; distance=4542 kB, estimate=4542 kB; lsn=0/19E3CA0, redo lsn=0/19E3CA0
+2026-11-16 11:38:57.398 IST [32392] LOG:  database system is shut down
+2026-11-16 11:39:12.857 IST [14912] LOG:  starting PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35229, 64-bit
+2026-11-16 11:39:12.860 IST [14912] LOG:  listening on IPv4 address "127.0.0.1", port 61140
+2026-11-16 11:39:12.954 IST [25924] LOG:  database system was shut down at 2026-11-16 11:39:08 IST
+2026-11-16 11:39:13.001 IST [14912] LOG:  database system is ready to accept connections
+2026-11-16 11:39:14.811 IST [14912] LOG:  received fast shutdown request
+2026-11-16 11:39:14.823 IST [14912] LOG:  aborting any active transactions
+2026-11-16 11:39:14.846 IST [14912] LOG:  background worker "logical replication launcher" (PID 30800) exited with exit code 1
+2026-11-16 11:39:14.846 IST [21252] LOG:  shutting down
+2026-11-16 11:39:14.847 IST [21252] LOG:  checkpoint starting: shutdown immediate
+2026-11-16 11:39:15.464 IST [21252] LOG:  checkpoint complete: wrote 1006 buffers (6.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.348 s, sync=0.242 s, total=0.618 s; sync files=366, longest=0.009 s, average=0.001 s; distance=4877 kB, estimate=4877 kB; lsn=0/1A379D8, redo lsn=0/1A379D8
+2026-11-16 11:39:16.080 IST [14912] LOG:  database system is shut down
+2026-11-16 11:39:41.672 IST [8732] LOG:  starting PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35229, 64-bit
+2026-11-16 11:39:41.673 IST [8732] LOG:  listening on IPv4 address "127.0.0.1", port 61152
+2026-11-16 11:39:41.735 IST [31832] LOG:  database system was shut down at 2026-11-16 11:39:38 IST
+2026-11-16 11:39:41.772 IST [8732] LOG:  database system is ready to accept connections
+2026-11-16 11:39:43.843 IST [8732] LOG:  received fast shutdown request
+2026-11-16 11:39:43.845 IST [8732] LOG:  aborting any active transactions
+2026-11-16 11:39:43.853 IST [8732] LOG:  background worker "logical replication launcher" (PID 14396) exited with exit code 1
+2026-11-16 11:39:43.854 IST [14052] LOG:  shutting down
+2026-11-16 11:39:43.855 IST [14052] LOG:  checkpoint starting: shutdown immediate
+2026-11-16 11:39:44.264 IST [14052] LOG:  checkpoint complete: wrote 1050 buffers (6.4%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.211 s, sync=0.180 s, total=0.410 s; sync files=372, longest=0.002 s, average=0.001 s; distance=4913 kB, estimate=4913 kB; lsn=0/1A408B8, redo lsn=0/1A408B8
+2026-11-16 11:39:44.751 IST [8732] LOG:  database system is shut down
+2026-11-16 11:42:20.404 IST [28536] LOG:  starting PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35229, 64-bit
+2026-11-16 11:42:20.407 IST [28536] LOG:  listening on IPv4 address "127.0.0.1", port 61955
+2026-11-16 11:42:20.465 IST [30336] LOG:  database system was shut down at 2026-11-16 11:42:17 IST
+2026-11-16 11:42:20.498 IST [28536] LOG:  database system is ready to accept connections
+2026-11-16 11:42:22.495 IST [32904] ERROR:  value too long for type character varying(200)
+2026-11-16 11:42:22.495 IST [32904] STATEMENT:  INSERT INTO bill_items(bill_id,item,amount) VALUES($1::bigint,$2,$3::numeric)
+2026-11-16 11:42:22.511 IST [32904] ERROR:  new row for relation "payments" violates check constraint "payments_mode_check"
+2026-11-16 11:42:22.511 IST [32904] DETAIL:  Failing row contains (2, 1, 1.00, Crypto, RCP-000000000002, 2026-11-16 11:42:22.510546+05:30).
+2026-11-16 11:42:22.511 IST [32904] STATEMENT:  WITH next_id AS (SELECT nextval(pg_get_serial_sequence('payments','payment_id')) AS id) INSERT INTO payments(payment_id,bill_id,amount,mode,receipt_no) SELECT id,$1::bigint,$2::numeric,$3,'RCP-'||lpad(id::text,12,'0') FROM next_id RETURNING payment_id::text,receipt_no,paid_at::text
+2026-11-16 11:42:22.552 IST [28536] LOG:  received fast shutdown request
+2026-11-16 11:42:22.554 IST [28536] LOG:  aborting any active transactions
+2026-11-16 11:42:22.562 IST [28536] LOG:  background worker "logical replication launcher" (PID 27032) exited with exit code 1
+2026-11-16 11:42:22.563 IST [30500] LOG:  shutting down
+2026-11-16 11:42:22.564 IST [30500] LOG:  checkpoint starting: shutdown immediate
+2026-11-16 11:42:22.985 IST [30500] LOG:  checkpoint complete: wrote 1067 buffers (6.5%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.202 s, sync=0.206 s, total=0.423 s; sync files=372, longest=0.011 s, average=0.001 s; distance=4916 kB, estimate=4916 kB; lsn=0/1A41688, redo lsn=0/1A41688
+2026-11-16 11:42:23.484 IST [28536] LOG:  database system is shut down
+2026-11-16 11:46:00.919 IST [28608] LOG:  starting PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35229, 64-bit
+2026-11-16 11:46:00.921 IST [28608] LOG:  listening on IPv4 address "127.0.0.1", port 56678
+2026-11-16 11:46:01.110 IST [20504] LOG:  database system was shut down at 2026-11-16 11:45:56 IST
+2026-11-16 11:46:01.157 IST [28608] LOG:  database system is ready to accept connections
+2026-11-16 11:46:03.552 IST [26616] ERROR:  invalid input syntax for type json at character 499
+2026-11-16 11:46:03.552 IST [26616] DETAIL:  Token "monday" is invalid.
+2026-11-16 11:46:03.552 IST [26616] CONTEXT:  JSON data, line 1: {monday...
+2026-11-16 11:46:03.552 IST [26616] STATEMENT:  INSERT INTO users (user_id, username, password_hash, role) VALUES
+	 (81000001, 'stage8_clinical_doctor', 'test-only-not-a-credential', 'Doctor'),
+	 (81000002, 'stage8_clinical_other_doctor', 'test-only-not-a-credential', 'Doctor'),
+	 (81000003, 'stage8_clinical_patient', 'test-only-not-a-credential', 'Patient');
+	INSERT INTO doctors (doctor_id, user_id, specialty, fee) VALUES
+	 (82000001, 81000001, 'Synthetic Test', 0),
+	 (82000002, 81000002, 'Synthetic Test', 0);
+	UPDATE doctors SET working_hours = '{monday:00:00-23:30,tuesday:00:00-23:30,wednesday:00:00-23:30,thursday:00:00-23:30,friday:00:00-23:30,saturday:00:00-23:30,sunday:00:00-23:30}'::jsonb WHERE doctor_id = 82000001;
+	INSERT INTO patients (patient_id, user_id, name, dob, gender, phone, address) VALUES
+	 ('PID-00000001', 81000003, decode('01','hex'), decode('01','hex'), 'Unspecified', decode('01','hex'), decode('01','hex'));
+	INSERT INTO appointments (appointment_id, patient_id, doctor_id, slot_start, status) VALUES
+	 (83000001, 'PID-00000001', 82000001, date_trunc('hour', now()) + interval '1 day', 'Confirmed'),
+	 (83000002, 'PID-00000001', 82000001, date_trunc('hour', now()) + interval '1 day 30 minutes', 'Confirmed'),
+	 (83000003, 'PID-00000001', 82000001, date_trunc('hour', now()) + interval '2 days', 'Cancelled');
+2026-11-16 11:46:03.637 IST [28608] LOG:  received fast shutdown request
+2026-11-16 11:46:03.638 IST [28608] LOG:  aborting any active transactions
+2026-11-16 11:46:03.654 IST [28608] LOG:  background worker "logical replication launcher" (PID 4200) exited with exit code 1
+2026-11-16 11:46:03.654 IST [23056] LOG:  shutting down
+2026-11-16 11:46:03.656 IST [23056] LOG:  checkpoint starting: shutdown immediate
+2026-11-16 11:46:04.179 IST [23056] LOG:  checkpoint complete: wrote 1019 buffers (6.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.247 s, sync=0.256 s, total=0.525 s; sync files=372, longest=0.008 s, average=0.001 s; distance=4908 kB, estimate=4908 kB; lsn=0/1A3F678, redo lsn=0/1A3F678
+2026-11-16 11:46:04.860 IST [28608] LOG:  database system is shut down
+2026-11-16 11:46:49.390 IST [20052] LOG:  starting PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35229, 64-bit
+2026-11-16 11:46:49.393 IST [20052] LOG:  listening on IPv4 address "127.0.0.1", port 57403
+2026-11-16 11:46:49.515 IST [18924] LOG:  database system was shut down at 2026-11-16 11:46:44 IST
+2026-11-16 11:46:49.572 IST [20052] LOG:  database system is ready to accept connections
+2026-11-16 11:46:52.380 IST [32272] ERROR:  invalid input syntax for type json at character 499
+2026-11-16 11:46:52.380 IST [32272] DETAIL:  Token "monday" is invalid.
+2026-11-16 11:46:52.380 IST [32272] CONTEXT:  JSON data, line 1: {monday...
+2026-11-16 11:46:52.380 IST [32272] STATEMENT:  INSERT INTO users (user_id, username, password_hash, role) VALUES
+	 (81000001, 'stage8_clinical_doctor', 'test-only-not-a-credential', 'Doctor'),
+	 (81000002, 'stage8_clinical_other_doctor', 'test-only-not-a-credential', 'Doctor'),
+	 (81000003, 'stage8_clinical_patient', 'test-only-not-a-credential', 'Patient');
+	INSERT INTO doctors (doctor_id, user_id, specialty, fee) VALUES
+	 (82000001, 81000001, 'Synthetic Test', 0),
+	 (82000002, 81000002, 'Synthetic Test', 0);
+	UPDATE doctors SET working_hours = '{monday:00:00-23:30,tuesday:00:00-23:30,wednesday:00:00-23:30,thursday:00:00-23:30,friday:00:00-23:30,saturday:00:00-23:30,sunday:00:00-23:30}'::jsonb WHERE doctor_id = 82000001;
+	INSERT INTO patients (patient_id, user_id, name, dob, gender, phone, address) VALUES
+	 ('PID-00000001', 81000003, decode('01','hex'), decode('01','hex'), 'Unspecified', decode('01','hex'), decode('01','hex'));
+	INSERT INTO appointments (appointment_id, patient_id, doctor_id, slot_start, status) VALUES
+	 (83000001, 'PID-00000001', 82000001, date_trunc('hour', now()) + interval '1 day', 'Confirmed'),
+	 (83000002, 'PID-00000001', 82000001, date_trunc('hour', now()) + interval '1 day 30 minutes', 'Confirmed'),
+	 (83000003, 'PID-00000001', 82000001, date_trunc('hour', now()) + interval '2 days', 'Cancelled');
+2026-11-16 11:46:52.497 IST [20052] LOG:  received fast shutdown request
+2026-11-16 11:46:52.498 IST [20052] LOG:  aborting any active transactions
+2026-11-16 11:46:52.514 IST [20052] LOG:  background worker "logical replication launcher" (PID 4360) exited with exit code 1
+2026-11-16 11:46:52.516 IST [18084] LOG:  shutting down
+2026-11-16 11:46:52.518 IST [18084] LOG:  checkpoint starting: shutdown immediate
+2026-11-16 11:46:53.269 IST [18084] LOG:  checkpoint complete: wrote 1019 buffers (6.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.452 s, sync=0.266 s, total=0.753 s; sync files=372, longest=0.008 s, average=0.001 s; distance=4908 kB, estimate=4908 kB; lsn=0/1A3F678, redo lsn=0/1A3F678
+2026-11-16 11:46:54.082 IST [20052] LOG:  database system is shut down
+2026-11-16 11:47:36.654 IST [32372] LOG:  starting PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35229, 64-bit
+2026-11-16 11:47:36.657 IST [32372] LOG:  listening on IPv4 address "127.0.0.1", port 52359
+2026-11-16 11:47:36.746 IST [26896] LOG:  database system was shut down at 2026-11-16 11:47:31 IST
+2026-11-16 11:47:36.807 IST [32372] LOG:  database system is ready to accept connections
+2026-11-16 11:47:40.712 IST [3408] ERROR:  value too long for type character varying(200)
+2026-11-16 11:47:40.712 IST [3408] STATEMENT:  INSERT INTO bill_items(bill_id,item,amount) VALUES($1::bigint,$2,$3::numeric)
+2026-11-16 11:47:40.733 IST [3408] ERROR:  new row for relation "payments" violates check constraint "payments_mode_check"
+2026-11-16 11:47:40.733 IST [3408] DETAIL:  Failing row contains (2, 1, 1.00, Crypto, RCP-000000000002, 2026-11-16 11:47:40.731722+05:30).
+2026-11-16 11:47:40.733 IST [3408] STATEMENT:  WITH next_id AS (SELECT nextval(pg_get_serial_sequence('payments','payment_id')) AS id) INSERT INTO payments(payment_id,bill_id,amount,mode,receipt_no) SELECT id,$1::bigint,$2::numeric,$3,'RCP-'||lpad(id::text,12,'0') FROM next_id RETURNING payment_id::text,receipt_no,paid_at::text
+2026-11-16 11:47:40.790 IST [32372] LOG:  received fast shutdown request
+2026-11-16 11:47:40.792 IST [32372] LOG:  aborting any active transactions
+2026-11-16 11:47:40.799 IST [32372] LOG:  background worker "logical replication launcher" (PID 32164) exited with exit code 1
+2026-11-16 11:47:40.800 IST [31952] LOG:  shutting down
+2026-11-16 11:47:40.806 IST [31952] LOG:  checkpoint starting: shutdown immediate
+2026-11-16 11:47:41.319 IST [31952] LOG:  checkpoint complete: wrote 1067 buffers (6.5%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.263 s, sync=0.234 s, total=0.520 s; sync files=372, longest=0.007 s, average=0.001 s; distance=4918 kB, estimate=4918 kB; lsn=0/1A41C68, redo lsn=0/1A41C68
+2026-11-16 11:47:42.080 IST [32372] LOG:  database system is shut down
+2026-11-16 11:50:43.960 IST [32792] LOG:  starting PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35229, 64-bit
+2026-11-16 11:50:43.962 IST [32792] LOG:  listening on IPv4 address "127.0.0.1", port 52551
+2026-11-16 11:50:44.125 IST [27812] LOG:  database system was shut down at 2026-11-16 11:50:41 IST
+2026-11-16 11:50:44.157 IST [32792] LOG:  database system is ready to accept connections
+2026-11-16 11:50:46.170 IST [26192] ERROR:  value too long for type character varying(200)
+2026-11-16 11:50:46.170 IST [26192] STATEMENT:  INSERT INTO bill_items(bill_id,item,amount) VALUES($1::bigint,$2,$3::numeric)
+2026-11-16 11:50:46.187 IST [26192] ERROR:  new row for relation "payments" violates check constraint "payments_mode_check"
+2026-11-16 11:50:46.187 IST [26192] DETAIL:  Failing row contains (2, 1, 1.00, Crypto, RCP-000000000002, 2026-11-16 11:50:46.185991+05:30).
+2026-11-16 11:50:46.187 IST [26192] STATEMENT:  WITH next_id AS (SELECT nextval(pg_get_serial_sequence('payments','payment_id')) AS id) INSERT INTO payments(payment_id,bill_id,amount,mode,receipt_no) SELECT id,$1::bigint,$2::numeric,$3,'RCP-'||lpad(id::text,12,'0') FROM next_id RETURNING payment_id::text,receipt_no,paid_at::text
+2026-11-16 11:50:46.226 IST [32792] LOG:  received fast shutdown request
+2026-11-16 11:50:46.228 IST [32792] LOG:  aborting any active transactions
+2026-11-16 11:50:46.236 IST [32792] LOG:  background worker "logical replication launcher" (PID 32588) exited with exit code 1
+2026-11-16 11:50:46.237 IST [5044] LOG:  shutting down
+2026-11-16 11:50:46.238 IST [5044] LOG:  checkpoint starting: shutdown immediate
+2026-11-16 11:50:46.671 IST [5044] LOG:  checkpoint complete: wrote 1067 buffers (6.5%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.236 s, sync=0.181 s, total=0.434 s; sync files=372, longest=0.006 s, average=0.001 s; distance=4918 kB, estimate=4918 kB; lsn=0/1A41C68, redo lsn=0/1A41C68
+2026-11-16 11:50:47.125 IST [32792] LOG:  database system is shut down

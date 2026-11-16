@@ -1,0 +1,10 @@
+﻿Date=2026-11-16 00:47:25 +05:30
+Database=hms_stage6_api_run2; PostgreSQL 17.11; loopback only
+SeedPolicy=No development placeholders; test API creates all records with randomized keys.
+Migration=001_create_core_tables.sql
+Migration=002_indexes_and_integrity.sql
+psql:C:/Users/dhruv/Downloads/HMS-Team-Repo/PostgreSQL/database/migrations/002_indexes_and_integrity.sql:33: NOTICE:  trigger "trg_audit_log_no_update_delete" for relation "audit_log" does not exist, skipping
+Migration=004_patient_search_blind_indexes.sql
+Migration=005_auth_sessions.sql
+Migration=006_patient_id_sequence.sql
+DatabaseReady=True

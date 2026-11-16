@@ -1,0 +1,11 @@
+﻿Date=2026-11-16 10:45:29 +05:30
+OS=Microsoft Windows 11 Home Single Language; version=10.0.26300; build=26300
+PowerShell=5.1.26100.9818
+CMake=cmake version 4.3.1-msvc1
+Ninja=1.13.2
+clang-cl=clang version 23.1.5 (https://github.com/llvm/llvm-project 392dfff97d29b59d77e5cac6d4b6ef2585fe7117)
+clang-tidy=LLVM (http://llvm.org/):;   LLVM version 23.1.5
+PostgreSQL=PostgreSQL 17.11
+OpenSSL=vcpkg package 3.6.5 (dynamic libssl/libcrypto; applink.c compiled in fresh build)
+Qt6=not found by CMake; client skipped
+Ubuntu22_04=not available; WSL virtualization prerequisite unavailable

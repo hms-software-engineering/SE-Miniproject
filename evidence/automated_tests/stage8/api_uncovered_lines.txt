@@ -1,0 +1,708 @@
+﻿   60|      0|{
+   61|      0|    shutdown_requested = 1;
+   62|      0|}
+   71|      0|{
+   72|      0|    if (control_type == CTRL_C_EVENT || control_type == CTRL_BREAK_EVENT ||
+   73|      0|        control_type == CTRL_CLOSE_EVENT) {
+   74|      0|        shutdown_requested = 1;
+   75|      0|        return TRUE;
+   76|      0|    }
+   77|      0|    return FALSE;
+   78|      0|}
+   89|      0|    case 404: return "Not Found";
+   90|      0|    case 405: return "Method Not Allowed";
+   91|      0|    case 411: return "Length Required";
+   93|      0|    case 413: return "Payload Too Large";
+   94|      0|    case 415: return "Unsupported Media Type";
+   95|      0|    case 431: return "Request Header Fields Too Large";
+   96|      0|    case 423: return "Locked";
+   97|      0|    case 500: return "Internal Server Error";
+   98|      0|    case 501: return "Not Implemented";
+   99|      0|    case 503: return "Service Unavailable";
+  100|      0|    default:  return "Error";
+  109|      0|        output.push_back(static_cast<char>(0xc0 | (codepoint >> 6)));
+  110|      0|        output.push_back(static_cast<char>(0x80 | (codepoint & 0x3f)));
+  111|      0|    } else if (codepoint <= 0xffff) {
+  112|      0|        output.push_back(static_cast<char>(0xe0 | (codepoint >> 12)));
+  113|      0|        output.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3f)));
+  114|      0|        output.push_back(static_cast<char>(0x80 | (codepoint & 0x3f)));
+  115|      0|    } else {
+  116|      0|        output.push_back(static_cast<char>(0xf0 | (codepoint >> 18)));
+  117|      0|        output.push_back(static_cast<char>(0x80 | ((codepoint >> 12) & 0x3f)));
+  118|      0|        output.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3f)));
+  119|      0|        output.push_back(static_cast<char>(0x80 | (codepoint & 0x3f)));
+  120|      0|    }
+  133|      0|            skip_space();
+  134|      0|            return position_ == input_.size();
+  135|      0|        }
+  146|      0|                return false;
+  147|      0|            }
+  156|      0|        return false;
+  165|      0|            ++position_;
+  166|      0|        }
+  190|      0|                value |= static_cast<unsigned int>(ch - 'A' + 10);
+  191|      0|            }
+  192|      0|            else return false;
+  212|      0|            case '"': output.push_back('"'); break;
+  213|      0|            case '\\': output.push_back('\\'); break;
+  214|      0|            case '/': output.push_back('/'); break;
+  215|      0|            case 'b': output.push_back('\b'); break;
+  216|      0|            case 'f': output.push_back('\f'); break;
+  217|      0|            case 'n': output.push_back('\n'); break;
+  218|      0|            case 'r': output.push_back('\r'); break;
+  219|      0|            case 't': output.push_back('\t'); break;
+  224|      0|                    if (input_.size() - position_ < 6 ||
+  225|      0|                        input_[position_] != '\\' ||
+  226|      0|                        input_[position_ + 1] != 'u') {
+  227|      0|                        return false;
+  228|      0|                    }
+  229|      0|                    position_ += 2;
+  230|      0|                    unsigned int low = 0;
+  231|      0|                    if (!parse_hex_quad(low) ||
+  232|      0|                        low < 0xdc00 || low > 0xdfff) {
+  233|      0|                        return false;
+  234|      0|                    }
+  235|      0|                    codepoint = 0x10000 +
+  236|      0|                        ((codepoint - 0xd800) << 10) + (low - 0xdc00);
+  238|      0|                    return false;
+  239|      0|                }
+  243|      0|            default: return false;
+  246|      0|        return false;
+  260|      0|        case '"': output << "\\\""; break;
+  261|      0|        case '\\': output << "\\\\"; break;
+  262|      0|        case '\b': output << "\\b"; break;
+  263|      0|        case '\f': output << "\\f"; break;
+  264|      0|        case '\n': output << "\\n"; break;
+  265|      0|        case '\r': output << "\\r"; break;
+  266|      0|        case '\t': output << "\\t"; break;
+  269|      0|                constexpr char hex[] = "0123456789abcdef";
+  270|      0|                output << "\\u00" << hex[ch >> 4] << hex[ch & 0x0f];
+  296|      0|        throw std::runtime_error("Could not determine the current date.");
+  297|      0|    }
+  350|      0|            return false;
+  374|      0|        std::cerr << "Failed to send HTTPS response.\n";
+  375|      0|    }
+  394|      0|        std::cerr << "Failed to send HTTPS response.\n";
+  395|      0|    }
+  416|      0|{
+  417|      0|    const hms::ApiError error{
+  418|      0|        result.http_status, result.code, result.message, request_id, result.field
+  419|      0|    };
+  420|      0|    std::string body = hms::make_error_json(error);
+  421|      0|    body.pop_back();
+  422|      0|    body += ",\"suggestedSlots\":[";
+  423|      0|    for (std::size_t i = 0; i < result.suggested_slots.size(); ++i) {
+  424|      0|        if (i != 0) body += ',';
+  425|      0|        body += json_string(result.suggested_slots[i]);
+  426|      0|    }
+  427|      0|    body += "]}";
+  428|      0|    send_response(client, result.http_status, body);
+  429|      0|}
+  489|      0|            else return false;
+  510|      0|                switch(e){case '"':case '\\':case '/':value.push_back(e);break;case 'b':value.push_back('\b');break;case 'f':value.push_back('\f');break;case 'n':value.push_back('\n');break;case 'r':value.push_back('\r');break;case 't':value.push_back('\t');break;default:return false;}}
+  516|      0|        const std::size_t start=pos_; while(pos_<input_.size()&&input_[pos_]>='0'&&input_[pos_]<='9')++pos_;
+  517|      0|        if(start==pos_)return false; value=input_.substr(start,pos_-start); return true;
+  518|      0|    }
+  541|      0|        return -1;
+  546|      0|            output.push_back(' ');
+  578|      0|            return false;
+  579|      0|        }
+  601|      0|        return false;
+  602|      0|    }
+  616|      0|        return false;
+  617|      0|    }
+  623|      0|        return false;
+  624|      0|    }
+  640|      0|{
+  641|      0|    if (errors.empty()) return "Patient data is invalid.";
+  642|      0|    return errors.front().field + ": " + errors.front().message;
+  643|      0|}
+  650|      0|        return false;
+  651|      0|    }
+  663|      0|            content_type[length] == ' ' || content_type[length] == '\t');
+  675|      0|        send_error(client, 401, "AUTHENTICATION_REQUIRED",
+  676|      0|                   "Authentication required.", request_id);
+  677|      0|        return false;
+  678|      0|    }
+  694|      0|        return hms::Permission::RegisterPatient;
+  695|      0|    }
+  735|      0|        path.rfind("/api/v1/appointments/", 0) == 0) {
+  736|      0|        return hms::Permission::RescheduleCancelAppointment;
+  737|      0|    }
+  748|      0|        path.size() > std::string("/api/v1/visits/").size() &&
+  749|      0|        path.find("/prescriptions",
+  750|      0|                  std::string("/api/v1/visits/").size()) !=
+  751|      0|            std::string::npos) {
+  752|      0|        return hms::Permission::RecordVisitPrescribe;
+  753|      0|    }
+  767|      0|    return std::nullopt;
+  799|      0|            const int ssl_error = SSL_get_error(client.ssl, received);
+  800|      0|            if (ssl_error != SSL_ERROR_ZERO_RETURN) {
+  801|      0|                std::cerr << "TLS request read failed (error "
+  802|      0|                          << ssl_error << ").\n";
+  803|      0|            }
+  804|      0|            return;
+  805|      0|        }
+  808|      0|            break;
+  815|      0|            if (raw.size() > MAX_HEADER_SIZE) {
+  816|      0|                send_error(client, 431, "HEADERS_TOO_LARGE",
+  817|      0|                           "Request headers are too large.", request_id);
+  818|      0|                return;
+  819|      0|            }
+  820|      0|            continue;
+  821|      0|        }
+  824|      0|            send_error(client, 431, "HEADERS_TOO_LARGE",
+  825|      0|                       "Request headers are too large.", request_id);
+  826|      0|            return;
+  827|      0|        }
+  850|      0|                if (!line.empty()) {
+  851|      0|                    send_error(client, 400, "BAD_REQUEST",
+  852|      0|                               "Malformed HTTP header.", request_id);
+  853|      0|                    return;
+  854|      0|                }
+  855|      0|                continue;
+  856|      0|            }
+  869|      0|                    invalid_length = true;
+  870|      0|                    break;
+  871|      0|                }
+  879|      0|                        invalid_length = true;
+  880|      0|                        break;
+  881|      0|                    }
+  886|      0|                    invalid_length = true;
+  887|      0|                    break;
+  888|      0|                }
+  892|      0|                transfer_encoding = true;
+  896|      0|                    duplicate_auth_header = true;
+  897|      0|                }
+  903|      0|                    duplicate_content_type = true;
+  904|      0|                }
+  911|      0|            send_error(client, 400, "BAD_REQUEST",
+  912|      0|                       "Invalid or duplicate Content-Length.",
+  913|      0|                       request_id);
+  914|      0|            return;
+  915|      0|        }
+  918|      0|            send_error(client, 400, "BAD_REQUEST",
+  919|      0|                       "Transfer-Encoding is not supported.",
+  920|      0|                       request_id);
+  921|      0|            return;
+  922|      0|        }
+  924|      0|            send_error(client, 400, "BAD_REQUEST",
+  925|      0|                       "Duplicate authentication or content-type header.",
+  926|      0|                       request_id);
+  927|      0|            return;
+  928|      0|        }
+  933|      0|            send_error(client, 413, "PAYLOAD_TOO_LARGE",
+  934|      0|                       "Request is too large.", request_id);
+  935|      0|            return;
+  936|      0|        }
+  944|      0|        send_error(client, 400, "BAD_REQUEST",
+  945|      0|                   "Incomplete HTTP headers.", request_id);
+  946|      0|        return;
+  947|      0|    }
+  954|      0|        send_error(client, 400, "BAD_REQUEST",
+  955|      0|                   "Invalid HTTP request line.", request_id);
+  956|      0|        return;
+  957|      0|    }
+  960|      0|        send_error(client, 400, "BAD_REQUEST",
+  961|      0|                   "Unsupported HTTP version.", request_id);
+  962|      0|        return;
+  963|      0|    }
+  977|      0|        send_error(client, 404, "NOT_FOUND",
+  978|      0|                   "The requested API path was not found.", request_id);
+  979|      0|        return;
+  980|      0|    }
+  984|      0|            send_error(client, 405, "METHOD_NOT_ALLOWED",
+  985|      0|                       "The HTTP method is not supported for this resource.",
+  986|      0|                       request_id);
+  987|      0|            return;
+  988|      0|        }
+ 1006|      0|        send_error(client, 405, "METHOD_NOT_ALLOWED",
+ 1007|      0|                   "The HTTP method is not supported for this resource.",
+ 1008|      0|                   request_id);
+ 1009|      0|        return;
+ 1010|      0|    }
+ 1014|      0|        send_error(client, 405, "METHOD_NOT_ALLOWED",
+ 1015|      0|                   "The HTTP method is not supported.", request_id);
+ 1016|      0|        return;
+ 1017|      0|    }
+ 1022|      0|            send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+ 1023|      0|                       "Content-Type must be application/json.", request_id);
+ 1024|      0|            return;
+ 1025|      0|        }
+ 1029|      0|            send_error(client, 411, "LENGTH_REQUIRED",
+ 1030|      0|                       "A Content-Length and request body are required.",
+ 1031|      0|                       request_id);
+ 1032|      0|            return;
+ 1033|      0|        }
+ 1040|      0|            send_error(client, 400, "INVALID_REQUEST",
+ 1041|      0|                       "Provide string fields username and password.",
+ 1042|      0|                       request_id);
+ 1043|      0|            return;
+ 1044|      0|        }
+ 1053|      0|                const int status =
+ 1054|      0|                    result.message == "Username already exists." ? 409 : 400;
+ 1055|      0|                send_error(client, status, "REGISTRATION_FAILED",
+ 1056|      0|                           result.message, request_id);
+ 1057|      0|                return;
+ 1058|      0|            }
+ 1084|      0|                send_error(client, 423, "ACCOUNT_LOCKED",
+ 1085|      0|                           "Account locked after repeated failed logins.",
+ 1086|      0|                           request_id);
+ 1122|      0|            auth_service.record_audit_event({
+ 1123|      0|                principal.user_id,
+ 1124|      0|                std::string(hms::role_name(principal.role)), "VIEW_ACCOUNT",
+ 1125|      0|                principal.user_id, client.source_ip
+ 1126|      0|            });
+ 1127|      0|            send_response(client, 200,
+ 1128|      0|                "{\"userId\":" + json_string(principal.user_id) +
+ 1129|      0|                ",\"role\":" + json_string(
+ 1130|      0|                    std::string(hms::role_name(principal.role))) + "}");
+ 1131|      0|        }
+ 1140|      0|            return;
+ 1141|      0|        }
+ 1150|      0|            send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+ 1151|      0|                       "Content-Type must be application/json.", request_id);
+ 1152|      0|            return;
+ 1153|      0|        }
+ 1165|      0|            send_error(client, 400, "INVALID_REQUEST",
+ 1166|      0|                       "Provide string fields username, password, and a valid role.",
+ 1167|      0|                       request_id);
+ 1168|      0|            return;
+ 1169|      0|        }
+ 1192|      0|                throw std::runtime_error(
+ 1193|      0|                    "Created doctor account is missing its doctor profile.");
+ 1194|      0|            }
+ 1207|      0|            return;
+ 1208|      0|        }
+ 1212|      0|            send_error(client, 403, "ACCESS_DENIED", authorization_error,
+ 1213|      0|                       request_id);
+ 1214|      0|            return;
+ 1215|      0|        }
+ 1220|      0|            send_error(client, 400, "INVALID_USER_ID",
+ 1221|      0|                       "User ID must be a positive integer.", request_id);
+ 1222|      0|            return;
+ 1223|      0|        }
+ 1225|      0|            send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+ 1226|      0|                       "Content-Type must be application/json.", request_id);
+ 1227|      0|            return;
+ 1228|      0|        }
+ 1237|      0|            send_error(client, 400, "INVALID_REQUEST",
+ 1238|      0|                       "Provide the string field action with value deactivate.",
+ 1239|      0|                       request_id);
+ 1240|      0|            return;
+ 1241|      0|        }
+ 1247|      0|            send_error(client, 404, "USER_NOT_FOUND",
+ 1248|      0|                       "User was not found.", request_id);
+ 1249|      0|            return;
+ 1250|      0|        }
+ 1269|      0|            return;
+ 1270|      0|        }
+ 1286|      0|                send_error(client, 400, "INVALID_QUERY",
+ 1287|      0|                           "Provide date in YYYY-MM-DD format.", request_id);
+ 1288|      0|                return;
+ 1289|      0|            }
+ 1294|      0|                send_error(client, 404, "DOCTOR_NOT_FOUND",
+ 1295|      0|                           "Doctor profile was not found.", request_id);
+ 1296|      0|                return;
+ 1297|      0|            }
+ 1322|      0|                send_error(client, 400, "INVALID_QUERY",
+ 1323|      0|                           "This endpoint does not accept query parameters.", request_id);
+ 1324|      0|                return;
+ 1325|      0|            }
+ 1329|      0|                send_error(client, 404, "PATIENT_NOT_FOUND",
+ 1330|      0|                           "Patient profile was not found.", request_id);
+ 1331|      0|                return;
+ 1332|      0|            }
+ 1358|      0|                send_error(client,415,"UNSUPPORTED_MEDIA_TYPE","Content-Type must be application/json.",request_id); return;
+ 1359|      0|            }
+ 1384|      0|                send_error(client,400,"INVALID_REQUEST","Provide billId, positive amount, and payment mode.",request_id);return;}
+ 1401|      0|                send_error(client,400,"INVALID_REQUEST","Provide billId.",request_id);return;}
+ 1435|      0|                    send_error(client,500,"REPORT_DATA_UNAVAILABLE",
+ 1436|      0|                        "A patient record for an appointment could not be resolved.",request_id); return;
+ 1437|      0|                }
+ 1457|      0|                send_error(client,400,"INVALID_QUERY","Provide user, from, and to filters.",request_id);return;}
+ 1474|      0|                send_error(client, 400, "INVALID_QUERY",
+ 1475|      0|                           "This endpoint does not accept query parameters.",
+ 1476|      0|                           request_id);
+ 1477|      0|                return;
+ 1478|      0|            }
+ 1482|      0|                send_error(client, 404, "PATIENT_NOT_FOUND",
+ 1483|      0|                           "Patient profile was not found.", request_id);
+ 1484|      0|                return;
+ 1485|      0|            }
+ 1501|      0|                    if (rx != 0) body += ',';
+ 1502|      0|                    const auto& prescription = visit.prescriptions[rx];
+ 1503|      0|                    body += "{\"item\":" + json_string(prescription.item) +
+ 1504|      0|                        ",\"dosage\":" + json_string(prescription.dosage) +
+ 1505|      0|                        ",\"frequency\":" +
+ 1506|      0|                        json_string(prescription.frequency) +
+ 1507|      0|                        ",\"days\":" + std::to_string(prescription.days) + "}";
+ 1508|      0|                }
+ 1529|      0|            const std::string patient_id = path.substr(
+ 1530|      0|                sizeof(history_patient_path) - 1,
+ 1531|      0|                path.size() - (sizeof(history_patient_path) - 1) -
+ 1532|      0|                    (sizeof(history_suffix) - 1));
+ 1533|      0|            if (patient_id.size() != 12 ||
+ 1534|      0|                patient_id.compare(0, 4, "PID-") != 0 ||
+ 1535|      0|                !std::all_of(patient_id.begin() + 4, patient_id.end(),
+ 1536|      0|                    [](unsigned char digit) {
+ 1537|      0|                        return digit >= '0' && digit <= '9';
+ 1538|      0|                    })) {
+ 1539|      0|                send_error(client, 404, "PATIENT_NOT_FOUND",
+ 1540|      0|                           "Patient was not found.", request_id);
+ 1541|      0|                return;
+ 1542|      0|            }
+ 1544|      0|            if (patient_service.search_patients(patient_id).matches.empty()) {
+ 1545|      0|                send_error(client, 404, "PATIENT_NOT_FOUND",
+ 1546|      0|                           "Patient was not found.", request_id);
+ 1547|      0|                return;
+ 1548|      0|            }
+ 1550|      0|            const auto entries = patient_service.patient_history(patient_id);
+ 1551|      0|            auth_service.record_audit_event({
+ 1552|      0|                principal.user_id,
+ 1553|      0|                std::string(hms::role_name(principal.role)),
+ 1554|      0|                "VIEW_PATIENT_HISTORY", patient_id, client.source_ip
+ 1555|      0|            });
+ 1556|      0|            std::string body = "{\"history\":[";
+ 1557|      0|            for (std::size_t index = 0; index < entries.size(); ++index) {
+ 1558|      0|                if (index != 0) body += ',';
+ 1559|      0|                const auto& entry = entries[index];
+ 1560|      0|                body += "{\"changedAt\":" + json_string(entry.changed_at) +
+ 1561|      0|                    ",\"changedBy\":" + json_string(entry.changed_by) +
+ 1562|      0|                    ",\"oldValues\":{\"name\":" +
+ 1563|      0|                    json_string(entry.old_values.name) +
+ 1564|      0|                    ",\"dateOfBirth\":" +
+ 1565|      0|                    json_string(entry.old_values.date_of_birth) +
+ 1566|      0|                    ",\"gender\":" + json_string(entry.old_values.gender) +
+ 1567|      0|                    ",\"phone\":" + json_string(entry.old_values.phone) +
+ 1568|      0|                    ",\"address\":" +
+ 1569|      0|                    json_string(entry.old_values.address) + "}}";
+ 1570|      0|            }
+ 1571|      0|            body += "]}";
+ 1572|      0|            send_response(client, 200, body);
+ 1573|      0|            return;
+ 1574|      0|        }
+ 1579|      0|                send_error(client, 400, "INVALID_QUERY",
+ 1580|      0|                           "Provide one URL-encoded query parameter.",
+ 1581|      0|                           request_id);
+ 1582|      0|                return;
+ 1583|      0|            }
+ 1586|      0|                auth_service.record_audit_event({
+ 1587|      0|                    principal.user_id,
+ 1588|      0|                    std::string(hms::role_name(principal.role)),
+ 1589|      0|                    "VIEW_PATIENT", patient.patient_id, client.source_ip
+ 1590|      0|                });
+ 1591|      0|            }
+ 1594|      0|                if (index != 0) body += ',';
+ 1595|      0|                body += json_patient(result.matches[index]);
+ 1596|      0|            }
+ 1605|      0|                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+ 1606|      0|                           "Content-Type must be application/json.",
+ 1607|      0|                           request_id);
+ 1608|      0|                return;
+ 1609|      0|            }
+ 1617|      0|                send_error(client, 400, "INVALID_REQUEST",
+ 1618|      0|                           "Provide name, dateOfBirth, gender, phone, and address.",
+ 1619|      0|                           request_id);
+ 1620|      0|                return;
+ 1621|      0|            }
+ 1626|      0|                const bool duplicate = !result.errors.empty() &&
+ 1627|      0|                    result.errors.front().field == "profile";
+ 1628|      0|                send_error(client, duplicate ? 409 : 400,
+ 1629|      0|                           duplicate ? "PROFILE_ALREADY_EXISTS"
+ 1630|      0|                                     : "INVALID_PATIENT",
+ 1631|      0|                           validation_error(result.errors), request_id);
+ 1632|      0|                return;
+ 1633|      0|            }
+ 1654|      0|                send_error(client, 400, "INVALID_QUERY",
+ 1655|      0|                           "Provide a valid doctorId and date (YYYY-MM-DD).",
+ 1656|      0|                           request_id);
+ 1657|      0|                return;
+ 1658|      0|            }
+ 1660|      0|                send_error(client, 404, "DOCTOR_NOT_FOUND",
+ 1661|      0|                           "Doctor was not found.", request_id);
+ 1662|      0|                return;
+ 1663|      0|            }
+ 1677|      0|                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+ 1678|      0|                           "Content-Type must be application/json.",
+ 1679|      0|                           request_id);
+ 1680|      0|                return;
+ 1681|      0|            }
+ 1694|      0|                send_error(client, 400, "INVALID_REQUEST",
+ 1695|      0|                           "Provide patientId, doctorId, date, and time as strings.",
+ 1696|      0|                           request_id);
+ 1697|      0|                return;
+ 1698|      0|            }
+ 1702|      0|                send_error(client, 403, "ACCESS_DENIED", "Access denied",
+ 1703|      0|                           request_id);
+ 1704|      0|                return;
+ 1705|      0|            }
+ 1710|      0|                if (result.code == "SLOT_TAKEN") {
+ 1711|      0|                    send_slot_taken_error(client, result, request_id);
+ 1712|      0|                } else {
+ 1713|      0|                    send_error(client, result.http_status, result.code,
+ 1714|      0|                               result.message, request_id);
+ 1715|      0|                }
+ 1716|      0|                return;
+ 1717|      0|            }
+ 1733|      0|                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+ 1734|      0|                           "Content-Type must be application/json.",
+ 1735|      0|                           request_id);
+ 1736|      0|                return;
+ 1737|      0|            }
+ 1766|      0|                send_error(client, 404, "APPOINTMENT_NOT_FOUND",
+ 1767|      0|                           "A confirmed appointment for this doctor was not found.",
+ 1768|      0|                           request_id);
+ 1769|      0|                return;
+ 1770|      0|            }
+ 1773|      0|                send_error(client, 409, "VISIT_ALREADY_RECORDED",
+ 1774|      0|                           "A consultation is already recorded for this appointment.",
+ 1775|      0|                           request_id);
+ 1776|      0|                return;
+ 1777|      0|            }
+ 1792|      0|            path.rfind(visit_path, 0) == 0 &&
+ 1793|      0|            path.size() > sizeof(visit_path) - 1 +
+ 1794|      0|                              sizeof(prescription_suffix) - 1 &&
+ 1795|      0|            path.compare(path.size() - sizeof(prescription_suffix) + 1,
+ 1796|      0|                         sizeof(prescription_suffix) - 1,
+ 1797|      0|                         prescription_suffix) == 0) {
+ 1798|      0|            const std::string visit_id_text = path.substr(
+ 1799|      0|                sizeof(visit_path) - 1,
+ 1800|      0|                path.size() - (sizeof(visit_path) - 1) -
+ 1801|      0|                    (sizeof(prescription_suffix) - 1));
+ 1802|      0|            long long visit_id = 0;
+ 1803|      0|            if (!parse_positive_id(visit_id_text, visit_id)) {
+ 1804|      0|                send_error(client, 404, "VISIT_NOT_FOUND",
+ 1805|      0|                           "Visit was not found.", request_id);
+ 1806|      0|                return;
+ 1807|      0|            }
+ 1808|      0|            if (!is_json_content_type(content_type)) {
+ 1809|      0|                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+ 1810|      0|                           "Content-Type must be application/json.",
+ 1811|      0|                           request_id);
+ 1812|      0|                return;
+ 1813|      0|            }
+ 1814|      0|            const std::size_t body_start = header_end + 4;
+ 1815|      0|            std::map<std::string, std::string> fields;
+ 1816|      0|            long long days = 0;
+ 1817|      0|            if (!has_content_length ||
+ 1818|      0|                raw.size() < body_start + content_length ||
+ 1819|      0|                !parse_json_body(raw.substr(body_start, content_length), fields) ||
+ 1820|      0|                fields.size() != 4 ||
+ 1821|      0|                fields.find("item") == fields.end() ||
+ 1822|      0|                fields.find("dosage") == fields.end() ||
+ 1823|      0|                fields.find("frequency") == fields.end() ||
+ 1824|      0|                fields.find("days") == fields.end() ||
+ 1825|      0|                fields.at("item").empty() ||
+ 1826|      0|                fields.at("item").size() > 200 ||
+ 1827|      0|                fields.at("dosage").empty() ||
+ 1828|      0|                fields.at("dosage").size() > 120 ||
+ 1829|      0|                fields.at("frequency").empty() ||
+ 1830|      0|                fields.at("frequency").size() > 120 ||
+ 1831|      0|                !parse_positive_id(fields.at("days"), days) ||
+ 1832|      0|                days > 3650) {
+ 1833|      0|                send_error(client, 400, "INVALID_REQUEST",
+ 1834|      0|                           "Provide item, dosage, frequency, and positive days.",
+ 1835|      0|                           request_id);
+ 1836|      0|                return;
+ 1837|      0|            }
+ 1838|      0|            const hms::clinical::PrescriptionInput prescription{
+ 1839|      0|                visit_id, fields.at("item"), fields.at("dosage"),
+ 1840|      0|                fields.at("frequency"), static_cast<int>(days)
+ 1841|      0|            };
+ 1842|      0|            if (!clinical_service.add_prescription(
+ 1843|      0|                    prescription, principal.user_id)) {
+ 1844|      0|                send_error(client, 404, "VISIT_NOT_FOUND",
+ 1845|      0|                           "Visit was not found for this doctor.",
+ 1846|      0|                           request_id);
+ 1847|      0|                return;
+ 1848|      0|            }
+ 1849|      0|            auth_service.record_audit_event({
+ 1850|      0|                principal.user_id,
+ 1851|      0|                std::string(hms::role_name(principal.role)),
+ 1852|      0|                "CREATE_PRESCRIPTION", visit_id_text, client.source_ip
+ 1853|      0|            });
+ 1854|      0|            send_response(client, 201, "{\"created\":true}");
+ 1855|      0|            return;
+ 1856|      0|        }
+ 1859|      0|            if (!is_json_content_type(content_type)) {
+ 1860|      0|                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+ 1861|      0|                           "Content-Type must be application/json.", request_id);
+ 1862|      0|                return;
+ 1863|      0|            }
+ 1864|      0|            const std::size_t body_start = header_end + 4;
+ 1865|      0|            std::map<std::string, std::string> fields;
+ 1866|      0|            hms::patients::Registration registration;
+ 1867|      0|            if (!has_content_length ||
+ 1868|      0|                raw.size() < body_start + content_length ||
+ 1869|      0|                !parse_json_body(raw.substr(body_start, content_length), fields) ||
+ 1870|      0|                !parse_patient_registration(fields, registration)) {
+ 1871|      0|                send_error(client, 400, "INVALID_REQUEST",
+ 1872|      0|                           "Provide name, dateOfBirth, gender, phone, and address.",
+ 1873|      0|                           request_id);
+ 1874|      0|                return;
+ 1875|      0|            }
+ 1876|      0|            bool confirm_duplicate = false;
+ 1877|      0|            if (!query_string.empty()) {
+ 1878|      0|                std::string confirmation;
+ 1879|      0|                if (!read_query_parameter(
+ 1880|      0|                        query_string, "confirmDuplicate", confirmation) ||
+ 1881|      0|                    confirmation != "true" ||
+ 1882|      0|                    query_string != "confirmDuplicate=true") {
+ 1883|      0|                    send_error(client, 400, "INVALID_QUERY",
+ 1884|      0|                               "Use confirmDuplicate=true to confirm saving a duplicate.",
+ 1885|      0|                               request_id);
+ 1886|      0|                    return;
+ 1887|      0|                }
+ 1888|      0|                confirm_duplicate = true;
+ 1889|      0|            }
+ 1890|      0|            const auto result = patient_service.register_patient(
+ 1891|      0|                registration, current_date_ddmmyyyy(), confirm_duplicate);
+ 1892|      0|            if (result.duplicate_warning) {
+ 1893|      0|                send_error(client, 409, "DUPLICATE_PATIENT",
+ 1894|      0|                           "A patient with the same name, date of birth, and phone number already exists.",
+ 1895|      0|                           request_id);
+ 1896|      0|                return;
+ 1897|      0|            }
+ 1898|      0|            if (!result.saved) {
+ 1899|      0|                send_error(client, 400, "INVALID_PATIENT",
+ 1900|      0|                           validation_error(result.errors), request_id);
+ 1901|      0|                return;
+ 1902|      0|            }
+ 1903|      0|            auth_service.record_audit_event({
+ 1904|      0|                principal.user_id,
+ 1905|      0|                std::string(hms::role_name(principal.role)), "CREATE_PATIENT",
+ 1906|      0|                result.patient.patient_id, client.source_ip
+ 1907|      0|            });
+ 1908|      0|            send_response(client, 201,
+ 1909|      0|                          "{\"patient\":" + json_patient(result.patient) + "}");
+ 1910|      0|            return;
+ 1911|      0|        }
+ 1925|      0|                send_error(client, 404, "PATIENT_NOT_FOUND",
+ 1926|      0|                           "Patient was not found.", request_id);
+ 1927|      0|                return;
+ 1928|      0|            }
+ 1932|      0|                send_error(client, 404, "PATIENT_NOT_FOUND",
+ 1933|      0|                           "Patient was not found.", request_id);
+ 1934|      0|                return;
+ 1935|      0|            }
+ 1970|      0|                send_error(client, 404, "PATIENT_NOT_FOUND",
+ 1971|      0|                           "Patient was not found.", request_id);
+ 1972|      0|                return;
+ 1973|      0|            }
+ 1975|      0|                send_error(client, 415, "UNSUPPORTED_MEDIA_TYPE",
+ 1976|      0|                           "Content-Type must be application/json.", request_id);
+ 1977|      0|                return;
+ 1978|      0|            }
+ 1986|      0|                send_error(client, 400, "INVALID_REQUEST",
+ 1987|      0|                           "Provide name, dateOfBirth, gender, phone, and address.",
+ 1988|      0|                           request_id);
+ 1989|      0|                return;
+ 1990|      0|            }
+ 1995|      0|                const bool not_found = !result.errors.empty() &&
+ 1996|      0|                    result.errors.front().field == "patientId";
+ 1997|      0|                send_error(client, not_found ? 404 : 400,
+ 1998|      0|                           not_found ? "PATIENT_NOT_FOUND" : "INVALID_PATIENT",
+ 1999|      0|                           validation_error(result.errors), request_id);
+ 2000|      0|                return;
+ 2001|      0|            }
+ 2012|      0|        send_error(client, 501, "NOT_IMPLEMENTED",
+ 2013|      0|                   "This authorized operation is not implemented yet.",
+ 2014|      0|                   request_id);
+ 2015|      0|        return;
+ 2018|      0|    send_error(client, 404, "NOT_FOUND",
+ 2019|      0|               "The requested resource was not found.", request_id);
+ 2020|      0|}
+ 2036|      0|        std::cerr << "Set HMS_TLS_CERT_FILE and HMS_TLS_KEY_FILE to a "
+ 2037|      0|                     "TLS certificate chain and matching private key.\n";
+ 2038|      0|        return 1;
+ 2039|      0|    }
+ 2050|      0|        std::cerr << "Could not initialize the TLS certificate/key: ";
+ 2051|      0|        ERR_print_errors_fp(stderr);
+ 2052|      0|        return 1;
+ 2053|      0|    }
+ 2077|      0|            throw std::runtime_error(
+ 2078|      0|                "Set HMS_PATIENT_DATA_KEY, HMS_PATIENT_NAME_INDEX_KEY, and "
+ 2079|      0|                "HMS_PATIENT_PHONE_INDEX_KEY before starting the server.");
+ 2080|      0|        }
+ 2083|      0|            throw std::runtime_error(
+ 2084|      0|                "Patient encryption and blind-index keys must be distinct.");
+ 2085|      0|        }
+ 2112|      0|            std::cerr << "Set both HMS_BOOTSTRAP_ADMIN_USERNAME and "
+ 2113|      0|                         "HMS_BOOTSTRAP_ADMIN_PASSWORD, or neither.\n";
+ 2114|      0|            return 1;
+ 2115|      0|        }
+ 2126|      0|                std::cout << "Bootstrap administrator was not created: "
+ 2127|      0|                             "the configured username already exists.\n";
+ 2128|      0|            } else {
+ 2129|      0|                std::cerr << "Bootstrap administrator creation failed: "
+ 2130|      0|                          << result.message << '\n';
+ 2131|      0|                return 1;
+ 2132|      0|            }
+ 2135|      0|        std::cerr << "Could not initialize authentication: "
+ 2136|      0|                  << error.what() << '\n';
+ 2137|      0|        return 1;
+ 2138|      0|    }
+ 2145|      0|        std::cerr << "WSAStartup failed: " << startup << '\n';
+ 2146|      0|        return 1;
+ 2147|      0|    }
+ 2152|      0|        std::cerr << "socket() failed: "
+ 2153|      0|                  << WSAGetLastError() << '\n';
+ 2154|      0|#ifdef _WIN32
+ 2155|      0|        WSACleanup();
+ 2156|      0|#endif
+ 2157|      0|        return 1;
+ 2158|      0|    }
+ 2165|      0|        std::cerr << "inet_pton() failed.\n";
+ 2166|      0|        closesocket(server);
+ 2167|      0|#ifdef _WIN32
+ 2168|      0|        WSACleanup();
+ 2169|      0|#endif
+ 2170|      0|        return 1;
+ 2171|      0|    }
+ 2175|      0|        std::cerr << "bind() failed: "
+ 2176|      0|                  << WSAGetLastError() << '\n';
+ 2177|      0|        closesocket(server);
+ 2178|      0|#ifdef _WIN32
+ 2179|      0|        WSACleanup();
+ 2180|      0|#endif
+ 2181|      0|        return 1;
+ 2182|      0|    }
+ 2185|      0|        std::cerr << "listen() failed: "
+ 2186|      0|                  << WSAGetLastError() << '\n';
+ 2187|      0|        closesocket(server);
+ 2188|      0|#ifdef _WIN32
+ 2189|      0|        WSACleanup();
+ 2190|      0|#endif
+ 2191|      0|        return 1;
+ 2192|      0|    }
+ 2236|      0|            if (shutdown_was_requested()) break;
+ 2237|      0|            std::cerr << "select() failed: "
+ 2238|      0|                      << WSAGetLastError() << '\n';
+ 2239|      0|            break;
+ 2240|      0|        }
+ 2254|      0|            std::cerr << "accept() failed: "
+ 2255|      0|                      << WSAGetLastError() << '\n';
+ 2256|      0|            break;
+ 2257|      0|        }
+ 2263|      0|            std::cerr << "Could not read the client source IP.\n";
+ 2264|      0|            shutdown(client, SD_BOTH);
+ 2265|      0|            closesocket(client);
+ 2266|      0|            continue;
+ 2267|      0|        }
+ 2269|      0|            std::cerr << "Could not configure TLS socket timeouts: "
+ 2270|      0|                      << WSAGetLastError() << '\n';
+ 2271|      0|            shutdown(client, SD_BOTH);
+ 2272|      0|            closesocket(client);
+ 2273|      0|            continue;
+ 2274|      0|        }
+ 2297|      0|            std::cerr << "Request handler exception: "
+ 2298|      0|                      << e.what() << '\n';
+ 2300|      0|            try {
+ 2301|      0|                send_error(connection, 500, "INTERNAL_ERROR",
+ 2302|      0|                           "Internal server error.", make_request_id());
+ 2303|      0|            } catch (...) {
+ 2305|      0|            }
+ 2306|      0|        } catch (...) {
+ 2307|      0|            std::cerr << "Unknown request handler exception.\n";
+ 2308|      0|        }

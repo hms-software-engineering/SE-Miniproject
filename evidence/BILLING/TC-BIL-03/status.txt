@@ -1,6 +1,17 @@
+TC-BIL-03 ? CURRENT STATUS: PASS (Stage 5, 2026-11-15).
+Historical initial and Stage 4 observations follow; the Stage 5 retest below is current.
+
 TC-BIL-03 — BLOCKED
 Execution date: 2026-11-15
 Tester: Dhruv Swatantramath (PES1UG24CS155)
 Actual observation: No bill or successful payment existed because the preceding API endpoints returned 501. Receipt generation returned 501; printable output and receipt fields could not be verified. Evidence: ../../automated_tests/stage3_api_execution_20261115.txt.
 Full Appendix A procedure completed: No.
 No patient identifiers, credentials or real clinical data were used.
+
+
+Stage 4 retest: PARTIAL (2026-11-15). Printable HTML response included a unique receipt number, 440.00 amount, UPI mode, date, and print button. Receipt was not opened in a browser and print layout was not checked.
+Evidence: ../../automated_tests/stage4_api_execution_20261115.txt
+
+
+Stage 5 retest: PASS (2026-11-15). Receipt was requested after the 400.00 UPI partial payment, with payment number/amount/mode/date verified. HTML was opened in Edge and printed to PDF; the rendered page was visually checked and showed the required fields. Two persisted receipt numbers were unique.
+Evidence: ../../automated_tests/stage5_api_execution_20261115.txt; ../../automated_tests/stage5_receipt_render_final_20261115.png; ../../automated_tests/stage5_receipt_print_output_20261115.pdf; ../../automated_tests/stage5_receipt_print_render_20261115.png.

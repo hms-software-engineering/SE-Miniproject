@@ -1,6 +1,10 @@
 TC-PORT-01 — PARTIAL
 Execution date: 2026-11-15
 Tester: Dhruv Swatantramath (PES1UG24CS155)
-Actual observation: Fresh current-worktree Windows build succeeded and CTest plus PostgreSQL integration CTest each passed 7/7. Stage 3 TLS/API smoke completed successfully on Windows. Ubuntu 22.04 was unavailable; WSL returned E_ACCESSDENIED. Evidence: ../../automated_tests/stage3_fresh_windows_build_test_20261115.log; ../../automated_tests/stage3_ctest_20261115.log; ../../automated_tests/stage3_api_execution_20261115.txt.
+Actual observation: Fresh Stage 5 current-worktree Windows clang-cl/Ninja build succeeded and CTest plus PostgreSQL integration CTest each passed 8/8. Stage 3 TLS/API smoke completed successfully on Windows. Ubuntu 22.04 was unavailable; WSL returned E_ACCESSDENIED. Evidence: ../../automated_tests/stage5_coverage_build_20261115.log; ../../automated_tests/stage5_coverage_ctest_20261115.log; ../../automated_tests/stage5_coverage_postgresql_ctest_20261115.log; ../../automated_tests/stage5_api_execution_20261115.txt.
 Full Appendix A procedure completed: No.
 No patient identifiers, credentials or real clinical data were used.
+
+
+Stage 9 recheck (2026-11-16): Still PARTIAL. Visual Studio Build Tools 18/MSVC 14.51.36231 is installed; no MSVC v142 toolset was found. WSL reports both WSL1 and WSL2 unsupported because required Windows virtualization components are disabled. The existing CI Ubuntu 22.04 job is present, but the Windows CI job uses MSYS2/MinGW and the workflow was not run on the dirty local Stage 9 tree. No official Windows 11/MSVC 2019 + Ubuntu 22.04/GCC 11 pair was verified. See ../../automated_tests/stage9/readiness_assessment.md.
+Stage 10 recheck (2026-11-16): Still PARTIAL. No Windows 11/MSVC 2019 v142 build or Ubuntu 22.04/GCC 11 build/smoke test was run. Local MSVC is 14.51; WSL is unavailable. Existing CI's Windows job is MSYS2/MinGW. No approved matching runner was exposed through the available read-only repository connection; no changes were published or CI rerun. Details: ../../automated_tests/stage10/environment_and_results.md.

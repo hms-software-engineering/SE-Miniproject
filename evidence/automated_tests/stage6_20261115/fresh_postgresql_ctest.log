@@ -1,0 +1,27 @@
+﻿Date=2026-11-16 10:33:43 +05:30
+Command=ctest --test-dir <fresh Stage 6 build> -C Debug --output-on-failure --timeout 60
+Database=isolated hms_stage6_api_run2 at 127.0.0.1:55432; PostgreSQL 17.11
+Integrations=HMS_AUTH_TEST_POSTGRES=1; HMS_PATIENT_TEST_POSTGRES=1
+KeyMaterial=randomized test key strings, values omitted
+ExitCode=0
+Test project C:/Users/dhruv/AppData/Local/Temp/hms-stage6-fresh-build-20261116
+    Start 1: api_test
+1/8 Test #1: api_test .........................   Passed    0.22 sec
+    Start 2: appointments_test
+2/8 Test #2: appointments_test ................   Passed    0.10 sec
+    Start 3: auth_service_test
+3/8 Test #3: auth_service_test ................   Passed    5.30 sec
+    Start 4: password_security_test
+4/8 Test #4: password_security_test ...........   Passed    1.19 sec
+    Start 5: patient_service_test
+5/8 Test #5: patient_service_test .............   Passed    0.22 sec
+    Start 6: clinical_service_test
+6/8 Test #6: clinical_service_test ............   Passed    0.08 sec
+    Start 7: billing_service_test
+7/8 Test #7: billing_service_test .............   Passed    0.08 sec
+    Start 8: health_test
+8/8 Test #8: health_test ......................   Passed    0.09 sec
+
+100% tests passed, 0 tests failed out of 8
+
+Total Test time (real) =   7.32 sec

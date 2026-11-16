@@ -4,3 +4,7 @@ Tester: Dhruv Swatantramath (PES1UG24CS155)
 Actual observation: TC-BIL-01 produced no bill because bill creation returned 501. The payment endpoint also returned 501; the required payment amounts, overpayment handling, and bill balance could not be tested without an unpaid bill. Evidence: ../../automated_tests/stage3_api_execution_20261115.txt.
 Full Appendix A procedure completed: No.
 No patient identifiers, credentials or real clinical data were used.
+
+
+Stage 4 retest: PASS (2026-11-15). 400.00 partial UPI payment left balance 440.00; 500.00 overpayment returned 409 without a payment row; final 440.00 payment set balance to zero and bill status Paid. Database contained two payments totaling 840.00.
+Evidence: ../../automated_tests/stage4_api_execution_20261115.txt

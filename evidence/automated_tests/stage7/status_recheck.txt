@@ -1,0 +1,28 @@
+﻿HMS Stage 7 status recheck
+Checked=2026-11-16 11:08:32 +05:30
+Repository=C:/Users/dhruv/Downloads/HMS-Team-Repo
+Branch=feature/HMS-F-060-user-account-management
+HEAD=010bdf2849c73f0ad26be266f64e6a57d213bef6
+WorkingTree=Preserved; pre-existing modified and untracked files remain; no staging or Git history operations performed
+SourceChangesThisRecheck=None
+Stage6AssignedResults=14 PASS; 1 FAIL; 3 BLOCKED; 2 PARTIAL; 20 total; 70% complete-procedure pass rate
+DiffCheck=git diff --check passed before this evidence/report-only update
+
+Environment discovery
+CMake=4.3.1-msvc1 (Visual Studio 18 bundled binary)
+Ninja=1.13.2 (Visual Studio 18 bundled binary)
+Clang=23.1.5 (installed; not the official Windows MSVC 2019 compiler)
+Qt6=Not found at C:/Qt or C:/Program Files/Qt; Stage 6 CMake recorded Qt6_DIR-NOTFOUND
+Ubuntu22_04=Not executable locally; WSL reports WSL1 unsupported and WSL2 VM prerequisites unavailable
+CI=.github/workflows/ci.yml has ubuntu-22.04 and windows-latest; Windows installs MSYS2 UCRT64 MinGW, not MSVC 2019. Workflow was not run because the dirty Stage 7 source state is not pushed and this task forbids pushing.
+DeploymentEnvironment=No HMS_/PGHOST/PGPORT/PGDATABASE/PGUSER variables found in the inspected current process environment. This is not proof that no configuration exists elsewhere.
+
+Result and limitations
+No application code or tests changed in this recheck, and no new assigned procedure was executed. Existing Stage 6 results remain the latest verified results. No statuses are promoted.
+TC-MNT-01 remains FAIL: Stage 6 clinical line coverage 6.70%, billing 37.14%, route src/main.cpp last usable measurement 57.78%, appointments 61.46%; user instruction says stop low-value tests if clinical remains substantially below 70%.
+TC-PORT-01 remains PARTIAL: official MSVC 2019 and Ubuntu 22.04/GCC 11 platform pair has not been tested.
+TC-SEC-04 remains PARTIAL: no Qt6 client build or rendering test; SQL injection and static-analysis evidence remains Stage 6 evidence.
+TC-REL-01 remains BLOCKED: manual isolated encrypted restore drill passed, but no real HMS staging database/approved storage/task identity was configured for daily scheduling.
+TC-AVL-01 remains BLOCKED: monitor script is prepared, but no trusted staging HTTPS readiness endpoint was supplied and no seven-day observations exist.
+TC-USA-01 remains BLOCKED: no five trained receptionist sessions or genuine timings are available.
+Required external inputs: (1) staging database connection configuration, protected credential file, approved separate backup storage path, and scheduled-task account; (2) trusted staging HTTPS /api/v1/health URL reachable continuously for seven days; (3) availability of five actual trained receptionists for the dummy-data usability protocol; (4) access to Windows 11/MSVC 2019 and Ubuntu 22.04/GCC 11 runners or permitted CI execution on the actual Stage 7 source revision; (5) Qt6 Widgets/Network deployment package or approved installation path for the desktop XSS rendering procedure.

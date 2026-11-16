@@ -5,3 +5,6 @@ Actual observation: Audit rows recorded tested login, user, visit, and patient-u
 Evidence: ../../automated_tests/stage3_api_execution_20261115.txt
 Full Appendix A procedure completed: No.
 Synthetic test data only; credentials, tokens, password hashes, and real clinical data are excluded.
+
+Stage 4 retest: PASS (2026-11-15). Successful direct patient-record GET wrote one VIEW_PATIENT audit row; non-administrator audit read returned 403 and synthetic clinical note text was absent from audit IDs.
+Evidence: ../../automated_tests/stage4_api_execution_20261115.txt
