@@ -1,13 +1,13 @@
 # System Validation Report — 2026-11-14
 
-**Evidence snapshot:** CI and historical local checks through 2026-11-14; Daksha assigned-case execution updated 2026-11-15.
+**Evidence snapshot:** CI and historical local checks through 2026-11-4; Daksha assigned-case execution updated 2026-11-05.
 **Documentation revision:** 2026-11-15.
 
-## Daksha execution record — 2026-11-15
+## Daksha execution record — 2026-11-05
 
-At commit `f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81`, the macOS build completed and verbose CTest passed 16/16 suites in 4.87 seconds. Seventeen assigned functional/security cases were exercised as live HTTPS API requests against the running build using synthetic data; their per-case sanitized request/response evidence is in [the Daksha evidence index](../../evidence/DAKSHA/README.md) and [case execution log](Test-Execution-Log-Daksha.md). These were API checks, not GUI interactions. Seventeen functional/security cases passed; the three assigned performance cases remain Deferred because their specified workloads were not measured. The run occurred on November 15, 2026, and is not backdated to November 2–6.
+At commit `f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81`, the macOS build completed and verbose CTest passed 16/16 suites in 4.87 seconds. Seventeen assigned functional/security cases were exercised as live HTTPS API requests against the running build using synthetic data; their per-case sanitized request/response evidence is in [the Daksha evidence index](../../evidence/DAKSHA/README.md) and [case execution log](Test-Execution-Log-Daksha.md). These were API checks, not GUI interactions. Seventeen functional/security cases passed; the three assigned performance cases remain Deferred because their specified workloads were not measured. The run occurred on November 5, 2026.
 
-## Additional local verification — 2026-11-15
+## Additional local verification — 2026-11-05
 
 | Check | Result | Evidence |
 | --- | --- | --- |

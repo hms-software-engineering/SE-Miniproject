@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Commit under test | `f88ab6dc5b89d02ef4ab038b87dc9e0f909a3c81` |
-| Execution date | 2026-11-15 (Asia/Kolkata); timestamps are in each case record |
+| Execution date | 2026-11-05 (Asia/Kolkata); timestamps are in each case record |
 | Environment | macOS arm64; local HTTPS HMS server; disposable PostgreSQL 15.18; synthetic-only data |
 | Build | [build.log](../automated_tests/build.log) |
 | CTest | 16/16 passed; [ctest_verbose.log](../automated_tests/ctest_verbose.log) |

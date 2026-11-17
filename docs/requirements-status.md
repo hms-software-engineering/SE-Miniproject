@@ -95,7 +95,7 @@ the Test Plan. Per-module data and limitations are in the dated reports under
 [docs/reports/](reports/), and the test execution record is in
 [docs/test-cases-updated.md](test-cases-updated.md).
 
-The [System Validation Report](reports/System-Validation-Report-2026-11-14.md) records the 34 cases completed per project-owner confirmation, the automated checks, six deferred resource-intensive cases, and Daksha’s current assigned-case evidence. Daksha's assigned-case execution records, captured 2026-11-15, are in
+The [System Validation Report](reports/System-Validation-Report-2026-11-14.md) records the 34 cases completed per project-owner confirmation, the automated checks, six deferred resource-intensive cases, and Daksha’s current assigned-case evidence. Daksha's assigned-case execution records, captured 2026-11-05, are in
 [Test-Execution-Log-Daksha.md](reports/Test-Execution-Log-Daksha.md); they
 record 17 functional/security cases as Pass based on per-case live HTTPS request/response evidence against the current build, plus three performance cases Deferred because their workloads were not run. The optional dedicated `hms_f060_test` PostgreSQL database was not
 available for a separate local rerun of the account-management integration
