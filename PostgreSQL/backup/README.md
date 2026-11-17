@@ -29,7 +29,7 @@ $register = @{
 & .\PostgreSQL\backup\Register-HmsDailyBackupTask.ps1 @register
 ```
 
-After registration, confirm the task principal, trigger, last result, and log. Then restore one archive to a newly created, empty disposable PostgreSQL database using the same Windows account and DPAPI profile. Compare application-level row counts/checksums and measure the restore against the four-hour RTO before marking TC-REL-01 PASS.
+After registration, confirm the task principal, trigger, last result, and log. Then restore one archive to a newly created, empty disposable PostgreSQL database using the same Windows account and DPAPI profile. Compare application-level row counts/checksums and measure the restore against the four-hour RTO before marking the operational backup and recovery procedure verified.
 
 ## Stage 6 verification and limits
 
