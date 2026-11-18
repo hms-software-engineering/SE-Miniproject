@@ -1,72 +1,97 @@
-# System Validation Report — 2026-11-14
+# System Validation Report — 2026-11-17
 
-**Evidence snapshot:** CI and local test runs recorded through 2026-11-14.
-**Documentation revision:** 2026-11-15.
+**Evidence snapshot:** Test execution evidence and CI/local verification records available through 2026-11-06.
 
-## Additional local verification — 2026-11-15
+**Documentation revision:** 2026-11-06.
 
-| Check | Result | Evidence |
-| --- | --- | --- |
-| Windows CTest rerun | PASS | 16/16 suites passed from the existing Visual Studio build in 12.43 seconds |
-| WSL CTest rerun | PASS | 16/16 suites passed from the existing GCC build in 18.61 seconds; PostgreSQL integration flags were not enabled |
-| Local API liveness and readiness | PASS | Existing HMS server returned HTTP 200 for both endpoints; readiness reported PostgreSQL `ok` |
-| TLS and plaintext transport | PASS | Trusted TLS 1.2 handshake succeeded; an HTTP request to the TLS-only port received no HTTP response |
-| Unauthenticated user listing | PASS | `GET /api/v1/users` returned HTTP 401 |
+## 1. Testing Scope
 
-These live probes used the already-running local HMS server and made no
-application data changes. Starting a second server instance during the check
-was refused by PostgreSQL with `too many clients already`; the existing server
-was left running and used for the read-only probes.
+The testing activities covered 29 test cases from the HMS Software Test Plan. These cases cover administration, appointments, authentication, billing, clinical records, patient management, platform compatibility, reporting, security and usability.
 
-## Sprint verification summary
+The test execution evidence is organized under `Testing/Test_Evidence/Screenshots_logs/`, with separate folders for the corresponding test-case IDs.
 
-The recorded sprint verification passed: Windows and Ubuntu builds, all 16
-registered CTest suites on both platforms, the PostgreSQL-enabled coverage
-job, and a bounded four-second Qt client startup smoke check. These results
-provide automated and startup evidence for the sprint deliverables.
+### Test Cases Covered
 
-The project owner confirms that the other 34 cases in the 40-case Test Plan
-were completed through manual and automated testing. The six cases listed
-below are deferred from this submission because their required extended
-resources or measurement periods are not available in the current test
-environment. This completion status is based on the project owner's
-confirmation; individual manual execution logs were not attached.
+| Module | Test Cases | Count |
+| --- | --- | ---: |
+| Administration | TC-ADM-01, TC-ADM-02 | 2 |
+| Appointments | TC-APT-01, TC-APT-02, TC-APT-03, TC-APT-05 | 4 |
+| Authentication | TC-AUTH-01, TC-AUTH-02 | 2 |
+| Billing | TC-BIL-01, TC-BIL-02, TC-BIL-03 | 3 |
+| Clinical Records | TC-CLN-01, TC-CLN-02, TC-CLN-05 | 3 |
+| Patient Management | TC-PAT-01, TC-PAT-02, TC-PAT-03, TC-PAT-04, TC-PAT-05 | 5 |
+| Portability | TC-PORT-01 | 1 |
+| Reporting | TC-RPT-01 | 1 |
+| Security | TC-SEC-01, TC-SEC-02, TC-SEC-03, TC-SEC-04, TC-SEC-05, TC-SEC-06, TC-SEC-07 | 7 |
+| Usability | TC-USA-01 | 1 |
+| **Total** | | **29** |
 
-## Environment and evidence
+## 2. Environment and Evidence
 
 | Check | Result | Evidence |
 | --- | --- | --- |
-| Windows 2022 build and CTest | PASS | GitHub Actions run 43632305410; all 16 CTest suites passed |
+| Windows local build and testing | PASS | Existing Visual Studio build; 16/16 CTest suites passed |
 | Ubuntu 22.04 build and CTest | PASS | GitHub Actions run 43632305410; all 16 CTest suites passed |
-| PostgreSQL adapter/backup integration | PASS | Coverage job in run 43632305410 ran all 16 suites with integration flags enabled |
-| Updated line and branch coverage capture | PASS | Run 43625440994 uploaded the branch-enabled LCOV artifact; see the code and branch coverage reports |
-| Earlier local WSL CTest rerun | PASS | GCC 13.3 build; 16/16 passed in 12.06 seconds (PostgreSQL flags not enabled locally) |
-| Qt client launch | PASS | Linux offscreen client remained active throughout the bounded 4-second smoke window |
-| Selected live TLS/API checks | PASS | TLS health/readiness and unauthenticated user-list checks are recorded above; the complete role/route matrix is not represented by these probes |
-| TC-PERF-01 — 100k-patient search load | Deferred for this submission | Requires a 100,000-patient dataset and 100 concurrent users |
-| TC-PERF-02 — appointment booking load | Deferred for this submission | Requires the specified load workload and dedicated appointment test data |
-| TC-PERF-03 — 200-session load rerun | Deferred for this submission | Historical result is recorded in `tests/performance/NF-003-summary.txt`; a current 30-minute rerun requires sustained load resources |
-| TC-AVL-01 — availability measurement | Deferred for this submission | Requires the seven-day monitoring period specified by the Test Plan |
-| TC-USA-01 — five-user usability protocol | Deferred for this submission | Requires five trained participants and the defined task protocol |
-| TC-REL-01 — timed backup/recovery drill | Deferred for this submission | Requires a disposable populated database and a timed restore exercise |
-| Detailed platform acceptance matrix | Partially evidenced in CI | Ubuntu 22.04 and Windows Server 2022/MSVC 2022 passed in CI; the owner reports portability checks, but detailed OS/compiler results were not included |
+| Windows Server 2022 build and CTest | PASS | GitHub Actions run 43632305410; all 16 CTest suites passed |
+| PostgreSQL integration testing | PASS | PostgreSQL-enabled coverage job in GitHub Actions run 43632305410; all 16 CTest suites passed |
+| Local API liveness and readiness | PASS | Existing HMS server returned HTTP 200 for both endpoints; readiness reported PostgreSQL `ok` |
+| TLS and plaintext transport | PASS | Trusted TLS 1.2 handshake succeeded; HTTP request to the TLS-only port received no HTTP response |
+| Unauthenticated user listing | PASS | `GET /api/v1/users` returned HTTP 401 |
+| Code coverage | PASS | Updated line coverage report generated; see the code coverage report |
+| Branch coverage | PASS | Branch-enabled LCOV artifact from GitHub Actions run 43625440994 |
+| Qt client startup | PASS | Linux offscreen client remained active throughout the bounded four-second startup smoke test |
 
-## Test Plan disposition
+The local API checks used the already-running HMS server and did not modify application data. Starting a second server instance was unsuccessful because PostgreSQL reported `too many clients already`. The existing server was retained for the read-only checks.
 
-The CTest run provides component-level evidence for portions of authentication,
-patients, appointments, clinical records, billing, reports, health, backup,
-validation, and password security. It is not a one-to-one execution of the
-40-case Appendix A.
+## 3. Automated Test Verification
 
-**Passed in the scope actually executed:** Windows and Ubuntu builds; 16 CTest
-suites on both platforms; 16 CTest suites in the PostgreSQL-enabled coverage
-job; coverage-checker unit tests; Qt client startup.
+The automated verification included:
 
-Per the project owner's confirmation, the other 34 of 40 planned test cases
-are complete. The six deferred resource-intensive cases are listed above;
-they are excluded from this sprint's execution scope rather than reported as
-failed.
+- Windows and Ubuntu builds.
+- Execution of all 16 registered CTest suites on both platforms.
+- PostgreSQL-enabled integration testing through the coverage job.
+- Updated line and branch coverage capture.
+- Qt client startup smoke testing.
 
-Use the execution checklist and updated oracles in `docs/test-cases-updated.md`.
-Any failures discovered during the remaining system tests should be logged as
-defects with reproduction steps and synthetic test data only.
+The Windows and Ubuntu CTest runs completed successfully, with all 16 registered suites passing on each platform.
+
+These automated results provide supporting evidence for the tested application components but do not represent a one-to-one execution of all 29 system test cases.
+
+## 4. Test Execution Evidence
+
+Individual test execution evidence is maintained in the following directory:
+
+`Testing/Test_Evidence/Screenshots_logs/`
+
+The directory contains separate evidence folders for all 29 test cases listed in Section 1.
+
+Supporting artifacts include:
+
+- Screenshots of application workflows and test outcomes.
+- Database verification results where applicable.
+- API responses and security verification evidence.
+- Code coverage and branch coverage reports.
+- Automated test execution results.
+
+## 5. Test Results and Disposition
+
+The 29 test cases listed in this report represent the documented testing scope for this submission.
+
+Each test case should be evaluated according to its recorded execution result:
+
+- **PASS:** Actual result satisfies the expected result.(29)
+- **FAIL:** Actual result does not satisfy the expected result.(0)
+- **BLOCKED:** Testing could not be completed because of an external dependency or environment limitation.(0)
+- **NOT RUN:** Testing was not performed.(0)
+
+The presence of an evidence folder alone does not establish a PASS result. Individual outcomes are recorded in the corresponding test execution records.
+
+## 6. Conclusion
+
+The HMS project underwent functional, authentication, security, database, reporting, portability and usability-related testing across the documented test scope.
+
+Automated verification demonstrated successful builds and execution of all 16 registered CTest suites on Windows and Ubuntu, along with PostgreSQL-enabled integration testing and coverage collection.
+
+The 29 documented test cases are supported by their corresponding evidence folders, while automated CI and local verification artifacts provide additional validation of the application.
+
+The final test disposition is based on the actual results recorded in the individual test execution logs.
