@@ -1,9 +1,58 @@
-# Hospital Management System
+# Hospital Management System (HMS)
 
-This repository contains the C++17 HMS API server, Qt 6 desktop client,
-PostgreSQL schema, service tests, and encrypted-backup utility. The requirement
-review and the items that still need operational or UI work are in
+HMS is a patient-record and appointment-management system for a small or
+medium hospital: a C++17 HTTPS/REST API server, a Qt 6 desktop client for staff
+and patients, a PostgreSQL database, and an encrypted-backup utility. It is the
+Group 11 Software Engineering mini-project at PES University.
+
+Project documents (SRS, SAD, Test Plan, test evidence and reports) are listed in
+[Documentation](#documentation). Requirement status and known gaps are in
 [docs/requirements-status.md](docs/requirements-status.md).
+
+## Team
+
+Group 11, Software Engineering (UE24CS341A), Section C, PES University, Bangalore.
+Course instructor: Dr. Ashok Kumar Patil.
+
+| Name | SRN | Role |
+|---|---|---|
+| Navya Suresh | PES1UG24CS904 | Product Owner |
+| Daksha S G | PES1UG24CS137 | QA Lead |
+| Dhruv Swatantramath | PES1UG24CS155 | Developer |
+| Gnanasagar H | PES1UG24CS171 | Test Engineer |
+
+## Architecture and technology stack
+
+Layered client-server design: Qt desktop client, HTTPS/REST API server,
+business services, data-access layer, PostgreSQL.
+
+| Layer | Technology |
+|---|---|
+| Language and build | C++17, CMake 3.20+, vcpkg manifest (`vcpkg.json`) |
+| Desktop client | Qt 6 (Widgets and Network), `hms_client` |
+| API server | Custom socket-based C++ HTTP server with OpenSSL TLS 1.2+ (`src/main.cpp`), `hms_server`; no third-party HTTP server library |
+| JSON | nlohmann/json |
+| Database | PostgreSQL 15 through the libpq C interface; migrations in `PostgreSQL/database/migrations` |
+| Security | Argon2id password hashing, AES-256-GCM field encryption, HMAC blind indexes for patient search, hashed session tokens, role-based access control |
+| Backup | `hms_backup` utility: `pg_dump` archive encrypted with AES-256-GCM |
+| Tests and coverage | GoogleTest/CTest, gcov/lcov, JMeter files and Python/shell load scripts |
+| CI | GitHub Actions (`.github/workflows/ci.yml`): GCC on Ubuntu 22.04, MSVC on Windows |
+
+The API base path is `/api/v1` and the server listens on port 8443 (fixed in
+`src/main.cpp`). Docker Compose is used only to run the development database;
+the server and client run directly on the host.
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `src/` | Server, services, client, backup utility and health code |
+| `include/` | Public headers |
+| `tests/` | GoogleTest suites and `tests/performance/` (JMeter plans, seed tool) |
+| `scripts/` | Load-test and coverage-check scripts |
+| `PostgreSQL/` | `docker-compose.yml`, migrations 001-007, schema tests, `BACKUP-RECOVERY.md` |
+| `docs/` | SRS, SAD, Test Plan, status and deviation notes, reports, test evidence |
+| `requirement assignment/` | Backlog import scripts and `hms_backlog.csv` |
 
 ## Requirements and tools
 
@@ -207,3 +256,50 @@ The executable targets include `hms_server`, `hms_client`, and `hms_backup`.
 The encrypted-backup scheduler is not installed automatically; review
 [PostgreSQL/BACKUP-RECOVERY.md](PostgreSQL/BACKUP-RECOVERY.md) before using it.
 Never use development data or the example secrets for production.
+
+## Running the tests
+
+```sh
+ctest --test-dir build --output-on-failure          # Linux
+ctest --test-dir build -C Release --output-on-failure  # Windows (multi-config generator)
+```
+
+How service-module line and branch coverage is measured, and how the
+PostgreSQL-backed tests are enabled in CI, is described in
+[docs/coverage.md](docs/coverage.md). Load-test helpers are in `scripts/`
+(`run_nf001.sh`, `run_nf003.sh`, `appointment_booking_load_test.py`) and
+`tests/performance/`; they need a running server and a valid bearer token.
+
+## Configuration reference
+
+The server reads these environment variables (see the start-up examples above):
+
+| Variable | Purpose |
+|---|---|
+| `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` | PostgreSQL connection |
+| `HMS_PATIENT_DATA_KEY` | 32-byte key for patient field encryption |
+| `HMS_PATIENT_NAME_INDEX_KEY`, `HMS_PATIENT_PHONE_INDEX_KEY` | Distinct 32-byte keys for the name and phone search indexes |
+| `HMS_BILL_TAX_RATE` | Tax rate applied to new bills, for example `18.00` |
+| `HMS_TLS_CERT_FILE`, `HMS_TLS_KEY_FILE` | PEM certificate and private key; the server will not start without them |
+| `HMS_BOOTSTRAP_ADMIN_USERNAME`, `HMS_BOOTSTRAP_ADMIN_PASSWORD` | First administrator account |
+| `HMS_API_BASE_URL` | Used by the client, for example `https://localhost:8443` |
+
+## Documentation
+
+| Document | Location |
+|---|---|
+| Software Requirements Specification v1.2 | `docs/HMS_SRS_v1.2 (1).pdf` |
+| Software Architecture and Design Specification v1.2 | `docs/HMS_SAD_v1.2 (2).pdf` |
+| Software Test Plan v1.2 | `docs/HMS_Test_Plan_v1.2.pdf` |
+| Original v1.0 baselines | `docs/SRS_Document (1).docx.pdf`, `docs/HMS_Architecture_and_Design_Spec (3).docx.pdf`, `docs/HMS_Test_Plan (2).docx.pdf` |
+| Requirement status and open items | `docs/requirements-status.md` |
+| Recorded design deviations | `docs/deviations.md` |
+| Updated test-case results | `docs/test-cases-updated.md` |
+| Test evidence (screenshots and logs per test case) | `docs/Test_Evidence/Screenshots_logs/<case ID>/` |
+| Testing summary | `docs/Testing_summary.md` |
+| Coverage, unit-test and validation reports | `docs/reports/` |
+| Usability and portability notes | `docs/usability/`, `docs/portability.md` |
+
+The v1.2 SRS and SAD describe the implemented system; the API contract is in
+SAD section 4.3. When a route or payload changes, update the SAD and the Test
+Plan together.
